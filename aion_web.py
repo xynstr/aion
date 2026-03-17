@@ -39,6 +39,7 @@ from aion import (
     _dispatch,
     _build_tool_schemas,
     _build_system_prompt,
+    _get_recent_thoughts,
     _load_character,
     CHARACTER_FILE,
     BOT_DIR,
@@ -80,12 +81,26 @@ _startup_model = _get_model()
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    """Konfiguriertes Modell aus config.json anwenden (nach Plugin-Load)."""
+    """Startup: Modell setzen + Konversationshistorie aus vorheriger Sitzung laden."""
+    global _conversation
     m = _startup_model
     _aion_module.MODEL = m
     if hasattr(_aion_module, "_build_client"):
         _aion_module.client = _aion_module._build_client(m)
     print(f"[AION] Startup-Modell: {m}")
+
+    # Tier 2 → Tier 1: Letzte 50 Nachrichten aus conversation_history.jsonl laden
+    try:
+        result_raw = await _dispatch("memory_read_history", {"num_entries": 50})
+        result = json.loads(result_raw)
+        if result.get("ok") and result.get("entries"):
+            _conversation = result["entries"]
+            print(f"[AION] Erinnerung geladen: {len(_conversation)} Nachrichten aus vorheriger Sitzung.")
+        else:
+            print("[AION] Noch keine frühere Konversationshistorie vorhanden.")
+    except Exception as e:
+        print(f"[AION] History-Load Fehler: {e}")
+
     yield
 
 app = FastAPI(title="AION", lifespan=_lifespan)
@@ -103,8 +118,13 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
     global _conversation
 
     mem_ctx          = memory.get_context(user_input)
+    thoughts_ctx     = _get_recent_thoughts(5)
     system_prompt    = _build_system_prompt()
-    effective_system = system_prompt + ("\n\n" + mem_ctx if mem_ctx else "")
+    effective_system = (
+        system_prompt
+        + ("\n\n" + mem_ctx if mem_ctx else "")
+        + ("\n\n" + thoughts_ctx if thoughts_ctx else "")
+    )
     messages         = _conversation + [{"role": "user", "content": user_input}]
     final_text       = ""
     current_model    = _aion_module.MODEL
@@ -224,18 +244,22 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
 
         _conversation = messages
 
-        # Auto-Memory
+        # Auto-Memory: Tier 3 (Lektionen) + Tier 2 (Konversationshistorie)
         if final_text:
             try:
                 last_user = next(
                     (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
                 )
+                # Tier 3: Episodische Lektion in aion_memory.json
                 memory.record(
                     category="conversation",
                     summary=last_user[:120],
                     lesson=f"Nutzer: '{last_user[:200]}' → AION: '{final_text[:300]}'",
                     success=True,
                 )
+                # Tier 2: Vollständige Nachricht in conversation_history.jsonl
+                await _dispatch("memory_append_history", {"role": "user", "content": last_user})
+                await _dispatch("memory_append_history", {"role": "assistant", "content": final_text})
             except Exception:
                 pass
 

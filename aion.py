@@ -255,6 +255,22 @@ class AionMemory:
 
 memory = AionMemory()
 
+
+def _get_recent_thoughts(n: int = 5) -> str:
+    """Liest die letzten N Gedanken-Einträge aus thoughts.md für Context-Injection."""
+    thoughts_file = BOT_DIR / "thoughts.md"
+    if not thoughts_file.is_file():
+        return ""
+    try:
+        content = thoughts_file.read_text(encoding="utf-8")
+        entries = [e.strip() for e in content.split("---") if e.strip() and "**[" in e]
+        if not entries:
+            return ""
+        recent = entries[-n:]
+        return "[AION LETZTE GEDANKEN — deine eigenen Reflexionen aus früheren Gesprächen]\n" + "\n---\n".join(recent) + "\n[ENDE GEDANKEN]"
+    except Exception:
+        return ""
+
 # ── Externe Tools laden ───────────────────────────────────────────────────────
 
 _plugin_tools: dict = {}
