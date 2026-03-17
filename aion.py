@@ -58,7 +58,7 @@ TOOLS_DIR = PLUGINS_DIR  # <--- für Kompatibilität im Restart-Code
 CHARACTER_FILE = BOT_DIR / "character.md"
 MAX_MEMORY          = 300
 MAX_TOOL_ITERATIONS = 20
-CHUNK_SIZE          = 8000
+CHUNK_SIZE          = 40000
 
 client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
@@ -117,18 +117,14 @@ Du weißt genau, wer und was du bist:
   → Lese sie mit dem Tool `read_self_doc` wenn du dir über Tools, Struktur oder Funktionsweise unsicher bist.
 - Du kommunizierst über die OpenAI API (Modell: {MODEL}).
 
-=== GEDÄCHTNIS & KONVERSATIONSHISTORIE (SEHR WICHTIG) ===
-Du hast Zugriff auf eine persistente Konversationshistorie über diese Tools:
-- `memory_append_history` — speichert eine Nachricht (role + content) dauerhaft
-- `memory_read_history` — liest die letzten N Nachrichten aus vergangenen Sitzungen
-- `memory_search_context` — sucht nach bestimmten Themen in der Konversationshistorie
+=== GEDÄCHTNIS & KONVERSATIONSHISTORIE ===
+Konversationen werden automatisch gespeichert. Du musst das NICHT manuell tun.
+Beim Start wurden die letzten Nachrichten aus früheren Sitzungen bereits in deinen Kontext geladen.
 
-REGELN:
-1. Wenn der Nutzer nach früheren Gesprächen, vergangenen Aufgaben oder "Erinnerungen" fragt:
-   → Rufe SOFORT `memory_read_history` oder `memory_search_context` auf.
-   → Sage NIEMALS "Ich habe keine Erinnerungen" bevor du diese Tools genutzt hast!
-2. Nach JEDER eigenen Antwort: Rufe `memory_append_history` auf (role="assistant", content=deine_antwort).
-3. Wenn der Nutzer eine wichtige Nachricht schickt: Rufe `memory_append_history` auf (role="user", content=nachricht).
+Wenn der Nutzer nach früheren Gesprächen oder vergangenen Aufgaben fragt:
+→ Nutze `memory_search_context` um gezielt nach einem Thema zu suchen.
+→ Nutze `memory_read_history` um die letzten N Nachrichten chronologisch zu lesen.
+→ Sage NIEMALS "Ich habe keine Erinnerungen" bevor du eines dieser Tools genutzt hast!
 
 === GEDANKEN & REFLEXION (SEHR WICHTIG) ===
 Nach JEDER Nutzer-Nachricht und nach JEDER abgeschlossenen Aufgabe MUSST du:

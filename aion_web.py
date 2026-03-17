@@ -89,9 +89,10 @@ async def _lifespan(app: FastAPI):
         _aion_module.client = _aion_module._build_client(m)
     print(f"[AION] Startup-Modell: {m}")
 
-    # Tier 2 → Tier 1: Letzte 50 Nachrichten aus conversation_history.jsonl laden
+    # Tier 2 → Tier 1: Letzte 20 Nachrichten aus conversation_history.jsonl laden
+    # (bewusst klein gehalten — jede Nachricht belastet jeden API-Call)
     try:
-        result_raw = await _dispatch("memory_read_history", {"num_entries": 50})
+        result_raw = await _dispatch("memory_read_history", {"num_entries": 20})
         result = json.loads(result_raw)
         if result.get("ok") and result.get("entries"):
             _conversation = result["entries"]
