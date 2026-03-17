@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -77,16 +78,17 @@ def _set_model(model: str):
 
 _startup_model = _get_model()
 
-app = FastAPI(title="AION")
-
-@app.on_event("startup")
-async def _apply_startup_model():
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
     """Konfiguriertes Modell aus config.json anwenden (nach Plugin-Load)."""
     m = _startup_model
     _aion_module.MODEL = m
     if hasattr(_aion_module, "_build_client"):
         _aion_module.client = _aion_module._build_client(m)
     print(f"[AION] Startup-Modell: {m}")
+    yield
+
+app = FastAPI(title="AION", lifespan=_lifespan)
 
 _conversation: list[dict] = []
 
@@ -228,12 +230,12 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
                 last_user = next(
                     (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
                 )
-                await _dispatch("memory_record", {
-                    "category": "conversation",
-                    "summary":  last_user[:120],
-                    "lesson":   f"Nutzer: '{last_user[:200]}' → AION: '{final_text[:300]}'",
-                    "success":  True,
-                })
+                memory.record(
+                    category="conversation",
+                    summary=last_user[:120],
+                    lesson=f"Nutzer: '{last_user[:200]}' → AION: '{final_text[:300]}'",
+                    success=True,
+                )
             except Exception:
                 pass
 
