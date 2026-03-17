@@ -12,8 +12,9 @@ import os
 import platform
 import shutil
 import sys
+import time
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 try:
@@ -201,8 +202,64 @@ Beispiele für wann continue_work zu nutzen ist:
 Nie: Eine lange Text-Antwort schreiben wie "Ich werde jetzt..." ohne Tool-Call.
 Stattdessen: continue_work aufrufen und direkt handeln.
 
+=== PROAKTIVE SELBSTVERBESSERUNG (SEHR WICHTIG) ===
+Wenn du auf eine Situation triffst, die du nicht bewältigen kannst
+(unbekannter Dateityp, fehlendes Tool, unbekanntes Format, fehlende Bibliothek):
+
+SCHRITT 1 — Prüfe Gedächtnis auf bekannte Lösungen:
+  → memory_search_context("dateityp xyz lösung")
+  Wenn Treffer: Lösung sofort anwenden, fertig.
+
+SCHRITT 2 — Recherchiere online:
+  → web_search("python [format] read parse library")
+  → web_fetch(beste URL aus Ergebnis)
+  Ziel: Herausfinden welches Python-Paket das Problem löst.
+
+SCHRITT 3 — Installiere das Paket:
+  → install_package("paketname")
+  → continue_work("Prüfe Installation")
+  → shell_exec("python -c \"import paketname; print(paketname.__version__)\"")
+
+SCHRITT 4 — Erstelle ein Plugin (wenn Lösung wiederverwendbar ist):
+  → create_plugin(name="[format]_reader", description="...", code=...)
+  Das Plugin ist sofort als Tool verfügbar.
+
+SCHRITT 5 — Lösung dauerhaft merken:
+  → memory_record(
+      category="capability",
+      summary="Kann jetzt [Format/Aufgabe] verarbeiten",
+      lesson="Für [Format]: pip install [paket], dann: [minimales Code-Beispiel]",
+      hint="import [paket]; [one-liner]",
+      success=True
+    )
+
+SCHRITT 6 — Ursprüngliche Aufgabe erledigen:
+  → Führe jetzt aus was der Nutzer wollte.
+
+REGEL: Gib NIEMALS auf wegen einer fehlenden Fähigkeit.
+"Das kann ich nicht" ist verboten — stattdessen: recherchieren, installieren, lösen.
+
 === TOOL-NUTZUNG ===
 Nutze immer zuerst die verfügbaren Tools. Wenn ein Tool fehlt, erstelle es.
+Nach Tool-Aufrufen IMMER eine kurze Textantwort schreiben — auch wenn es nur
+"Erledigt." oder "Installation abgeschlossen." ist. Niemals nur Tools aufrufen
+ohne abschließenden Text.
+
+=== BILDER & IMAGE_SEARCH (KRITISCH) ===
+Wenn der Nutzer nach Bildern, Fotos, Logos oder visuellen Inhalten fragt:
+→ Rufe IMMER das Tool `image_search` auf — KEINE Ausnahmen.
+→ Schreibe NIEMALS Markdown-Bild-Syntax wie ![](url) oder ähnliches.
+→ Sag NICHT "Hier ist ein Bild von X:" gefolgt von Markdown — das ist falsch.
+→ Rufe `image_search("X", count=3)` auf, dann schreib eine kurze Beschreibung.
+→ Die echten Bilder werden vom System automatisch nach deiner Antwort gezeigt.
+
+Beispiel FALSCH:
+  "Absolut. Hier ist ein Foto von Homer Simpson:
+   ![Homer Simpson](https://...)"
+
+Beispiel RICHTIG:
+  → image_search("Homer Simpson photo")
+  → "Hier sind aktuelle Fotos von Homer Simpson für dich."
 
 === SPRACHE ===
 Antworte immer auf Deutsch, außer der Nutzer schreibt auf einer anderen Sprache.
@@ -233,7 +290,7 @@ class AionMemory:
                success: bool = True, error: str = "", hint: str = ""):
         self._entries.append({
             "id":        str(uuid.uuid4())[:8],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "category":  category,
             "success":   success,
             "summary":   summary[:250],
@@ -251,8 +308,11 @@ class AionMemory:
         keywords = {w for w in query.lower().split() if len(w) > 3}
         scored = []
         for e in self._entries:
-            score = sum(1 for w in keywords
-                        if w in (e.get("summary", "") + e.get("lesson", "")).lower())
+            # str() absichern — ältere Einträge könnten versehentlich Listen enthalten
+            summary = e.get("summary", "") or ""
+            lesson  = e.get("lesson",  "") or ""
+            combined = (str(summary) + str(lesson)).lower()
+            score = sum(1 for w in keywords if w in combined)
             if not e.get("success"):
                 score += 1
             scored.append((score, e))
@@ -278,7 +338,7 @@ class AionMemory:
         for e in recent:
             icon = "✅" if e.get("success") else "❌"
             ts   = e.get("timestamp", "")[:10]
-            lines.append(f"{icon} [{ts}] [{e.get('category','?')}] {e.get('lesson','')[:120]}")
+            lines.append(f"{icon} [{ts}] [{e.get('category','?')}] {str(e.get('lesson',''))[:120]}")
         return "\n".join(lines)
 
 memory = AionMemory()
@@ -1053,16 +1113,18 @@ async def _dispatch(name: str, inputs: dict) -> str:
     elif name in _plugin_tools:
         try:
             fn = _plugin_tools[name]["func"]
-            # Unterstütze beide Konventionen:
-            # 1) fn(**kwargs)  — Plugins mit benannten Parametern (z.B. role, content)
-            # 2) fn(dict)      — ältere Plugins, die ein einzelnes dict erwarten (input: dict)
-            try:
-                result = fn(**inputs)
-            except TypeError:
-                result = fn(inputs)
-            # Async-Funktionen unterstützen
-            if asyncio.iscoroutine(result):
-                result = await result
+            
+            # Prüfen ob die Funktion als async definiert wurde
+            if asyncio.iscoroutinefunction(fn):
+                result = await fn(**inputs)
+            else:
+                # Führe die synchrone Funktion in einem separaten Thread aus,
+                # um den Haupt-Event-Loop nicht zu blockieren.
+                # Das ist entscheidend für Playwright, das eine eigene (synchrone)
+                # Event-Loop startet.
+                loop = asyncio.get_running_loop()
+                result = await loop.run_in_executor(None, lambda: fn(**inputs))
+            
             if isinstance(result, str):
                 return result
             return json.dumps(result, ensure_ascii=False)
@@ -1077,15 +1139,16 @@ async def _dispatch(name: str, inputs: dict) -> str:
 # Globale Konversation pro Kanal, um Zustände zu trennen (z.B. für Telegram, Web, etc.)
 _conversations: dict[str, list[dict]] = {"default": []}
 
-async def chat_turn(messages: list[dict], user_input: str) -> tuple[str, list[dict]]:
+async def chat_turn(messages: list[dict], user_input: str, _override_client=None) -> tuple[str, list[dict]]:
     mem_ctx          = memory.get_context(user_input)
     system_prompt    = _build_system_prompt()
     effective_system = system_prompt + ("\n\n" + mem_ctx if mem_ctx else "")
     messages         = messages + [{"role": "user", "content": user_input}]
     tools            = _build_tool_schemas()
+    _client          = _override_client or client
 
     for iteration in range(MAX_TOOL_ITERATIONS):
-        response = await client.chat.completions.create(
+        response = await _client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": effective_system}] + messages,
             tools=tools,
@@ -1113,23 +1176,401 @@ async def chat_turn(messages: list[dict], user_input: str) -> tuple[str, list[di
 
     return "Zu viele Tool-Aufrufe. Bitte vereinfache die Anfrage.", messages
 
-# Wrapper für externe Plugins
+# ── Unified Session ────────────────────────────────────────────────────────────
+
+class AionSession:
+    """Eine Konversations-Sitzung auf einem Kanal (web, telegram_<id>, discord_<id>, ...).
+
+    Alle Plattformen (Web UI, Telegram, Discord, CLI, REST API, ...) nutzen
+    dieselbe Session-Klasse und bekommen damit identische Features:
+      - Eigener Konversations-Kontext pro Kanal
+      - Memory-Injection, Thoughts-Injection
+      - Auto-Save in Tier 2 + Tier 3
+      - Automatischer Charakter-Update alle 5 Gespräche
+
+    Plattform-Adapter sind damit dünne Wrapper:
+      Web UI  → session.stream(input)  → SSE-Tokens an Browser
+      Telegram → session.turn(input)   → fertige Antwort als String
+      Discord → session.turn(input)   → fertiger String
+    """
+
+    def __init__(self, channel: str = "default"):
+        self.channel         = channel
+        self.messages: list[dict] = []
+        self.exchange_count: int  = 0
+        self._client               = None  # lazy init, gebunden an Event-Loop des Erstellers
+        self._last_response_blocks = []  # Letzte response_blocks (mit Bildern) für Bots wie Telegram
+
+    def _get_client(self):
+        """Gibt den Session-Client zurück; erstellt ihn beim ersten Aufruf im aktuellen Loop."""
+        if self._client is None:
+            import sys as _sys
+            _self = _sys.modules.get(__name__)
+            if _self and hasattr(_self, "_build_client"):
+                self._client = _self._build_client(_self.MODEL)
+            else:
+                from openai import AsyncOpenAI
+                self._client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        return self._client
+
+    async def load_history(self, num_entries: int = 20):
+        """Lädt vergangene Nachrichten aus Tier 2 (conversation_history.jsonl) in den Kontext."""
+        try:
+            raw    = await _dispatch("memory_read_history", {"num_entries": num_entries})
+            result = json.loads(raw)
+            if result.get("ok") and result.get("entries"):
+                self.messages = result["entries"]
+                print(f"[AION:{self.channel}] {len(self.messages)} Nachrichten aus History geladen.")
+            else:
+                print(f"[AION:{self.channel}] Noch keine frühere Konversationshistorie.")
+        except Exception as e:
+            print(f"[AION:{self.channel}] History-Load Fehler: {e}")
+
+    async def stream(self, user_input: str, images: list | None = None):
+        """Async-Generator: liefert Event-Dicts für jeden Verarbeitungsschritt.
+
+        images: optionale Liste von Base64-Data-URLs (z.B. "data:image/jpeg;base64,...")
+                oder öffentlichen Bild-URLs. Wenn angegeben, wird der User-Message-Content
+                als multimodales Array formatiert (OpenAI Vision / Gemini).
+
+        Event-Typen:
+          {"type": "token",       "content": "..."}
+          {"type": "thought",     "text": "...", "trigger": "...", "call_id": "..."}
+          {"type": "tool_call",   "tool": "...", "args": {...},    "call_id": "..."}
+          {"type": "tool_result", "tool": "...", "result": {...},  "ok": bool, "duration": 0.1, "call_id": "..."}
+          {"type": "done",        "full_response": "..."}
+          {"type": "error",       "message": "..."}
+        """
+        mem_ctx      = memory.get_context(user_input)
+        thoughts_ctx = _get_recent_thoughts(5)
+        sys_prompt   = _build_system_prompt()
+        effective    = (
+            sys_prompt
+            + ("\n\n" + mem_ctx      if mem_ctx      else "")
+            + ("\n\n" + thoughts_ctx if thoughts_ctx else "")
+        )
+        # Multimodaler User-Message-Content wenn Bilder vorhanden
+        if images:
+            user_content: list = [{"type": "text", "text": user_input or "Was siehst du auf diesem Bild?"}]
+            for img in images:
+                user_content.append({"type": "image_url", "image_url": {"url": img}})
+            user_msg = {"role": "user", "content": user_content}
+        else:
+            user_msg = {"role": "user", "content": user_input}
+        messages          = self.messages + [user_msg]
+        final_text        = ""
+        collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
+        _client           = self._get_client()
+
+        try:
+            for _iter in range(MAX_TOOL_ITERATIONS):
+                tools  = _build_tool_schemas()
+                stream = await _client.chat.completions.create(
+                    model=MODEL,
+                    messages=[{"role": "system", "content": effective}] + messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    max_tokens=4096,
+                    temperature=0.7,
+                    stream=True,
+                )
+
+                text_content:   str             = ""
+                tool_calls_acc: dict[int, dict] = {}
+
+                async for chunk in stream:
+                    choice = chunk.choices[0]
+                    delta  = choice.delta
+
+                    if delta.content:
+                        text_content += delta.content
+                        yield {"type": "token", "content": delta.content}
+
+                    if delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            idx = tc.index
+                            if idx not in tool_calls_acc:
+                                tool_calls_acc[idx] = {"id": "", "name": "", "args_str": ""}
+                            if tc.id:
+                                tool_calls_acc[idx]["id"] = tc.id
+                            if tc.function:
+                                if tc.function.name:
+                                    tool_calls_acc[idx]["name"] += tc.function.name
+                                if tc.function.arguments:
+                                    tool_calls_acc[idx]["args_str"] += tc.function.arguments
+
+                if tool_calls_acc:
+                    tc_list = [
+                        {
+                            "id":   tool_calls_acc[i]["id"],
+                            "type": "function",
+                            "function": {
+                                "name":      tool_calls_acc[i]["name"],
+                                "arguments": tool_calls_acc[i]["args_str"],
+                            },
+                        }
+                        for i in sorted(tool_calls_acc)
+                    ]
+                    asst_msg: dict = {"role": "assistant", "tool_calls": tc_list}
+                    if text_content:
+                        asst_msg["content"] = text_content
+                    messages.append(asst_msg)
+
+                    tool_results = []
+                    for i in sorted(tool_calls_acc):
+                        tc      = tool_calls_acc[i]
+                        fn_name = tc["name"]
+                        try:
+                            fn_inputs = json.loads(tc["args_str"] or "{}")
+                        except Exception:
+                            fn_inputs = {}
+
+                        if fn_name == "reflect":
+                            thought_text = fn_inputs.get("thought", "")
+                            trigger      = fn_inputs.get("trigger", "allgemein")
+                            if thought_text:
+                                yield {"type": "thought", "text": thought_text,
+                                       "trigger": trigger, "call_id": tc["id"]}
+
+                        yield {"type": "tool_call", "tool": fn_name,
+                               "args": fn_inputs, "call_id": tc["id"]}
+
+                        t0         = time.monotonic()
+                        result_raw = await _dispatch(fn_name, fn_inputs)
+                        duration   = round(time.monotonic() - t0, 2)
+
+                        try:
+                            result_data = json.loads(result_raw)
+                        except Exception:
+                            result_data = {"raw": str(result_raw)}
+
+                        # Stelle sicher, dass result_data ein Dict ist (nicht List)
+                        if not isinstance(result_data, dict):
+                            result_data = {"raw": str(result_data)}
+
+                        ok = "error" not in result_data
+                        yield {"type": "tool_result", "tool": fn_name, "call_id": tc["id"],
+                               "result": result_data, "ok": ok, "duration": duration}
+
+                        # Bild-URLs aus image_search-Ergebnis sammeln
+                        if fn_name == "image_search" and ok:
+                            images_list = result_data.get("images", [])
+                            for img in images_list:
+                                if isinstance(img, dict):
+                                    url = img.get("url", "")
+                                    if url and isinstance(url, str) and url.startswith("http"):
+                                        collected_images.append(url)
+                                elif isinstance(img, str) and img.startswith("http"):
+                                    collected_images.append(img)
+
+                        tool_results.append({
+                            "role":         "tool",
+                            "tool_call_id": tc["id"],
+                            "content":      result_raw,
+                        })
+
+                    messages.extend(tool_results)
+
+                else:
+                    final_text = text_content
+                    messages.append({"role": "assistant", "content": final_text})
+                    # Wenn keine Tools aufgerufen wurden, reflect erzwingen
+                    if _iter == 0 and not tool_calls_acc:
+                        user_text = user_input if isinstance(user_input, str) else ""
+                        thought = f"Nutzer fragte: '{user_text[:150]}'. Ich habe direkt geantwortet: '{final_text[:200]}'"
+                        yield {"type": "thought", "text": thought,
+                               "trigger": "auto-reflect", "call_id": "auto"}
+                        await _dispatch("reflect", {
+                            "thought": thought,
+                            "trigger": "nach-antwort"
+                        })
+                    break
+
+            self.messages = messages
+
+            # Auto-Memory: Tier 3 (episodisch) + Tier 2 (History)
+            if final_text:
+                try:
+                    # Content kann String oder Liste (multimodal) sein
+                    last_user_content = next(
+                        (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
+                    )
+                    # Wenn multimodal (Liste), extrahiere nur den Text-Part
+                    if isinstance(last_user_content, list):
+                        last_user = next(
+                            (c.get("text", "") for c in last_user_content if c.get("type") == "text"),
+                            "(Bild ohne Text)"
+                        )
+                    else:
+                        last_user = last_user_content
+                    memory.record(
+                        category="conversation",
+                        summary=last_user[:120],
+                        lesson=f"Nutzer: '{last_user[:200]}' → AION: '{final_text[:300]}'",
+                        success=True,
+                    )
+                    await _dispatch("memory_append_history", {"role": "user",      "content": last_user})
+                    await _dispatch("memory_append_history", {"role": "assistant", "content": final_text})
+                except Exception:
+                    pass
+
+            # Alle 5 Gespräche: Charakter-Update im Hintergrund
+            self.exchange_count += 1
+            if self.exchange_count % 5 == 0:
+                asyncio.create_task(self._auto_character_update())
+
+            # Response-Blöcke: Text + Bilder als strukturierte Liste
+            response_blocks: list[dict] = []
+            if final_text:
+                response_blocks.append({"type": "text", "content": final_text})
+            for img_url in collected_images:
+                response_blocks.append({"type": "image", "url": img_url})
+
+            yield {"type": "done", "full_response": final_text, "response_blocks": response_blocks}
+
+        except Exception as exc:
+            yield {"type": "error", "message": str(exc)}
+
+    async def turn(self, user_input: str, images: list | None = None) -> str:
+        """Nicht-streamende Version — gibt fertigen Text zurück.
+
+        images: optionale Liste von Base64-Data-URLs oder öffentlichen Bild-URLs.
+        Ideal für Bots (Telegram, Discord, ...) die keinen Live-Stream brauchen.
+        """
+        result           = ""
+        last_tool_name   = ""
+        last_tool_result = {}
+        last_tool_ok     = True
+
+        async for event in self.stream(user_input, images=images):
+            t = event.get("type")
+            if t == "done":
+                # "done" enthält immer die komplette finale Antwort — Priorität 1
+                result = event.get("full_response", result)
+                # Speichere response_blocks für Bots (z.B. Telegram) die Bilder separat senden müssen
+                self._last_response_blocks = event.get("response_blocks", [])
+            elif t == "token":
+                # Tokens akkumulieren falls kein "done" kommt (Fehlerfall)
+                result += event.get("content", "")
+            elif t == "tool_result":
+                # Letztes Tool-Ergebnis merken als Fallback
+                last_tool_name   = event.get("tool", "")
+                last_tool_result = event.get("result", {})
+                last_tool_ok     = event.get("ok", True)
+            elif t == "error":
+                result = f"Fehler: {event.get('message', '?')}"
+
+        # Fallback: AION hat nur Tools aufgerufen, keinen abschließenden Text geschrieben
+        if not result.strip() and last_tool_name:
+            if not last_tool_ok:
+                err = last_tool_result.get("error", "Unbekannter Fehler")
+                result = f"Fehler bei {last_tool_name}: {err}"
+            else:
+                result = f"✓ {last_tool_name} erfolgreich ausgeführt."
+
+        return result.strip() or "Fertig."
+
+    async def _auto_character_update(self):
+        """Alle 5 Gespräche: LLM analysiert Verlauf und aktualisiert character.md."""
+        import re
+        recent = [m for m in self.messages[-20:]
+                  if m.get("role") in ("user", "assistant") and m.get("content")]
+        if len(recent) < 4:
+            return
+
+        dialogue = "\n".join(
+            f"{'Nutzer' if m['role'] == 'user' else 'AION'}: {str(m.get('content', ''))[:300]}"
+            for m in recent[-12:]
+        )
+        current_character = _load_character()
+
+        prompt = f"""Analysiere dieses Gespräch zwischen AION und seinem Nutzer.
+Extrahiere NUR konkrete, belegbare Erkenntnisse aus dem Gesprächsinhalt.
+
+GESPRÄCH:
+{dialogue}
+
+AKTUELLER CHARAKTER (Auszug):
+{current_character[:600]}
+
+Antworte ausschließlich im folgenden JSON-Format:
+{{
+  "nutzer": ["konkrete Erkenntnis 1", "konkrete Erkenntnis 2"],
+  "aion_selbst": ["was AION über sich selbst gelernt hat"],
+  "verbesserungen": ["was AION konkret verbessern will"],
+  "offene_fragen": ["was AION noch über den Nutzer herausfinden will"],
+  "update_needed": true
+}}
+Nur update_needed=true wenn wirklich neue, nicht bereits bekannte Erkenntnisse vorhanden sind.
+Lieber weniger aber dafür präzise. Keine Spekulationen."""
+
+        try:
+            _client  = self._get_client()
+            response = await _client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=600,
+                temperature=0.2,
+            )
+            text = response.choices[0].message.content or ""
+            m = re.search(r'\{.*\}', text, re.DOTALL)
+            if not m:
+                return
+            data = json.loads(m.group())
+            if not data.get("update_needed"):
+                return
+
+            updates = {
+                "nutzer":         data.get("nutzer") or [],
+                "erkenntnisse":   data.get("aion_selbst") or [],
+                "verbesserungen": data.get("verbesserungen") or [],
+            }
+            for section, items in updates.items():
+                if items:
+                    await _dispatch("update_character", {
+                        "section": section,
+                        "content": "\n".join(f"- {e}" for e in items),
+                        "reason":  "Automatische Analyse aus Gesprächsverlauf",
+                    })
+
+            offene = data.get("offene_fragen") or []
+            if offene:
+                await _dispatch("update_character", {
+                    "section": "Offene Fragen über meinen Nutzer",
+                    "content": "\n".join(f"- {e}" for e in offene),
+                    "reason":  "Dinge die ich noch herausfinden will",
+                })
+
+            print(f"[AION:{self.channel}] Charakter aktualisiert nach {self.exchange_count} Gesprächen.")
+        except Exception as e:
+            print(f"[AION:{self.channel}] Auto-Charakter-Update Fehler: {e}")
+
+
+# Wrapper für externe Plugins (z.B. Telegram)
 def run_aion_turn(user_input: str, channel: str = "default") -> str:
-    """Führt einen kompletten AION-Turn aus und gibt die finale Text-Antwort zurück."""
-    
-    # Hole die Konversation für diesen Kanal
+    """Führt einen kompletten AION-Turn aus und gibt die finale Text-Antwort zurück.
+
+    Wird aus synchronen Threads aufgerufen (z.B. Telegram-Polling-Thread).
+    asyncio.run() erstellt einen frischen Event-Loop im aufrufenden Thread —
+    ein eigener frischer Client wird übergeben um Cross-Loop httpx-Fehler zu vermeiden.
+    """
     if channel not in _conversations:
         _conversations[channel] = []
-    
     conversation_history = _conversations[channel]
 
-    # Führe den asynchronen Chat-Turn aus
-    # Da Plugins oft in synchronen Kontexten laufen, nutzen wir asyncio.run()
-    # Dies ist eine einfache Implementierung. In einer komplexeren Anwendung 
-    # würde man eine bestehende Event-Loop nutzen.
-    # asyncio.run() erzeugt immer einen frischen Event-Loop im aktuellen Thread.
-    # Korrekt für sync-Wrapper, der aus Threads (z.B. Telegram asyncio.to_thread) aufgerufen wird.
-    final_text, updated_history = asyncio.run(chat_turn(conversation_history, user_input))
+    async def _run():
+        # Frischen Client für diesen Thread's Event-Loop erstellen
+        import sys as _sys
+        _self = _sys.modules[__name__]
+        if hasattr(_self, "_build_client"):
+            # Gemini-Provider oder anderer custom Provider
+            fresh_client = _self._build_client(_self.MODEL)
+        else:
+            from openai import AsyncOpenAI
+            fresh_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        return await chat_turn(conversation_history, user_input, _override_client=fresh_client)
+
+    final_text, updated_history = asyncio.run(_run())
     _conversations[channel] = updated_history
     return final_text
 

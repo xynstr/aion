@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 # BOT_DIR ist das Verzeichnis, in dem aion.py liegt (Elternverzeichnis von plugins/)
@@ -10,7 +10,7 @@ HISTORY_FILE = BOT_DIR / "conversation_history.jsonl"
 
 
 def _ts() -> str:
-    return datetime.utcnow().isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def append_to_history(role: str, content: str) -> dict:

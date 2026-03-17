@@ -540,6 +540,20 @@ function finalizeCurrentBubble() {
   currentBubble = null;
 }
 
+function appendImageBlock(url) {
+  const m = document.getElementById('messages');
+  const d = document.createElement('div');
+  d.className = 'msg aion';
+  d.innerHTML = `<div class="msg-label">AION</div>
+    <div class="msg-bubble" style="padding:6px">
+      <img src="${esc(url)}" alt="Bild" style="max-width:100%;max-height:400px;border-radius:8px;display:block;cursor:pointer"
+           onclick="window.open('${esc(url)}','_blank')"
+           onerror="this.closest('.msg').remove()">
+    </div>`;
+  m.appendChild(d);
+  scrollChat();
+}
+
 // ── Side panel helpers ────────────────────────────────────────────────────────
 function clearSidePanel() {
   thoughtCount = 0; toolCount = 0;
@@ -735,6 +749,14 @@ function handleEvent(ev) {
     case 'done':
       hideThinkingRow();
       finalizeCurrentBubble();
+      // Bild-Blöcke aus response_blocks rendern
+      if (ev.response_blocks && ev.response_blocks.length > 0) {
+        for (const block of ev.response_blocks) {
+          if (block.type === 'image' && block.url) {
+            appendImageBlock(block.url);
+          }
+        }
+      }
       awaitingNewBubble = false;
       scrollChat();
       break;
@@ -743,11 +765,9 @@ function handleEvent(ev) {
       hideThinkingRow();
       if (currentBubble) {
         currentBubble.classList.remove('streaming');
-        currentBubble.innerHTML = `<span style="color:var(--red)">Fehler: ${esc(ev.message)}</span>`;
+        currentBubble.innerHTML = `<span style="color:var(--red)">Fehler: ${esc(ev.message || 'Unbekannter Fehler')}</span>`;
         currentBubble = null;
       }
-      awaitingNewBubble = false;
-      setThinking(false);
       break;
   }
 }

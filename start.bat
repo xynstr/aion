@@ -1,19 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
-title AION — Start
+title AION - Start
 cd /d "%~dp0"
 
 cls
 echo.
-echo  ╔══════════════════════════════════════════╗
-echo  ║         AION — Autonomous AI Agent       ║
-echo  ╚══════════════════════════════════════════╝
+echo  ==========================================
+echo       AION - Autonomous AI Agent
+echo  ==========================================
 echo.
 
-REM ═══════════════════════════════════════════════════════════════════════════
-REM  SCHRITT 1 — Python prüfen
-REM ═══════════════════════════════════════════════════════════════════════════
+REM ===========================================================================
+REM  SCHRITT 1 - Python pruefen
+REM ===========================================================================
 echo  [1/4] Pruefe Python...
 python --version >nul 2>&1
 if errorlevel 1 (
@@ -27,9 +27,9 @@ if errorlevel 1 (
 )
 for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo  OK: %%v gefunden
 
-REM ═══════════════════════════════════════════════════════════════════════════
-REM  SCHRITT 2 — Pakete installieren
-REM ═══════════════════════════════════════════════════════════════════════════
+REM ===========================================================================
+REM  SCHRITT 2 - Pakete installieren
+REM ===========================================================================
 echo.
 echo  [2/4] Installiere / aktualisiere Abhaengigkeiten...
 echo        (Beim ersten Start kann das ein paar Minuten dauern)
@@ -53,19 +53,17 @@ python -m pip install duckduckgo-search -q
 
 echo  OK: Alle Pakete bereit
 
-REM ═══════════════════════════════════════════════════════════════════════════
-REM  SCHRITT 3 — .env Setup
-REM ═══════════════════════════════════════════════════════════════════════════
+REM ===========================================================================
+REM  SCHRITT 3 - .env Setup
+REM ===========================================================================
 echo.
 echo  [3/4] Pruefe Konfiguration...
 
 if exist ".env" goto :env_ok
 
-REM .env fehlt → Setup-Wizard
+REM .env fehlt - Setup-Wizard
 echo.
-echo  ┌────────────────────────────────────────────────────────────┐
-echo  │  .env nicht gefunden — Erster Start: Setup-Wizard          │
-echo  └────────────────────────────────────────────────────────────┘
+echo  .env nicht gefunden - Erster Start: Setup-Wizard
 echo.
 echo  AION benoetigt mindestens einen API-Key (OpenAI ODER Gemini).
 echo  Leere Eingabe = Feld ueberspringen.
@@ -86,7 +84,7 @@ set /p "AION_MODEL_INPUT= Startmodell (leer = gpt-4.1): "
 if "!OPENAI_KEY!"=="" if "!GEMINI_KEY!"=="" (
     echo.
     echo  FEHLER: Mindestens ein API-Key erforderlich!
-    echo  Starte setup.bat erneut oder lege .env manuell an.
+    echo  Starte start.bat erneut oder lege .env manuell an.
     pause
     exit /b 1
 )
@@ -95,7 +93,7 @@ if "!AION_MODEL_INPUT!"=="" set "AION_MODEL_INPUT=gpt-4.1"
 
 REM .env schreiben
 (
-    echo # AION Konfiguration — generiert von start.bat
+    echo # AION Konfiguration - generiert von start.bat
     if not "!OPENAI_KEY!"=="" echo OPENAI_API_KEY=!OPENAI_KEY!
     if not "!GEMINI_KEY!"=="" echo GEMINI_API_KEY=!GEMINI_KEY!
     if not "!TG_TOKEN!"=="" echo TELEGRAM_BOT_TOKEN=!TG_TOKEN!
@@ -112,12 +110,8 @@ goto :env_check
 echo  OK: .env gefunden
 
 :env_check
-REM Prüfen ob mindestens ein Key vorhanden ist
-python -c "
-from dotenv import load_dotenv; import os; load_dotenv()
-ok = bool(os.getenv('OPENAI_API_KEY','').strip()) or bool(os.getenv('GEMINI_API_KEY','').strip())
-exit(0 if ok else 1)
-"
+REM Pruefen ob mindestens ein Key vorhanden ist
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); ok = bool(os.getenv('OPENAI_API_KEY','').strip()) or bool(os.getenv('GEMINI_API_KEY','').strip()); exit(0 if ok else 1)"
 if errorlevel 1 (
     echo.
     echo  FEHLER: Weder OPENAI_API_KEY noch GEMINI_API_KEY in .env gesetzt!
@@ -128,19 +122,17 @@ if errorlevel 1 (
 )
 echo  OK: API-Key vorhanden
 
-REM ═══════════════════════════════════════════════════════════════════════════
-REM  SCHRITT 4 — AION starten
-REM ═══════════════════════════════════════════════════════════════════════════
+REM ===========================================================================
+REM  SCHRITT 4 - AION starten
+REM ===========================================================================
 echo.
 echo  [4/4] Starte AION Web UI...
 echo.
-echo  ┌────────────────────────────────────────────┐
-echo  │  AION laeuft unter: http://localhost:7000  │
-echo  │  Beenden: Strg+C                           │
-echo  └────────────────────────────────────────────┘
+echo  AION laeuft unter: http://localhost:7000
+echo  Beenden: Strg+C
 echo.
 
-REM Überprüfe ob aion_web.py existiert
+REM Ueberpruefe ob aion_web.py existiert
 if not exist "aion_web.py" (
     echo.
     echo  FEHLER: aion_web.py nicht gefunden!
@@ -161,10 +153,8 @@ REM Starte aion_web.py mit voller Error-Ausgabe
 python aion_web.py
 if errorlevel 1 (
     echo.
-    echo  ╔════════════════════════════════════════════════════════════════╗
-    echo  ║  FEHLER: aion_web.py konnte nicht gestartet werden!           ║
-    echo  ║  Siehe Fehlermeldung oben.                                    ║
-    echo  ╚════════════════════════════════════════════════════════════════╝
+    echo  FEHLER: aion_web.py konnte nicht gestartet werden!
+    echo  Siehe Fehlermeldung oben.
     echo.
     pause
     exit /b 1

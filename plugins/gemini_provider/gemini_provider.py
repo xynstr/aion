@@ -135,6 +135,19 @@ class _GeminyChatCompletions:
         from google.genai import types as t
 
         system_instruction = None
+        # Zwischenpuffer: (gemini_role, [parts])
+        pending: list[tuple[str, list]] = []
+
+        def flush(contents: list, role: str, parts: list):
+            """Bündelt aufeinanderfolgende Einträge gleicher Rolle."""
+            if not parts:
+                return
+            if contents and contents[-1].role == role:
+                # Gleiche Rolle → Parts zusammenführen
+                contents[-1] = t.Content(role=role, parts=list(contents[-1].parts) + parts)
+            else:
+                contents.append(t.Content(role=role, parts=parts))
+
         contents = []
 
         for msg in messages:
@@ -150,14 +163,14 @@ class _GeminyChatCompletions:
                     result_data = json.loads(content)
                 except Exception:
                     result_data = {"result": str(content)}
-                fn_name = "tool_result"
-                contents.append(t.Content(
-                    role="user",
-                    parts=[t.Part.from_function_response(
-                        name=fn_name,
-                        response=result_data,
-                    )]
-                ))
+                # Tool-Namen aus tool_call_id extrahieren (Format: "call_{fn_name}_{idx}")
+                tool_call_id = msg.get("tool_call_id", "")
+                if tool_call_id.startswith("call_"):
+                    fn_name = tool_call_id[5:].rsplit("_", 1)[0]
+                else:
+                    fn_name = tool_call_id or "tool_result"
+                part = t.Part.from_function_response(name=fn_name, response=result_data)
+                flush(contents, "user", [part])
                 continue
 
             if role == "assistant":
@@ -175,7 +188,7 @@ class _GeminyChatCompletions:
                         args=args,
                     ))
                 if parts:
-                    contents.append(t.Content(role="model", parts=parts))
+                    flush(contents, "model", parts)
                 continue
 
             # User-Message
@@ -186,7 +199,7 @@ class _GeminyChatCompletions:
                 parts = [t.Part.from_text(text=content)] if content else []
 
             if parts:
-                contents.append(t.Content(role="user", parts=parts))
+                flush(contents, "user", parts)
 
         return system_instruction, contents
 
