@@ -1,18 +1,126 @@
-# AION specific
+# ── Secrets & API-Keys ─────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# ── AION Runtime-Dateien (persönliche Daten, kein Git) ─────────────────────────
 aion_memory.json
 thoughts.md
+conversation_history.jsonl
 conversation_history.json
-*.bak
+config.json
+plugins/heartbeat.log
+plugins/todo_list.json
 
-# Python specific
+# ── Backup-Dateien ──────────────────────────────────────────────────────────────
+*.bak
+*.bak.*
+*.backup
+*.orig
+
+# ── Python ──────────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 *.pyo
 *.pyd
+*.so
 .Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtuelle Umgebungen
 env/
 venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
 
-# IDE specific
+# Type-Checker & Linter
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+
+# pytest
+.pytest_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+
+# Jupyter
+.ipynb_checkpoints
+
+# ── IDEs & Editoren ─────────────────────────────────────────────────────────────
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ── Betriebssystem ─────────────────────────────────────────────────────────────
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ── Logs ────────────────────────────────────────────────────────────────────────
+*.log
+logs/
+log/
+
+# ── Temporäre Dateien ───────────────────────────────────────────────────────────
+*.tmp
+*.temp
+tmp/
+temp/

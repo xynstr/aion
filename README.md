@@ -1,16 +1,29 @@
 # AION — Autonomous Intelligent Operations Node
 
-Eigenständiger, lernfähiger KI-Bot auf Basis der OpenAI API.
-**Jetzt mit Web UI** — sehe AIons Gedanken live!
+Ein autonomer KI-Agent für Windows. Läuft als Python-Prozess, kommuniziert über OpenAI- oder Google Gemini-API, führt Tools aus, lernt und kann sich selbst modifizieren.
+
+---
 
 ## Features
 
-1. **Ehrliche Konversation** — antwortet immer direkt und offen, gibt Unsicherheiten zu
-2. **Selbst-Optimierung** — liest und modifiziert seinen eigenen Code, erstellt neue Tools, installiert fehlende Python-Pakete
-3. **Situationsbewusstsein** — kennt sein OS, Dateipfade, installierte Tools und sein Gedächtnis
-4. **Uneingeschränktes Internet** — web_search (DuckDuckGo), web_fetch, Datei-Download
-5. **Windows-Kontrolle** — shell_exec (beliebige Befehle), winget_install (Programme installieren), Dateisystem-Zugriff
-6. **OpenAI API** — GPT-4.1 als Haupt-Modell für alle Prozesse
+- **Autonomes Arbeiten** — loop bis zu 20 Tool-Iterationen ohne Nutzer-Warten
+- **Selbst-Modifikation** — liest, patcht und überschreibt eigenen Code; erstellt neue Plugins
+- **Web UI** — Live-Stream von Antworten, Gedanken (Reflexionen) und Tool-Aufrufen
+- **Telegram** — bidirektionale Anbindung über Telegram Bot (bidirektional, 1 Plugin-Datei)
+- **Gedächtnis** — persistentes JSON-Gedächtnis + Konversationshistorie (JSONL)
+- **Multi-Provider** — OpenAI (GPT-4.1, o3 u.a.) und Google Gemini (2.5-pro, 2.5-flash u.a.) wechselbar
+- **Plugin-System** — jede `.py`-Datei in `plugins/` wird automatisch geladen
+- **CLIO-Reflexion** — Konfidenz-Check und Gedanken-Protokoll nach jeder Nutzer-Nachricht
+
+---
+
+## Voraussetzungen
+
+- Python 3.10+
+- Windows (für `shell_exec`, `winget_install`)
+- OpenAI API-Key und/oder Google Gemini API-Key
+
+---
 
 ## Installation
 
@@ -18,105 +31,150 @@ Eigenständiger, lernfähiger KI-Bot auf Basis der OpenAI API.
 pip install -r requirements.txt
 ```
 
-## Setup: API-Key setzen
+---
 
-**Wichtig:** Du brauchst einen OpenAI API-Key von https://platform.openai.com/api/keys
+## Konfiguration
 
-### Methode 1: `.env`-Datei (empfohlen)
+Erstelle eine `.env`-Datei im Projektverzeichnis (Vorlage: `.env.example`):
 
-```bash
-# Kopiere die Vorlage
-copy .env.example .env
-
-# Öffne .env und füge deinen API-Key ein:
-# OPENAI_API_KEY=sk-...
+```env
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+TELEGRAM_BOT_TOKEN=1234567890:AAE...   # optional
+TELEGRAM_CHAT_ID=123456789             # optional
+AION_MODEL=gpt-4.1                     # optional, default: gpt-4.1
+AION_PORT=7000                         # optional, default: 7000
 ```
 
-### Methode 2: Umgebungsvariable
+Das aktive Modell wird in `config.json` gespeichert und beim nächsten Start wiederhergestellt.
 
-```bash
-set OPENAI_API_KEY=sk-...
-```
+---
 
 ## Starten
 
-### Web UI (Browser) — Empfohlen!
+### Web UI (empfohlen)
 
 ```bash
 start.bat
 ```
 
-Browser öffnet sich automatisch → **http://localhost:7000**
+Öffnet automatisch `http://localhost:7000`
 
-### CLI-Version (Terminal)
-
-```bash
-python aion.py
-```
-
-### Manuell (ohne Skripte)
+### Manuell
 
 ```bash
-python aion_web.py
-# → http://localhost:7000
+python aion_web.py     # Web-Server (Port 7000)
+python aion.py         # CLI-Modus
 ```
 
-## Skripte
+---
 
-| Skript      | Funktion                    |
-|-------------|-----------------------------|
-| `start.bat` | Startet Server + öffnet Browser |
-| `stop.bat`  | Stoppt den Server            |
-| `status.bat`| Zeigt ob Server läuft        |
+## Web UI
 
-## Web UI Features
+- **Chat** (links): Eingabe und Antworten mit Token-Streaming
+- **Gedanken** (rechts, Tab 1): AIons Reflexionen — nach jeder Nachricht automatisch sichtbar
+- **Tools** (rechts, Tab 2): Tool-Aufrufe mit Ein- und Ausgabe — nur bei Klick aufgeklappt
+- **Modell-Wechsel**: Dropdown oben rechts — wechselt sofort und persistiert in `config.json`
 
-- **Split Panel Layout**: Chat links, Gedanken rechts
-- **Live Gedanken**: Sehe Tool-Aufrufe in Echtzeit
-- **Token Streaming**: Antworten erscheinen während sie geschrieben werden
-- **Tool-Details**: Klick auf Tool-Karten um Eingabe + Ergebnis zu sehen
-- **Responsive Design**: Dark Theme, schnell & modern
+---
 
-## Konfiguration (optional)
-
-```bash
-set AION_MODEL=gpt-4.1          # Modell (Standard: gpt-4.1)
-set AION_PORT=7000              # Web-Port (Standard: 7000)
-set AION_MEMORY_FILE=C:\...     # Pfad zur Gedächtnis-Datei
-set AION_TOOLS_DIR=C:\...       # Pfad zum Tools-Verzeichnis
-```
-
-## CLI Befehle (aion.py)
-
-| Befehl    | Funktion                           |
-|-----------|------------------------------------|
-| `/memory` | Zeigt das gespeicherte Gedächtnis  |
-| `/reset`  | Setzt die aktuelle Konversation zurück |
-| `/quit`   | Beendet den Bot                    |
-
-## Dateistruktur
+## Dateisystem
 
 ```
 AION/
-├── aion.py              # Haupt-Bot (CLI + Core-Logik)
-├── aion_web.py          # Web-Server (FastAPI + SSE)
-├── aion_memory.json     # Persistentes Gedächtnis
-├── aion_tools/          # Selbst-erstellte Tools
+├── aion.py                  # Kernlogik: Memory, Tools, LLM-Loop, CLI
+├── aion_web.py              # Web-Server (FastAPI + SSE), Port 7000
+├── plugin_loader.py         # Lädt alle Plugins aus plugins/
 ├── static/
-│   └── index.html       # Web UI
-├── start.bat            # ▶ Start-Skript
-├── stop.bat             # ⏹ Stop-Skript
-└── status.bat           # ℹ Status-Skript
+│   └── index.html           # Web UI (Vanilla JS)
+├── plugins/
+│   ├── telegram_bot.py      # Telegram-Bot (einzige Telegram-Datei)
+│   ├── gemini_provider.py   # Google Gemini + switch_model Tool
+│   ├── memory_plugin.py     # Konversationshistorie (JSONL)
+│   ├── clio_reflection.py   # CLIO-Konfidenz-Check
+│   ├── todo_tools.py        # Aufgabenverwaltung
+│   ├── smart_patch.py       # Fuzzy-Code-Patching
+│   ├── heartbeat.py         # Keep-Alive
+│   └── restart_tool.py      # Neustart-Plugin
+├── character.md             # Persönlichkeit (selbst-aktualisierend)
+├── AION_SELF.md             # Selbst-Dokumentation (Tools, Struktur, API)
+├── aion_memory.json         # Persistentes Gedächtnis (max. 300 Einträge)
+├── thoughts.md              # Aufgezeichnete Gedanken
+├── .env                     # API-Keys (nicht in Git)
+├── config.json              # Aktives Modell (persistiert)
+├── start.bat                # Startet Server + Browser
+├── stop.bat                 # Stoppt den Server
+└── status.bat               # Zeigt ob Server läuft
 ```
 
-## Selbst-erstellte Tools
+---
 
-AION kann zur Laufzeit neue Fähigkeiten erstellen:
+## CLI-Befehle (`aion.py`)
 
+| Befehl | Funktion |
+|--------|----------|
+| `/memory` | Gespeichertes Gedächtnis anzeigen |
+| `/reset` | Aktuelle Konversation zurücksetzen |
+| `/model <name>` | Aktives Modell wechseln |
+| `/quit` | Beendet den Bot |
+
+---
+
+## Verfügbare Modelle
+
+| Provider | Modell | Empfehlung |
+|---------|--------|-----------|
+| Google Gemini | `gemini-2.5-pro` | Beste Qualität |
+| Google Gemini | `gemini-2.5-flash` | Schnell & günstig |
+| Google Gemini | `gemini-2.0-flash` | Stabil |
+| OpenAI | `gpt-4.1` | OpenAI Flagship |
+| OpenAI | `gpt-4o` | Multimodal |
+| OpenAI | `o3` | Reasoning |
+| OpenAI | `o4-mini` | Schnell |
+
+Wechsel per Web UI (Dropdown) oder CLI: `/model gemini-2.5-pro`
+
+---
+
+## Plugin erstellen
+
+Jede Datei in `plugins/` muss eine `register(api)`-Funktion exportieren:
+
+```python
+def register(api):
+    def mein_tool(param: str) -> dict:
+        return {"ok": True, "result": param}
+
+    api.register_tool(
+        name="mein_tool",
+        description="Beschreibung für das LLM",
+        func=mein_tool,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "param": {"type": "string", "description": "..."}
+            },
+            "required": ["param"]
+        }
+    )
 ```
-Du: Erstelle ein Tool das PDFs in Text umwandelt
-AION: → Tool: create_tool ...
-      Tool 'pdf.extract' erstellt und geladen.
-```
 
-Diese Tools werden in `aion_tools/` gespeichert und beim nächsten Start automatisch geladen.
+Neue Plugins werden sofort geladen — kein Neustart nötig (außer bei Änderungen an `aion.py`).
+
+AION kann auch zur Laufzeit Plugins via `create_plugin` Tool erstellen.
+
+---
+
+## Telegram
+
+1. Bot bei [@BotFather](https://t.me/BotFather) erstellen → Token
+2. `TELEGRAM_BOT_TOKEN` und `TELEGRAM_CHAT_ID` in `.env` setzen
+3. AION starten — Telegram-Polling startet automatisch
+
+---
+
+## Sicherheitshinweis
+
+- `.env` ist in `.gitignore` — API-Keys niemals committen
+- `shell_exec` führt beliebige Windows-Befehle aus — nur auf vertrauenswürdigen Systemen einsetzen
+- `self_modify_code` / `self_patch_code` — AION kann seinen eigenen Code ändern

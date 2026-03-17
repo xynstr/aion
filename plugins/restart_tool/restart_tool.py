@@ -3,7 +3,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-def self_restart_func(params, memory):
+def self_restart_func(input: dict = None):
     """Startet AION neu: loescht Caches, startet neuen Prozess, beendet aktuellen."""
     
     # Pfad zur Haupt-AION-Datei (angenommen, das Plugin liegt in AION/plugins)

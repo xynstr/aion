@@ -1,66 +1,151 @@
 @echo off
-REM AION - BULLETPROOF START
 setlocal enabledelayedexpansion
 chcp 65001 >nul
-title AION Web UI
+title AION — Start
+cd /d "%~dp0"
 
 cls
 echo.
-echo ╔══════════════════════════════════════╗
-echo ║ AION Web UI - START                  ║
-echo ╚══════════════════════════════════════╝
+echo  ╔══════════════════════════════════════════╗
+echo  ║         AION — Autonomous AI Agent       ║
+echo  ╚══════════════════════════════════════════╝
 echo.
 
-REM 1. .env pruefen
-echo [1/5] Pruefe .env...
-if not exist ".env" (
-echo FEHLER: .env fehlt!
-pause
-exit /b 1
-)
-echo OK: .env gefunden
-
-REM 2. Key testen
-echo [2/5] Pruefe API-Key...
-python -c "from dotenv import load_dotenv; load_dotenv(); import os; assert os.getenv('OPENAI_API_KEY'), 'KEY FEHLT'"
+REM ═══════════════════════════════════════════════════════════════════════════
+REM  SCHRITT 1 — Python prüfen
+REM ═══════════════════════════════════════════════════════════════════════════
+echo  [1/4] Pruefe Python...
+python --version >nul 2>&1
 if errorlevel 1 (
-echo FEHLER: OPENAI_API_KEY fehlt oder falsch in .env!
-pause
-exit /b 1
+    echo.
+    echo  FEHLER: Python nicht gefunden!
+    echo  Bitte Python 3.10+ installieren: https://www.python.org/downloads/
+    echo  Sicherstellen dass "Add Python to PATH" aktiviert ist.
+    echo.
+    pause
+    exit /b 1
 )
-echo OK: API-Key geladen
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo  OK: %%v gefunden
 
-REM 3. Pakete installieren
-echo [3/5] Installiere fehlende Pakete...
-python -m pip install --user fastapi uvicorn openai httpx beautifulsoup4 rich python-dotenv python-telegram-bot -q
-echo OK: Pakete bereit
+REM ═══════════════════════════════════════════════════════════════════════════
+REM  SCHRITT 2 — Pakete installieren
+REM ═══════════════════════════════════════════════════════════════════════════
+echo.
+echo  [2/4] Installiere / aktualisiere Abhaengigkeiten...
+echo        (Beim ersten Start kann das ein paar Minuten dauern)
+echo.
 
-REM 4. google-genai pruefen und installieren (fuer Gemini-Plugin)
-echo [4/5] Pruefe google-genai...
-python -c "import google.genai" >nul 2>&1
+python -m pip install --upgrade pip -q
+if errorlevel 1 echo  Warnung: pip-Upgrade fehlgeschlagen, fahre trotzdem fort.
+
+python -m pip install -r requirements.txt -q
 if errorlevel 1 (
-echo Installiere google-genai...
-python -m pip install --user google-genai -q
-echo OK: google-genai installiert
-) else (
-echo OK: google-genai bereits vorhanden
+    echo  FEHLER: requirements.txt konnte nicht installiert werden.
+    pause
+    exit /b 1
 )
 
-REM 5. aion.py AUTO-FIX (schreibt __file__ an Zeile 1)
-echo [5/5] Autofix aion.py...
-python fix_aion.py
-echo OK: aion.py gefixt
+REM Optionale Pakete (Gemini, Telegram)
+python -m pip install google-genai -q
+python -m pip install "python-telegram-bot>=20.0" -q
+python -m pip install requests -q
+python -m pip install duckduckgo-search -q
 
-REM Start WebUI
+echo  OK: Alle Pakete bereit
+
+REM ═══════════════════════════════════════════════════════════════════════════
+REM  SCHRITT 3 — .env Setup
+REM ═══════════════════════════════════════════════════════════════════════════
 echo.
-echo Starte AION Web UI auf http://localhost:7000
-echo Beenden: Strg+C
+echo  [3/4] Pruefe Konfiguration...
+
+if exist ".env" goto :env_ok
+
+REM .env fehlt → Setup-Wizard
 echo.
-cd /d "%~dp0"
-title AION Web UI - localhost:7000
+echo  ┌────────────────────────────────────────────────────────────┐
+echo  │  .env nicht gefunden — Erster Start: Setup-Wizard          │
+echo  └────────────────────────────────────────────────────────────┘
+echo.
+echo  AION benoetigt mindestens einen API-Key (OpenAI ODER Gemini).
+echo  Leere Eingabe = Feld ueberspringen.
+echo.
+
+set "OPENAI_KEY="
+set "GEMINI_KEY="
+set "TG_TOKEN="
+set "TG_CHAT="
+set "AION_MODEL_INPUT="
+
+set /p "OPENAI_KEY=  OpenAI API-Key   (sk-...):  "
+set /p "GEMINI_KEY=  Gemini API-Key   (AIza...): "
+set /p "TG_TOKEN=    Telegram Token   (optional): "
+set /p "TG_CHAT=     Telegram Chat-ID (optional): "
+set /p "AION_MODEL_INPUT= Startmodell (leer = gpt-4.1): "
+
+if "!OPENAI_KEY!"=="" if "!GEMINI_KEY!"=="" (
+    echo.
+    echo  FEHLER: Mindestens ein API-Key erforderlich!
+    echo  Starte setup.bat erneut oder lege .env manuell an.
+    pause
+    exit /b 1
+)
+
+if "!AION_MODEL_INPUT!"=="" set "AION_MODEL_INPUT=gpt-4.1"
+
+REM .env schreiben
+(
+    echo # AION Konfiguration — generiert von start.bat
+    if not "!OPENAI_KEY!"=="" echo OPENAI_API_KEY=!OPENAI_KEY!
+    if not "!GEMINI_KEY!"=="" echo GEMINI_API_KEY=!GEMINI_KEY!
+    if not "!TG_TOKEN!"=="" echo TELEGRAM_BOT_TOKEN=!TG_TOKEN!
+    if not "!TG_CHAT!"=="" echo TELEGRAM_CHAT_ID=!TG_CHAT!
+    echo AION_MODEL=!AION_MODEL_INPUT!
+    echo AION_PORT=7000
+) > .env
+
+echo.
+echo  OK: .env erstellt
+goto :env_check
+
+:env_ok
+echo  OK: .env gefunden
+
+:env_check
+REM Prüfen ob mindestens ein Key vorhanden ist
+python -c "
+from dotenv import load_dotenv; import os; load_dotenv()
+ok = bool(os.getenv('OPENAI_API_KEY','').strip()) or bool(os.getenv('GEMINI_API_KEY','').strip())
+exit(0 if ok else 1)
+" 2>nul
+if errorlevel 1 (
+    echo.
+    echo  FEHLER: Weder OPENAI_API_KEY noch GEMINI_API_KEY in .env gesetzt!
+    echo  Bitte .env oeffnen und mindestens einen API-Key eintragen.
+    echo.
+    pause
+    exit /b 1
+)
+echo  OK: API-Key vorhanden
+
+REM ═══════════════════════════════════════════════════════════════════════════
+REM  SCHRITT 4 — AION starten
+REM ═══════════════════════════════════════════════════════════════════════════
+echo.
+echo  [4/4] Starte AION Web UI...
+echo.
+echo  ┌────────────────────────────────────────────┐
+echo  │  AION laeuft unter: http://localhost:7000  │
+echo  │  Beenden: Strg+C                           │
+echo  └────────────────────────────────────────────┘
+echo.
+
+REM Browser nach kurzer Verzoegerung oeffnen (Python-Prozess startet zuerst)
+start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:7000"
+
 python aion_web.py
 
 echo.
-echo AION gestoppt.
+echo  AION gestoppt.
 pause
 endlocal

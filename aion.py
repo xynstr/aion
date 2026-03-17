@@ -112,7 +112,9 @@ Du weißt genau, wer und was du bist:
 - Deine Quell-Datei: {BOT_DIR / "aion.py"}
 - Dein Gedächtnis: {MEMORY_FILE}
 - Dein Charakter: {CHARACTER_FILE}
-- Deine selbst-erstellten Tools: {PLUGINS_DIR}/
+- Deine Plugins: {PLUGINS_DIR}/
+- Deine vollständige Selbst-Dokumentation (alle Tools, Plugins, API): {BOT_DIR / "AION_SELF.md"}
+  → Lese sie mit dem Tool `read_self_doc` wenn du dir über Tools, Struktur oder Funktionsweise unsicher bist.
 - Du kommunizierst über die OpenAI API (Modell: {MODEL}).
 
 === GEDANKEN & REFLEXION (SEHR WICHTIG) ===
@@ -575,6 +577,14 @@ def _build_tool_schemas() -> list[dict]:
                 "parameters": {"type": "object", "properties": {}},
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_self_doc",
+                "description": "Liest AION_SELF.md — die vollständige Selbst-Dokumentation mit allen Tools, Plugins, Funktionsweisen und Konfiguration. Beim Start oder bei Bedarf aufrufen.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
     ]
 
     # Duplikat-Check
@@ -960,6 +970,13 @@ async def _dispatch(name: str, inputs: dict) -> str:
         )
         return json.dumps({"ok": True, "message": "Erkenntnis gespeichert."})
 
+    # ── read_self_doc ─────────────────────────────────────────────────────────
+    elif name == "read_self_doc":
+        self_doc = BOT_DIR / "AION_SELF.md"
+        if self_doc.is_file():
+            return self_doc.read_text(encoding="utf-8")
+        return json.dumps({"error": "AION_SELF.md nicht gefunden."})
+
     # ── system_info ───────────────────────────────────────────────────────────
     elif name == "system_info":
         return json.dumps({
@@ -979,8 +996,19 @@ async def _dispatch(name: str, inputs: dict) -> str:
     elif name in _plugin_tools:
         try:
             fn = _plugin_tools[name]["func"]
-            result = fn(**inputs)
-            return json.dumps(result)
+            # Unterstütze beide Konventionen:
+            # 1) fn(**kwargs)  — Plugins mit benannten Parametern (z.B. role, content)
+            # 2) fn(dict)      — ältere Plugins, die ein einzelnes dict erwarten (input: dict)
+            try:
+                result = fn(**inputs)
+            except TypeError:
+                result = fn(inputs)
+            # Async-Funktionen unterstützen
+            if asyncio.iscoroutine(result):
+                result = await result
+            if isinstance(result, str):
+                return result
+            return json.dumps(result, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": str(e), "tool": name})
 
@@ -1042,20 +1070,10 @@ def run_aion_turn(user_input: str, channel: str = "default") -> str:
     # Da Plugins oft in synchronen Kontexten laufen, nutzen wir asyncio.run()
     # Dies ist eine einfache Implementierung. In einer komplexeren Anwendung 
     # würde man eine bestehende Event-Loop nutzen.
-    try:
-        # Erstelle eine neue Event-Loop, falls keine existiert
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    final_text, updated_history = loop.run_until_complete(
-        chat_turn(conversation_history, user_input)
-    )
-    
-    # Speichere die aktualisierte Konversation
+    # asyncio.run() erzeugt immer einen frischen Event-Loop im aktuellen Thread.
+    # Korrekt für sync-Wrapper, der aus Threads (z.B. Telegram asyncio.to_thread) aufgerufen wird.
+    final_text, updated_history = asyncio.run(chat_turn(conversation_history, user_input))
     _conversations[channel] = updated_history
-    
     return final_text
 
 # ── Konversations-Verwaltung ──────────────────────────────────────────────────
@@ -1154,7 +1172,12 @@ async def run():
             new_model = user_input[7:].strip()
             if new_model:
                 MODEL  = new_model
-                client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+                import sys as _sys
+                _self = _sys.modules[__name__]
+                if hasattr(_self, "_build_client"):
+                    client = _self._build_client(new_model)
+                else:
+                    client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
                 print(f"Modell gewechselt zu: {MODEL}")
                 memory.record(category="user_preference", summary=f"Modell gewechselt zu {MODEL}",
                               lesson=f"Nutzer bevorzugt Modell {MODEL}", success=True)
@@ -1162,12 +1185,22 @@ async def run():
                 print("Verwendung: /model gpt-4o")
             continue
 
-# ── CLIO-Check vor jedem normalen Turn ──
-        clio_result = await _dispatch('clio_check', {'nutzerfrage': user_input})
-        clio_data = json.loads(clio_result) if clio_result else {}
+# ── CLIO-Check vor jedem normalen Turn (optional — nur wenn Plugin geladen) ──
+        clio_data = {}
+        clio_text = ''
+        meta_text = ''
+        if 'clio_check' in _plugin_tools:
+            try:
+                clio_result = await _dispatch('clio_check', {'nutzerfrage': user_input})
+                clio_data = json.loads(clio_result) if clio_result else {}
+                # Bei Fehler (Tool nicht verfügbar o.ä.) CLIO-Check überspringen
+                if 'error' in clio_data:
+                    clio_data = {}
+                clio_text = clio_data.get('clio', '')
+                meta_text = clio_data.get('meta', '')
+            except Exception:
+                clio_data = {}
         konfidenz = clio_data.get('konfidenz', 100)
-        clio_text = clio_data.get('clio', '')
-        meta_text = clio_data.get('meta', '')
         if konfidenz < 70:
             if HAS_RICH:
                 console.print(Panel(Markdown(clio_text), title='CLIO-Reflexion (Unsicher)', border_style='red'))

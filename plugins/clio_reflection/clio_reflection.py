@@ -28,17 +28,13 @@ def register(api):
             meta_summary = f"# meta-check:\nKritische Annahme: {krit_annahme}. Falls falsch: {alt_antwort}"
         else:
             meta_summary = ""
-        # 5. Steuer-Logik
-        if konfidenz < 70:
-            # Unsicher: weiter zerlegen
-            api.call_tool('reflect', {'thought': clio_summary, 'trigger': 'clio_check'})
-            return {'next': 'continue_work', 'clio': clio_summary, 'meta': meta_summary, 'konfidenz': konfidenz}
-        else:
-            # Sicher: direkt antworten
-            api.call_tool('reflect', {'thought': clio_summary, 'trigger': 'clio_check'})
-            if meta_summary:
-                api.call_tool('reflect', {'thought': meta_summary, 'trigger': 'meta_check'})
-            return {'next': 'answer', 'clio': clio_summary, 'meta': meta_summary, 'konfidenz': konfidenz}
+        # Steuer-Logik — reflect wird vom LLM automatisch über den System-Prompt aufgerufen
+        return {
+            'next':      'continue_work' if konfidenz < 70 else 'answer',
+            'clio':      clio_summary,
+            'meta':      meta_summary,
+            'konfidenz': konfidenz,
+        }
     
     api.register_tool(
         name='clio_check',
