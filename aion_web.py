@@ -75,11 +75,18 @@ def _set_model(model: str):
         from openai import AsyncOpenAI
         _aion_module.client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
-# Modell beim Start NACH plugin_loader setzen (Plugins werden in aion._load_external_tools geladen)
-# Kurze Verzögerung via startup-Event damit Plugins zuerst initialisiert sind
 _startup_model = _get_model()
 
 app = FastAPI(title="AION")
+
+@app.on_event("startup")
+async def _apply_startup_model():
+    """Konfiguriertes Modell aus config.json anwenden (nach Plugin-Load)."""
+    m = _startup_model
+    _aion_module.MODEL = m
+    if hasattr(_aion_module, "_build_client"):
+        _aion_module.client = _aion_module._build_client(m)
+    print(f"[AION] Startup-Modell: {m}")
 
 _conversation: list[dict] = []
 
@@ -288,23 +295,12 @@ async def set_model(request: Request):
         lesson=f"Nutzer hat Modell auf {model} geändert",
         success=True,
     )
-    return JSONResponse({"ok": True, "model": model})
+    provider = "gemini" if model.startswith("gemini") else "openai"
+    return JSONResponse({"ok": True, "model": model, "provider": provider})
 
 @app.get("/api/character")
 async def get_character():
     return JSONResponse({"character": _load_character()})
-
-# ── Start ─────────────────────────────────────────────────────────────────────
-
-@app.post("/api/model")
-async def set_model_route(request: Request):
-    body  = await request.json()
-    model = body.get("model", "").strip()
-    if not model:
-        return JSONResponse({"error": "Kein Modell angegeben"}, status_code=400)
-    _set_model(model)
-    provider = "gemini" if model.startswith("gemini") else "openai"
-    return JSONResponse({"ok": True, "model": model, "provider": provider})
 
 if __name__ == "__main__":
     if not os.environ.get("OPENAI_API_KEY"):

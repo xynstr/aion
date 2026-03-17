@@ -223,7 +223,7 @@ class _GeminyChatCompletions:
                 config=config,
             )
 
-        response = await asyncio.get_event_loop().run_in_executor(None, _call)
+        response = await asyncio.get_running_loop().run_in_executor(None, _call)
 
         # Antwort parsen — Text oder Tool-Calls
         text_out = ""
