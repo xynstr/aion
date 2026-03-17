@@ -117,7 +117,7 @@ python -c "
 from dotenv import load_dotenv; import os; load_dotenv()
 ok = bool(os.getenv('OPENAI_API_KEY','').strip()) or bool(os.getenv('GEMINI_API_KEY','').strip())
 exit(0 if ok else 1)
-" 2>nul
+"
 if errorlevel 1 (
     echo.
     echo  FEHLER: Weder OPENAI_API_KEY noch GEMINI_API_KEY in .env gesetzt!
@@ -140,10 +140,35 @@ echo  │  Beenden: Strg+C                           │
 echo  └────────────────────────────────────────────┘
 echo.
 
+REM Überprüfe ob aion_web.py existiert
+if not exist "aion_web.py" (
+    echo.
+    echo  FEHLER: aion_web.py nicht gefunden!
+    echo  Du befindest dich wahrscheinlich im falschen Verzeichnis.
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo  Starte Python-Server...
+echo.
+
 REM Browser nach kurzer Verzoegerung oeffnen (Python-Prozess startet zuerst)
 start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:7000"
 
+REM Starte aion_web.py mit voller Error-Ausgabe
 python aion_web.py
+if errorlevel 1 (
+    echo.
+    echo  ╔════════════════════════════════════════════════════════════════╗
+    echo  ║  FEHLER: aion_web.py konnte nicht gestartet werden!           ║
+    echo  ║  Siehe Fehlermeldung oben.                                    ║
+    echo  ╚════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
+)
 
 echo.
 echo  AION gestoppt.
