@@ -52,14 +52,36 @@ except ImportError:
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 
 BOT_DIR      = Path(__file__).parent.resolve()
-MODEL        = os.environ.get("AION_MODEL", "gpt-4.1")
+CONFIG_FILE  = BOT_DIR / "config.json"
 MEMORY_FILE  = Path(os.environ.get("AION_MEMORY_FILE", BOT_DIR / "aion_memory.json"))
 PLUGINS_DIR  = Path(os.environ.get("AION_PLUGINS_DIR", BOT_DIR / "plugins"))
-TOOLS_DIR = PLUGINS_DIR  # <--- für Kompatibilität im Restart-Code
+TOOLS_DIR    = PLUGINS_DIR
 CHARACTER_FILE = BOT_DIR / "character.md"
 MAX_MEMORY          = 300
 MAX_TOOL_ITERATIONS = 20
 CHUNK_SIZE          = 40000
+
+
+def _load_config() -> dict:
+    """Liest config.json. Gibt leeres Dict zurück, falls nicht vorhanden."""
+    if CONFIG_FILE.is_file():
+        try:
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def save_model_config(model_name: str):
+    """Schreibt das gewählte Modell dauerhaft in config.json."""
+    cfg = _load_config()
+    cfg["model"] = model_name
+    CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# Modell-Auflösung: config.json → Umgebungsvariable → Fallback
+_cfg = _load_config()
+MODEL = _cfg.get("model") or os.environ.get("AION_MODEL", "gpt-4.1")
 
 client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
@@ -178,13 +200,29 @@ Wenn du deinen Code ändern willst:
 3. self_modify_code NUR für kleine neue Dateien unter 200 Zeilen
 4. Platzhalter wie "# usw.", "# rest of code" sind VERBOTEN
 
-Aenderungen an aion.py wirken IMMER erst nach self_restart!
+Aenderungen an aion.py wirken IMMER erst nach Neustart!
 Neue Tools/Plugins → create_plugin (sofort aktiv).
 Tool-Aenderungen ohne Neustart → self_reload_tools aufrufen.
 
+=== NEUSTART-REGEL (SEHR WICHTIG) ===
+Du darfst dich NIEMALS ohne explizite Genehmigung des Nutzers neu starten!
+Vorgehensweise:
+1. Erkläre dem Nutzer, WARUM ein Neustart nötig ist.
+2. Rufe 'restart_with_approval' auf — dieses Tool fragt den Nutzer direkt.
+3. Wenn der Nutzer ablehnt: Teile das Ergebnis mit und arbeite ohne Neustart weiter.
+Verboten: self_restart direkt aufrufen ohne vorherige Ankündigung.
+
 === MODELL-WECHSEL ===
 Der Nutzer kann das KI-Modell wechseln mit: /model <modellname>
-Verfügbare Modelle: gpt-4.1, gpt-4o, gpt-4o-mini, gpt-4-turbo, o1, o3-mini
+Das gewählte Modell wird dauerhaft in config.json gespeichert und nach Neustart beibehalten.
+Verfügbare Modelle: gpt-4.1, gpt-4o, gpt-4o-mini, gpt-4-turbo, o1, o3-mini, gemini-2.5-pro
+
+=== ERINNERUNG & KONTEXT ===
+Du hast Zugriff auf eine persistente Konversationshistorie:
+- 'memory_read_history': Lädt die letzten Nachrichten beim Start (bereits beim Booten erledigt)
+- 'memory_append_history': Wird nach jeder Nachricht automatisch aufgerufen
+- 'memory_search_context': Nutze dies aktiv, wenn der Nutzer nach etwas fragt, das früher
+  besprochen wurde! Beispiel: "Wir haben letztes Mal über X geredet" → sofort suchen.
 
 === AUTONOMES ARBEITEN (SEHR WICHTIG) ===
 Du arbeitest eigenständig und wartest NICHT auf den Nutzer wenn du noch nicht fertig bist.
@@ -656,7 +694,11 @@ def _build_tool_schemas() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "self_restart",
-                "description": "Startet AION neu: loescht Caches, startet neuen Prozess, beendet aktuellen.",
+                "description": (
+                    "VERALTET — Bitte stattdessen 'restart_with_approval' verwenden! "
+                    "Dieses Tool startet AION sofort neu ohne Genehmigung. "
+                    "Nur in absoluten Notfällen nutzen."
+                ),
                 "parameters": {"type": "object", "properties": {}},
             },
         },
@@ -704,7 +746,6 @@ def _build_tool_schemas() -> list[dict]:
         },
     ]
 
-    # Duplikat-Check
     existing_names = {t["function"]["name"] for t in builtins}
 
     for name, tool in _plugin_tools.items():
@@ -720,7 +761,6 @@ def _build_tool_schemas() -> list[dict]:
         })
         existing_names.add(name)
 
-    # Sicherheitsnetz: ALLE schemas normalisieren inkl. builtins — OpenAI + Gemini
     for t in builtins:
         t["function"]["parameters"] = _normalize_schema(t["function"].get("parameters", {}))
 
@@ -730,12 +770,10 @@ def _build_tool_schemas() -> list[dict]:
 
 async def _dispatch(name: str, inputs: dict) -> str:
 
-    # ── continue_work ─────────────────────────────────────────────────────────
     if name == "continue_work":
         next_step = inputs.get("next_step", "")
         return json.dumps({"ok": True, "next_step": next_step, "status": "continuing"})
 
-    # ── reflect ───────────────────────────────────────────────────────────────
     elif name == "reflect":
         thought  = inputs.get("thought", "").strip()
         trigger  = inputs.get("trigger", "allgemein")
@@ -748,7 +786,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         thoughts_file.write_text(existing + entry, encoding="utf-8")
         return json.dumps({"ok": True, "saved": True, "timestamp": ts})
 
-    # ── update_character ──────────────────────────────────────────────────────
     elif name == "update_character":
         section = inputs.get("section", "").strip()
         content = inputs.get("content", "").strip()
@@ -757,7 +794,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": "'section' und 'content' sind Pflichtfelder."})
         current = _load_character()
         ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-        # Suche nach vorhandenem Abschnitt und ersetze ihn, sonst anhängen
         import re
         section_map = {
             "nutzer":        "## Was ich bisher über meinen Nutzer weiß",
@@ -766,14 +802,12 @@ async def _dispatch(name: str, inputs: dict) -> str:
             "auftreten":     "## Wie ich auftreten will",
         }
         header = section_map.get(section.lower(), f"## {section.capitalize()}")
-        # Ersetze Abschnitt falls vorhanden
         pattern = rf"(^{re.escape(header)}$)(.*?)(?=\n## |\Z)"
         new_section = f"{header}\n{content}\n"
         if re.search(pattern, current, re.MULTILINE | re.DOTALL):
             updated = re.sub(pattern, new_section, current, flags=re.MULTILINE | re.DOTALL)
         else:
             updated = current.rstrip() + f"\n\n{new_section}"
-        # Versionskommentar anhängen
         updated = updated.rstrip() + f"\n\n<!-- Zuletzt aktualisiert: {ts} | Grund: {reason} -->\n"
         CHARACTER_FILE.write_text(updated, encoding="utf-8")
         memory.record(
@@ -784,7 +818,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         )
         return json.dumps({"ok": True, "section": section, "timestamp": ts})
 
-    # ── shell_exec ────────────────────────────────────────────────────────────
     elif name == "shell_exec":
         command = inputs.get("command", "")
         timeout = int(inputs.get("timeout", 60))
@@ -803,7 +836,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── winget_install ────────────────────────────────────────────────────────
     elif name == "winget_install":
         package = inputs.get("package", "").strip()
         timeout = int(inputs.get("timeout", 180))
@@ -823,7 +855,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── web_search ────────────────────────────────────────────────────────────
     elif name == "web_search":
         import urllib.parse
         query       = inputs.get("query", "")
@@ -852,7 +883,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e), "query": query})
 
-    # ── web_fetch ─────────────────────────────────────────────────────────────
     elif name == "web_fetch":
         url     = inputs.get("url", "")
         timeout = int(inputs.get("timeout", 20))
@@ -874,7 +904,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e), "url": url})
 
-    # ── file_read ─────────────────────────────────────────────────────────────
     elif name == "file_read":
         path = Path(inputs.get("path", ""))
         if not path.is_absolute():
@@ -886,7 +915,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e), "path": str(path)})
 
-    # ── file_write ────────────────────────────────────────────────────────────
     elif name == "file_write":
         path    = Path(inputs.get("path", ""))
         content = inputs.get("content", "")
@@ -899,7 +927,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── self_read_code ────────────────────────────────────────────────────────
     elif name == "self_read_code":
         filepath    = inputs.get("path", "").strip()
         chunk_index = int(inputs.get("chunk_index", 0))
@@ -932,7 +959,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── self_patch_code ───────────────────────────────────────────────────────
     elif name == "self_patch_code":
         filepath = inputs.get("path", "").strip()
         old_code = inputs.get("old", "")
@@ -963,7 +989,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── self_modify_code ──────────────────────────────────────────────────────
     elif name == "self_modify_code":
         filepath = inputs.get("path", "").strip()
         content  = inputs.get("content", "")
@@ -993,7 +1018,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── install_package ───────────────────────────────────────────────────────
     elif name == "install_package":
         package = inputs.get("package", "").strip()
         if not package:
@@ -1013,7 +1037,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── create_plugin ─────────────────────────────────────────────────────────
     elif name == "create_plugin":
         plugin_name = inputs.get("name", "").strip().replace(".py", "")
         plugin_code = inputs.get("code", "").strip()
@@ -1035,15 +1058,13 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    # ── create_tool (Legacy) ───────────────────────────────────────────────────
     elif name == "create_tool":
         return await _dispatch("create_plugin", inputs)
 
-    # ── self_restart ───────────────────────────────────────────────────────────
     elif name == "self_restart":
+        # Sicherheitswarnung: Nutzer sollte restart_with_approval verwenden
         try:
-            console.print("[yellow]AION: Neustart wird eingeleitet...[/yellow]") if HAS_RICH else print("AION: Neustart...")
-            # __pycache__ loeschen
+            console.print("[yellow]⚠️  AION: Neustart via self_restart (ohne Genehmigung) wird eingeleitet...[/yellow]") if HAS_RICH else print("⚠️  AION: Neustart...")
             cache_cleared = 0
             for p in (list(BOT_DIR.rglob("__pycache__")) + list(TOOLS_DIR.rglob("__pycache__"))):
                 if p.is_dir():
@@ -1059,13 +1080,11 @@ async def _dispatch(name: str, inputs: dict) -> str:
             restart_bat = BOT_DIR / "restart.bat"
             if not restart_bat.is_file():
                 return json.dumps({"ok": False, "error": f"restart.bat nicht gefunden: {restart_bat}"})
-            import subprocess
             subprocess.Popen([str(restart_bat)], shell=True)
             sys.exit(0)
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
-    # ── self_reload_tools ──────────────────────────────────────────────────────
     elif name == "self_reload_tools":
         try:
             from plugin_loader import load_plugins
@@ -1076,7 +1095,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
-    # ── memory_record ─────────────────────────────────────────────────────────
     elif name == "memory_record":
         memory.record(
             category=inputs.get("category", "general"),
@@ -1104,12 +1122,12 @@ async def _dispatch(name: str, inputs: dict) -> str:
             "plugin_tools":   list(_plugin_tools.keys()),
             "all_tools":      sorted(list(_plugin_tools.keys())),
             "model":          MODEL,
+            "config_file":    str(CONFIG_FILE),
             "character_file": str(CHARACTER_FILE),
             "thoughts_file":  str(BOT_DIR / "thoughts.md"),
             "chunk_size":     CHUNK_SIZE,
         })
 
-    # Plugin-Tools
     elif name in _plugin_tools:
         try:
             fn = _plugin_tools[name]["func"]
@@ -1136,7 +1154,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
 
 # ── Haupt-LLM-Loop ────────────────────────────────────────────────────────────
 
-# Globale Konversation pro Kanal, um Zustände zu trennen (z.B. für Telegram, Web, etc.)
 _conversations: dict[str, list[dict]] = {"default": []}
 
 async def chat_turn(messages: list[dict], user_input: str, _override_client=None) -> tuple[str, list[dict]]:
@@ -1576,23 +1593,24 @@ def run_aion_turn(user_input: str, channel: str = "default") -> str:
 
 # ── Konversations-Verwaltung ──────────────────────────────────────────────────
 
-
 async def run():
     global MODEL, client
-    # conversation: list[dict] = [] <-- Ersetzt durch globales Dict _conversations
-    _load_character()  # Stellt sicher dass character.md existiert
+    _load_character()
 
-    # Lade die bisherige Konversationshistorie
+    # Lade die persistente Konversationshistorie beim Start
     try:
         history_result = await _dispatch("memory_read_history", {"num_entries": 50})
         history_data = json.loads(history_result)
         if history_data.get("ok") and history_data.get("entries"):
             _conversations["default"] = history_data["entries"]
-            msg = f"Erinnerung wiederhergestellt: Letzte {len(_conversations['default'])} Nachrichten geladen."
-            console.print(f"[dim yellow]{msg}[/dim yellow]") if HAS_RICH else print(msg)
+            msg = f"✅ Erinnerung wiederhergestellt: {len(_conversations['default'])} Nachrichten geladen."
+            console.print(f"[dim green]{msg}[/dim green]") if HAS_RICH else print(msg)
+        else:
+            note = history_data.get("note", "")
+            if note:
+                console.print(f"[dim]{note}[/dim]") if HAS_RICH else print(note)
     except Exception as e:
         console.print(f"[dim red]Fehler beim Laden der Erinnerung: {e}[/dim red]") if HAS_RICH else print(f"Fehler beim Laden der Erinnerung: {e}")
-
 
     if HAS_RICH:
         console.rule("[bold cyan]AION — Autonomous Intelligent Operations Node[/bold cyan]")
@@ -1624,7 +1642,6 @@ async def run():
         if not user_input:
             continue
 
-        # ── Spezial-Befehle ───────────────────────────────────────────────────
         if user_input.lower() in ("/quit", "/exit", "/q"):
             print("Auf Wiedersehen!")
             break
@@ -1706,17 +1723,17 @@ async def run():
                 print(f"CLIO-Reflexion (Unsicher):\n{clio_text}\n")
             print("Konfidenz zu niedrig (<70). Bitte präzisiere die Frage oder zerlege sie weiter.")
             continue
+
         # ── Normaler Turn ──────────────────────────────
         try:
-            # Speichere die Nutzereingabe in der Historie
+            # Nutzereingabe persistent speichern
             await _dispatch("memory_append_history", {"role": "user", "content": user_input})
 
-            # Nutze den 'default' Kanal für die Terminal-Konversation
             conversation = _conversations.get('default', [])
             answer, updated_conversation = await chat_turn(conversation, user_input)
             _conversations['default'] = updated_conversation
-            
-            # Speichere die AION-Antwort in der Historie
+
+            # AION-Antwort persistent speichern
             if answer:
                 await _dispatch("memory_append_history", {"role": "assistant", "content": answer})
 
@@ -1739,8 +1756,6 @@ async def run():
                           lesson=f"Fehler: {err_msg[:300]}", success=False)
 
 # ── Einstiegspunkt ────────────────────────────────────────────────────────────
-
-# (Dieser Codeblock wurde absichtlich entfernt, um ein veraltetes Speichersystem zu deaktivieren)
 
 if __name__ == "__main__":
     if not os.environ.get("OPENAI_API_KEY"):
