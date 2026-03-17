@@ -1,8 +1,8 @@
 """
 AION Plugin: Image Search
 =========================
-Primär: Openverse API (kostenlos, kein Key, Creative Commons)
-Fallback: DuckDuckGo-Search-Bibliothek
+Primär:  Openverse API (kostenlos, kein Key, sofort)
+Fallback: Bing Images via Playwright (headless Chromium)
 """
 import json
 import urllib.request
@@ -10,9 +10,9 @@ import urllib.parse
 
 
 def search_images(query: str, count: int = 3, **_) -> dict:
-    """Sucht Bilder. Primär: Openverse API. Fallback: DDG."""
+    """Sucht Bilder. Primär: Openverse API. Fallback: Bing via Playwright."""
 
-    # Primär: Openverse (freie CC-Bilder, kein API-Key nötig)
+    # Primär: Openverse (freie CC-Bilder, kein API-Key, kein Browser)
     try:
         encoded = urllib.parse.quote(query)
         url = f"https://api.openverse.org/v1/images/?q={encoded}&page_size={min(count, 20)}"
@@ -29,23 +29,40 @@ def search_images(query: str, count: int = 3, **_) -> dict:
     except Exception:
         pass
 
-    # Fallback: DuckDuckGo
+    # Fallback: Bing Images via Playwright (headless Chromium)
     try:
-        try:
-            from ddgs import DDGS
-        except ImportError:
-            from duckduckgo_search import DDGS
-        with DDGS() as ddgs:
-            results = list(ddgs.images(query, max_results=count))
-        images = [
-            {"url": r.get("image", ""), "title": r.get("title", query)}
-            for r in results
-            if r.get("image", "").startswith("http")
-        ]
+        from playwright.sync_api import sync_playwright
+
+        encoded = urllib.parse.quote(query)
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                )
+            )
+            page.goto(
+                f"https://www.bing.com/images/search?q={encoded}&form=HDRSC2",
+                wait_until="domcontentloaded",
+                timeout=15000,
+            )
+            page.wait_for_timeout(1500)
+
+            images = []
+            for el in page.query_selector_all("img.mimg")[:count * 2]:
+                src = el.get_attribute("src") or el.get_attribute("data-src") or ""
+                alt = el.get_attribute("alt") or query
+                if src.startswith("http") and len(images) < count:
+                    images.append({"url": src, "title": alt})
+
+            browser.close()
+
         if images:
-            return {"ok": True, "images": images, "source": "ddg"}
-    except Exception:
-        pass
+            return {"ok": True, "images": images, "source": "bing"}
+    except Exception as e:
+        return {"ok": False, "error": f"Bildsuche fehlgeschlagen: {e}"}
 
     return {"ok": False, "error": f"Keine Bilder für '{query}' gefunden."}
 
@@ -76,4 +93,4 @@ def register(api):
             "required": ["query"],
         },
     )
-    print("[Plugin] image_search geladen — Openverse (primär) + DDG (Fallback).")
+    print("[Plugin] image_search geladen — Openverse (primär) + Bing/Playwright (Fallback).")
