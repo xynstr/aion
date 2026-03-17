@@ -147,6 +147,14 @@ async def _telegram_worker(token: str):
                             _api_url(token, "sendMessage"),
                             json={"chat_id": chat_id, "text": chunk},
                         )
+                except Exception:
+                    try:
+                        await http.post(
+                            _api_url(token, "sendMessage"),
+                            json={"chat_id": chat_id, "text": chunk},
+                        )
+                    except Exception:
+                        pass
 
         async def _send_images(chat_id: str, image_urls: list):
             """Sendet Bilder via Telegram sendPhoto API."""

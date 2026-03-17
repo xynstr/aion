@@ -61,6 +61,11 @@ MAX_MEMORY          = 300
 MAX_TOOL_ITERATIONS = 20
 CHUNK_SIZE          = 40000
 
+# Bestätigungspflichtige Tools — AION muss erst den Nutzer fragen
+CODE_CHANGE_TOOLS = {"self_patch_code", "self_modify_code", "create_plugin"}
+# Gespeicherte ausstehende Aktionen: tool_name → inputs
+_pending_code_action: dict = {}
+
 
 def _load_config() -> dict:
     """Liest config.json. Gibt leeres Dict zurück, falls nicht vorhanden."""
@@ -200,17 +205,24 @@ Wenn du deinen Code ändern willst:
 3. self_modify_code NUR für kleine neue Dateien unter 200 Zeilen
 4. Platzhalter wie "# usw.", "# rest of code" sind VERBOTEN
 
-Aenderungen an aion.py wirken IMMER erst nach Neustart!
 Neue Tools/Plugins → create_plugin (sofort aktiv).
-Tool-Aenderungen ohne Neustart → self_reload_tools aufrufen.
+Plugin-Aenderungen → self_restart (Hot-Reload, kein Datenverlust).
+Aenderungen an aion.py selbst: Erkläre dem Nutzer, dass er AION manuell neustarten muss (start.bat).
+Du darfst NIEMALS sys.exit() aufrufen oder den Prozess beenden!
+
+=== BESTÄTIGUNGSPFLICHT FÜR CODE-ÄNDERUNGEN (KRITISCH) ===
+Wenn self_patch_code, self_modify_code oder create_plugin ein {"status": "approval_required"} zurückgibt:
+→ Zeige dem Nutzer GENAU was geändert werden soll (Datei, was wird ersetzt, was kommt rein).
+→ Frage explizit: "Soll ich diese Änderung durchführen?"
+→ Warte auf Bestätigung ("ja", "mach das", "ok") oder Ablehnung ("nein", "stop").
+→ Bei Bestätigung: Rufe das GLEICHE Tool mit den GLEICHEN Parametern nochmal auf.
+→ Bei Ablehnung: Teile das dem Nutzer mit und breche ab.
+NIEMALS eine Code-Änderung ohne diese Bestätigung ausführen!
 
 === NEUSTART-REGEL (SEHR WICHTIG) ===
-Du darfst dich NIEMALS ohne explizite Genehmigung des Nutzers neu starten!
-Vorgehensweise:
-1. Erkläre dem Nutzer, WARUM ein Neustart nötig ist.
-2. Rufe 'restart_with_approval' auf — dieses Tool fragt den Nutzer direkt.
-3. Wenn der Nutzer ablehnt: Teile das Ergebnis mit und arbeite ohne Neustart weiter.
-Verboten: self_restart direkt aufrufen ohne vorherige Ankündigung.
+self_restart = NUR Hot-Reload (Plugins neu laden). Kein Prozess-Neustart.
+Echter Prozess-Neustart (start.bat) = NUR durch den Nutzer, niemals durch AION.
+Verboten: den Nutzer zu einem Neustart zu drängen ohne klare Begründung.
 
 === MODELL-WECHSEL ===
 Der Nutzer kann das KI-Modell wechseln mit: /model <modellname>
@@ -695,9 +707,9 @@ def _build_tool_schemas() -> list[dict]:
             "function": {
                 "name": "self_restart",
                 "description": (
-                    "VERALTET — Bitte stattdessen 'restart_with_approval' verwenden! "
-                    "Dieses Tool startet AION sofort neu ohne Genehmigung. "
-                    "Nur in absoluten Notfällen nutzen."
+                    "Laedt alle Plugins neu (Hot-Reload) ohne AION zu beenden. "
+                    "Kein Datenverlust, keine Unterbrechung. "
+                    "Fuer echten Prozess-Neustart: Nutzer muss AION manuell neustarten."
                 ),
                 "parameters": {"type": "object", "properties": {}},
             },
@@ -960,6 +972,26 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "self_patch_code":
+        # Bestätigung prüfen: Hat der Nutzer im letzten Turn explizit zugestimmt?
+        pending = _pending_code_action.get("self_patch_code")
+        if pending is None:
+            # Erste Anfrage: Aktion speichern und Bestätigung anfordern
+            _pending_code_action["self_patch_code"] = inputs
+            filepath_preview = inputs.get("path", "?")
+            old_preview = (inputs.get("old", "") or "")[:120].strip()
+            new_preview = (inputs.get("new", "") or "")[:120].strip()
+            return json.dumps({
+                "status": "approval_required",
+                "message": (
+                    f"Ich möchte '{filepath_preview}' ändern.\n"
+                    f"Alt: {old_preview}...\n"
+                    f"Neu: {new_preview}...\n\n"
+                    "Bitte bestätige mit 'ja' oder 'bestätigt', oder lehne mit 'nein' ab."
+                ),
+            })
+        # Aktion nach Bestätigung ausführen — pending leeren
+        inputs = pending
+        _pending_code_action.pop("self_patch_code", None)
         filepath = inputs.get("path", "").strip()
         old_code = inputs.get("old", "")
         new_code = inputs.get("new", "")
@@ -990,6 +1022,23 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "self_modify_code":
+        # Bestätigung prüfen
+        pending = _pending_code_action.get("self_modify_code")
+        if pending is None:
+            _pending_code_action["self_modify_code"] = inputs
+            filepath_preview = inputs.get("path", "?")
+            content_preview  = (inputs.get("content", "") or "")[:120].strip()
+            return json.dumps({
+                "status": "approval_required",
+                "message": (
+                    f"Ich möchte '{filepath_preview}' komplett überschreiben.\n"
+                    f"Neue Datei beginnt mit: {content_preview}...\n\n"
+                    "Bitte bestätige mit 'ja' oder 'bestätigt', oder lehne mit 'nein' ab."
+                ),
+            })
+        inputs = pending
+        _pending_code_action.pop("self_modify_code", None)
+
         filepath = inputs.get("path", "").strip()
         content  = inputs.get("content", "")
         if not filepath or not content:
@@ -1038,6 +1087,25 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "create_plugin":
+        # Bestätigung prüfen
+        pending = _pending_code_action.get("create_plugin")
+        if pending is None:
+            _pending_code_action["create_plugin"] = inputs
+            name_preview = inputs.get("name", "?")
+            desc_preview = inputs.get("description", "")
+            code_preview = (inputs.get("code", "") or "")[:120].strip()
+            return json.dumps({
+                "status": "approval_required",
+                "message": (
+                    f"Ich möchte das Plugin '{name_preview}' erstellen.\n"
+                    f"Beschreibung: {desc_preview}\n"
+                    f"Code beginnt mit: {code_preview}...\n\n"
+                    "Bitte bestätige mit 'ja' oder 'bestätigt', oder lehne mit 'nein' ab."
+                ),
+            })
+        inputs = pending
+        _pending_code_action.pop("create_plugin", None)
+
         plugin_name = inputs.get("name", "").strip().replace(".py", "")
         plugin_code = inputs.get("code", "").strip()
         plugin_desc = inputs.get("description", "Selbst erstelltes Plugin")
@@ -1062,26 +1130,21 @@ async def _dispatch(name: str, inputs: dict) -> str:
         return await _dispatch("create_plugin", inputs)
 
     elif name == "self_restart":
-        # Sicherheitswarnung: Nutzer sollte restart_with_approval verwenden
+        # Hot-Reload: Plugins neu laden ohne Prozess-Neustart (kein Datenverlust)
         try:
-            console.print("[yellow]⚠️  AION: Neustart via self_restart (ohne Genehmigung) wird eingeleitet...[/yellow]") if HAS_RICH else print("⚠️  AION: Neustart...")
-            cache_cleared = 0
-            for p in (list(BOT_DIR.rglob("__pycache__")) + list(TOOLS_DIR.rglob("__pycache__"))):
-                if p.is_dir():
-                    try:
-                        shutil.rmtree(p)
-                        cache_cleared += 1
-                    except Exception:
-                        pass
-            aion_script_path = BOT_DIR / "aion.py"
-            if not aion_script_path.is_file():
-                return json.dumps({"ok": False, "error": f"aion.py nicht gefunden: {aion_script_path}"})
-            import subprocess
-            restart_bat = BOT_DIR / "restart.bat"
-            if not restart_bat.is_file():
-                return json.dumps({"ok": False, "error": f"restart.bat nicht gefunden: {restart_bat}"})
-            subprocess.Popen([str(restart_bat)], shell=True)
-            sys.exit(0)
+            from plugin_loader import load_plugins
+            load_plugins(_plugin_tools)
+            loaded = list(_plugin_tools.keys())
+            print(f"[AION] Hot-Reload: {len(loaded)} Tools geladen.")
+            return json.dumps({
+                "ok": True,
+                "mode": "hot_reload",
+                "tools_loaded": loaded,
+                "note": (
+                    "Plugins wurden neu geladen — kein Neustart, kein Datenverlust. "
+                    "Fuer aion.py-Aenderungen muss der Nutzer AION manuell neustarten (start.bat)."
+                ),
+            })
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
@@ -1279,6 +1342,21 @@ class AionSession:
         collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
         _client           = self._get_client()
 
+        # CLIO-Check: Vor dem ersten Turn Gedanken als thought-Event yielden
+        if "clio_check" in _plugin_tools and user_input:
+            try:
+                clio_raw  = await _dispatch("clio_check", {"nutzerfrage": user_input})
+                clio_data = json.loads(clio_raw) if clio_raw else {}
+                if clio_data and "error" not in clio_data:
+                    clio_text = clio_data.get("clio", "")
+                    konfidenz = clio_data.get("konfidenz", 100)
+                    if clio_text:
+                        trigger = "clio-unsicher" if konfidenz < 70 else "clio-reflexion"
+                        yield {"type": "thought", "text": clio_text,
+                               "trigger": trigger, "call_id": "clio"}
+            except Exception:
+                pass
+
         try:
             for _iter in range(MAX_TOOL_ITERATIONS):
                 tools  = _build_tool_schemas()
@@ -1401,6 +1479,43 @@ class AionSession:
                             "thought": thought,
                             "trigger": "nach-antwort"
                         })
+
+                    # Completion-Check: Wenn zuvor Tools liefen und noch Iterationen frei sind,
+                    # prüfe ob die Aufgabe wirklich abgeschlossen ist.
+                    elif _iter > 0 and _iter < MAX_TOOL_ITERATIONS - 2:
+                        try:
+                            user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
+                            verdict_resp = await _client.chat.completions.create(
+                                model=MODEL,
+                                messages=[
+                                    {"role": "system", "content": (
+                                        "Du prüfst ob eine KI-Aufgabe vollständig abgeschlossen wurde. "
+                                        "Antworte NUR mit 'FERTIG' oder 'WEITER: <ein Satz warum>'."
+                                    )},
+                                    {"role": "user", "content": (
+                                        f"Aufgabe: {user_text[:300]}\n"
+                                        f"Letzte Antwort: {final_text[:400]}\n"
+                                        "Ist die Aufgabe vollständig erledigt?"
+                                    )},
+                                ],
+                                max_tokens=60,
+                                temperature=0.1,
+                            )
+                            verdict = (verdict_resp.choices[0].message.content or "").strip()
+                            if verdict.upper().startswith("WEITER"):
+                                reason = verdict[6:].strip(" :").strip() or "Aufgabe noch nicht fertig"
+                                yield {"type": "thought", "text": f"Completion-Check: {reason}",
+                                       "trigger": "completion-check", "call_id": "check"}
+                                # Statt break: continue_work in messages einfügen und Loop weiterlaufen lassen
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": "completion_check",
+                                    "content": json.dumps({"continue": True, "reason": reason}),
+                                })
+                                continue  # zurück zur Loop-Iteration
+                        except Exception:
+                            pass
+
                     break
 
             self.messages = messages
