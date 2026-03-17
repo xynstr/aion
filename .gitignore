@@ -1,63 +1,18 @@
-# ─── Environment & Secrets ────────────────────────────────
-.env
-.env.local
-.env.*.local
-*.key
-*.pem
-
-# ─── Python ────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-.hypothesis/
-
-# ─── Virtual Environments ──────────────────────────────────
-venv/
-ENV/
-env/
-.venv
-
-# ─── IDEs ──────────────────────────────────────────────────
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# ─── AION Runtime Files ────────────────────────────────────
+# AION specific
 aion_memory.json
-aion_tools/
-*.pid
+thoughts.md
+conversation_history.json
+*.bak
 
-# ─── Temporary Files ──────────────────────────────────────
-*.tmp
-*.temp
-*.log
-.cache/
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# IDE specific
+.idea/
+.vscode/

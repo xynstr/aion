@@ -67,17 +67,13 @@ def _set_model(model: str):
     cfg = _load_config()
     cfg["model"] = model
     _save_config(cfg)
+    # Auch in laufendem aion-Modul aktualisieren
     _aion_module.MODEL = model
-    # _build_client vom Plugin nutzen falls vorhanden, sonst Standard-OpenAI
-    if hasattr(_aion_module, "_build_client"):
-        _aion_module.client = _aion_module._build_client(model)
-    else:
-        from openai import AsyncOpenAI
-        _aion_module.client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    from openai import AsyncOpenAI
+    _aion_module.client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
-# Modell beim Start NACH plugin_loader setzen (Plugins werden in aion._load_external_tools geladen)
-# Kurze Verzögerung via startup-Event damit Plugins zuerst initialisiert sind
-_startup_model = _get_model()
+# Modell beim Start aus config.json laden
+_set_model(_get_model())
 
 app = FastAPI(title="AION")
 
@@ -214,22 +210,6 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
                 break
 
         _conversation = messages
-
-        # Auto-Memory
-        if final_text:
-            try:
-                last_user = next(
-                    (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
-                )
-                await _dispatch("memory_record", {
-                    "category": "conversation",
-                    "summary":  last_user[:120],
-                    "lesson":   f"Nutzer: '{last_user[:200]}' → AION: '{final_text[:300]}'",
-                    "success":  True,
-                })
-            except Exception:
-                pass
-
         yield _sse("done", {"full_response": final_text})
 
     except Exception as exc:
@@ -295,16 +275,6 @@ async def get_character():
     return JSONResponse({"character": _load_character()})
 
 # ── Start ─────────────────────────────────────────────────────────────────────
-
-@app.post("/api/model")
-async def set_model_route(request: Request):
-    body  = await request.json()
-    model = body.get("model", "").strip()
-    if not model:
-        return JSONResponse({"error": "Kein Modell angegeben"}, status_code=400)
-    _set_model(model)
-    provider = "gemini" if model.startswith("gemini") else "openai"
-    return JSONResponse({"ok": True, "model": model, "provider": provider})
 
 if __name__ == "__main__":
     if not os.environ.get("OPENAI_API_KEY"):
