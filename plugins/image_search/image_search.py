@@ -1,17 +1,35 @@
 """
 AION Plugin: Image Search
 =========================
-Sucht Bilder via DuckDuckGo (primär) mit Playwright-Fallback.
-
-Installation:
-  pip install duckduckgo-search
-  pip install playwright && playwright install chromium   # für Fallback
+Primär: Openverse API (kostenlos, kein Key, Creative Commons)
+Fallback: DuckDuckGo-Search-Bibliothek
 """
+import json
+import urllib.request
+import urllib.parse
 
 
 def search_images(query: str, count: int = 3, **_) -> dict:
-    """Sucht Bilder auf DuckDuckGo. Fallback: Playwright-Scraping."""
-    # Primär: duckduckgo-search (schnell, kein Browser)
+    """Sucht Bilder. Primär: Openverse API. Fallback: DDG."""
+
+    # Primär: Openverse (freie CC-Bilder, kein API-Key nötig)
+    try:
+        encoded = urllib.parse.quote(query)
+        url = f"https://api.openverse.org/v1/images/?q={encoded}&page_size={min(count, 20)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "AION-ImageSearch/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        images = [
+            {"url": item["url"], "title": item.get("title") or query}
+            for item in data.get("results", [])
+            if item.get("url", "").startswith("http")
+        ][:count]
+        if images:
+            return {"ok": True, "images": images, "source": "openverse"}
+    except Exception:
+        pass
+
+    # Fallback: DuckDuckGo
     try:
         try:
             from ddgs import DDGS
@@ -25,46 +43,11 @@ def search_images(query: str, count: int = 3, **_) -> dict:
             if r.get("image", "").startswith("http")
         ]
         if images:
-            return {"ok": True, "images": images}
+            return {"ok": True, "images": images, "source": "ddg"}
     except Exception:
         pass
 
-    # Fallback: Playwright
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/124.0.0.0 Safari/537.36"
-                )
-            )
-            page.goto(
-                f"https://duckduckgo.com/?q={query}&iax=images&ia=images",
-                wait_until="networkidle",
-                timeout=15000,
-            )
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(1000)
-
-            images = []
-            for el in page.query_selector_all('[data-testid="result-image-img"], .tile--img__img')[:count]:
-                src = el.get_attribute("data-src") or el.get_attribute("src") or ""
-                if src.startswith("//"):
-                    src = "https:" + src
-                if src.startswith("http"):
-                    images.append({"url": src, "title": el.get_attribute("alt") or query})
-
-            browser.close()
-
-        if images:
-            return {"ok": True, "images": images}
-        return {"ok": False, "error": "Keine Bilder gefunden (DDG-Selektor evtl. veraltet)."}
-
-    except Exception as e:
-        return {"ok": False, "error": f"Bildsuche fehlgeschlagen: {e}"}
+    return {"ok": False, "error": f"Keine Bilder für '{query}' gefunden."}
 
 
 def register(api):
@@ -93,4 +76,4 @@ def register(api):
             "required": ["query"],
         },
     )
-    print("[Plugin] image_search geladen — DuckDuckGo + Playwright-Fallback aktiv.")
+    print("[Plugin] image_search geladen — Openverse (primär) + DDG (Fallback).")

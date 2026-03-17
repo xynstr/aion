@@ -65,6 +65,8 @@ CHUNK_SIZE          = 40000
 CODE_CHANGE_TOOLS = {"self_patch_code", "self_modify_code", "create_plugin"}
 # Gespeicherte ausstehende Aktionen: tool_name → inputs
 _pending_code_action: dict = {}
+# Tools die auf einen neuen User-Turn warten (damit AION nicht im gleichen Turn bestätigt)
+_pending_needs_user_turn: set = set()
 
 
 def _load_config() -> dict:
@@ -211,7 +213,7 @@ Aenderungen an aion.py selbst: Erkläre dem Nutzer, dass er AION manuell neustar
 Du darfst NIEMALS sys.exit() aufrufen oder den Prozess beenden!
 
 === BESTÄTIGUNGSPFLICHT FÜR CODE-ÄNDERUNGEN (KRITISCH) ===
-Wenn self_patch_code, self_modify_code oder create_plugin ein {"status": "approval_required"} zurückgibt:
+Wenn self_patch_code, self_modify_code oder create_plugin ein {{"status": "approval_required"}} zurückgibt:
 → Zeige dem Nutzer GENAU was geändert werden soll (Datei, was wird ersetzt, was kommt rein).
 → Frage explizit: "Soll ich diese Änderung durchführen?"
 → Warte auf Bestätigung ("ja", "mach das", "ok") oder Ablehnung ("nein", "stop").
@@ -972,11 +974,11 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "self_patch_code":
-        # Bestätigung prüfen: Hat der Nutzer im letzten Turn explizit zugestimmt?
+        # Bestätigung prüfen: nur ausführen wenn Nutzer in einem NEUEN Turn bestätigt hat
         pending = _pending_code_action.get("self_patch_code")
-        if pending is None:
-            # Erste Anfrage: Aktion speichern und Bestätigung anfordern
+        if pending is None or "self_patch_code" in _pending_needs_user_turn:
             _pending_code_action["self_patch_code"] = inputs
+            _pending_needs_user_turn.add("self_patch_code")
             filepath_preview = inputs.get("path", "?")
             old_preview = (inputs.get("old", "") or "")[:120].strip()
             new_preview = (inputs.get("new", "") or "")[:120].strip()
@@ -992,6 +994,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
         # Aktion nach Bestätigung ausführen — pending leeren
         inputs = pending
         _pending_code_action.pop("self_patch_code", None)
+        _pending_needs_user_turn.discard("self_patch_code")
         filepath = inputs.get("path", "").strip()
         old_code = inputs.get("old", "")
         new_code = inputs.get("new", "")
@@ -1024,8 +1027,9 @@ async def _dispatch(name: str, inputs: dict) -> str:
     elif name == "self_modify_code":
         # Bestätigung prüfen
         pending = _pending_code_action.get("self_modify_code")
-        if pending is None:
+        if pending is None or "self_modify_code" in _pending_needs_user_turn:
             _pending_code_action["self_modify_code"] = inputs
+            _pending_needs_user_turn.add("self_modify_code")
             filepath_preview = inputs.get("path", "?")
             content_preview  = (inputs.get("content", "") or "")[:120].strip()
             return json.dumps({
@@ -1038,6 +1042,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
             })
         inputs = pending
         _pending_code_action.pop("self_modify_code", None)
+        _pending_needs_user_turn.discard("self_modify_code")
 
         filepath = inputs.get("path", "").strip()
         content  = inputs.get("content", "")
@@ -1089,8 +1094,9 @@ async def _dispatch(name: str, inputs: dict) -> str:
     elif name == "create_plugin":
         # Bestätigung prüfen
         pending = _pending_code_action.get("create_plugin")
-        if pending is None:
+        if pending is None or "create_plugin" in _pending_needs_user_turn:
             _pending_code_action["create_plugin"] = inputs
+            _pending_needs_user_turn.add("create_plugin")
             name_preview = inputs.get("name", "?")
             desc_preview = inputs.get("description", "")
             code_preview = (inputs.get("code", "") or "")[:120].strip()
@@ -1105,6 +1111,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
             })
         inputs = pending
         _pending_code_action.pop("create_plugin", None)
+        _pending_needs_user_turn.discard("create_plugin")
 
         plugin_name = inputs.get("name", "").strip().replace(".py", "")
         plugin_code = inputs.get("code", "").strip()
@@ -1341,6 +1348,20 @@ class AionSession:
         final_text        = ""
         collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
         _client           = self._get_client()
+
+        # Bestätigungs-Gate: Nutzer-Turn auswerten (ja/nein für pending Code-Aktionen)
+        if _pending_needs_user_turn and user_input:
+            user_lower = user_input.lower()
+            confirm = any(w in user_lower for w in
+                          ("ja", "ok", "bestätigt", "bestaetig", "mach das", "yes",
+                           "confirm", "weiter", "ausführen", "ausfuehren", "go"))
+            reject  = any(w in user_lower for w in
+                          ("nein", "stop", "abbruch", "cancel", "nope", "stopp", "nicht"))
+            if confirm:
+                _pending_needs_user_turn.clear()   # Gate öffnen — nächster Tool-Call führt aus
+            elif reject:
+                _pending_code_action.clear()
+                _pending_needs_user_turn.clear()
 
         # CLIO-Check: Vor dem ersten Turn Gedanken als thought-Event yielden
         if "clio_check" in _plugin_tools and user_input:
