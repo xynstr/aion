@@ -107,6 +107,88 @@ async def _lifespan(app: FastAPI):
 app = FastAPI(title="AION", lifespan=_lifespan)
 
 _conversation: list[dict] = []
+_exchange_count: int = 0
+
+# ── Automatische Charakter-Entwicklung ───────────────────────────────────────
+
+async def _auto_character_update():
+    """Alle 5 Gespräche: LLM analysiert Verlauf und aktualisiert character.md."""
+    if len(_conversation) < 4:
+        return
+    recent = [m for m in _conversation[-20:]
+              if m.get("role") in ("user", "assistant") and m.get("content")]
+    if len(recent) < 4:
+        return
+
+    dialogue = "\n".join(
+        f"{'Nutzer' if m['role'] == 'user' else 'AION'}: {str(m.get('content', ''))[:300]}"
+        for m in recent[-12:]
+    )
+    current_character = _load_character()
+
+    prompt = f"""Analysiere dieses Gespräch zwischen AION und seinem Nutzer.
+Extrahiere NUR konkrete, belegbare Erkenntnisse aus dem Gesprächsinhalt.
+
+GESPRÄCH:
+{dialogue}
+
+AKTUELLER CHARAKTER (Auszug):
+{current_character[:600]}
+
+Antworte ausschließlich im folgenden JSON-Format:
+{{
+  "nutzer": ["konkrete Erkenntnis 1", "konkrete Erkenntnis 2"],
+  "aion_selbst": ["was AION über sich selbst gelernt hat"],
+  "verbesserungen": ["was AION konkret verbessern will"],
+  "offene_fragen": ["was AION noch über den Nutzer herausfinden will"],
+  "update_needed": true
+}}
+Nur update_needed=true wenn wirklich neue, nicht bereits bekannte Erkenntnisse vorhanden sind.
+Lieber weniger aber dafür präzise. Keine Spekulationen."""
+
+    try:
+        response = await _aion_module.client.chat.completions.create(
+            model=_aion_module.MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=600,
+            temperature=0.2,
+        )
+        text = response.choices[0].message.content or ""
+        import re
+        m = re.search(r'\{.*\}', text, re.DOTALL)
+        if not m:
+            return
+        data = json.loads(m.group())
+        if not data.get("update_needed"):
+            return
+
+        updates = {
+            "nutzer":        data.get("nutzer", []),
+            "erkenntnisse":  data.get("aion_selbst", []),
+            "verbesserungen": data.get("verbesserungen", []),
+        }
+        offene = data.get("offene_fragen", [])
+
+        for section, items in updates.items():
+            if items:
+                content = "\n".join(f"- {e}" for e in items)
+                await _dispatch("update_character", {
+                    "section": section,
+                    "content": content,
+                    "reason": "Automatische Analyse aus Gesprächsverlauf",
+                })
+
+        if offene:
+            content = "\n".join(f"- {e}" for e in offene)
+            await _dispatch("update_character", {
+                "section": "Offene Fragen über meinen Nutzer",
+                "content": content,
+                "reason": "Dinge die ich noch herausfinden will",
+            })
+
+        print(f"[AION] Charakter automatisch aktualisiert nach {_exchange_count} Gesprächen.")
+    except Exception as e:
+        print(f"[AION] Auto-Charakter-Update Fehler: {e}")
 
 # ── SSE-Helper ────────────────────────────────────────────────────────────────
 
@@ -116,7 +198,7 @@ def _sse(event_type: str, data: dict) -> str:
 # ── Streaming Chat-Loop ───────────────────────────────────────────────────────
 
 async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
-    global _conversation
+    global _conversation, _exchange_count
 
     mem_ctx          = memory.get_context(user_input)
     thoughts_ctx     = _get_recent_thoughts(5)
@@ -263,6 +345,11 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
                 await _dispatch("memory_append_history", {"role": "assistant", "content": final_text})
             except Exception:
                 pass
+
+        # Alle 5 Gespräche: automatische Charakter-Entwicklung im Hintergrund
+        _exchange_count += 1
+        if _exchange_count % 5 == 0:
+            asyncio.create_task(_auto_character_update())
 
         yield _sse("done", {"full_response": final_text})
 
