@@ -34,11 +34,27 @@ def _openai_schema_to_gemini(openai_tools: list) -> list:
     """Konvertiert OpenAI Tool-Schemas in Gemini FunctionDeclaration-Format."""
     from google.genai import types as t
 
-    def clean_schema(s):
-        """Bereinigt Schema: entfernt title-Felder, gibt None zurück wenn leer."""
+    def clean_schema(s, in_properties=False):
+        """Bereinigt Schema: entfernt title-Metadaten, aber NICHT Property-Namen.
+
+        Problem: JSON-Schema nutzt "title" als Metadaten-Feld (z.B. {"title": "Foo", "type": "string"}).
+        Gemini akzeptiert "title" nicht. ABER: properties-Dicts haben Property-Namen als Keys —
+        ein Tool kann eine Property namens "title" haben. Diese dürfen NICHT entfernt werden.
+
+        Lösung: "title" nur in Schema-Objekten entfernen (nicht als Key in properties-Maps).
+        """
         if not isinstance(s, dict):
             return s
-        return {k: clean_schema(v) for k, v in s.items() if k != "title"}
+        result = {}
+        for k, v in s.items():
+            if k == "title" and not in_properties:
+                continue  # Schema-Metadaten "title" entfernen, aber nicht Property-Namen
+            if k == "properties" and isinstance(v, dict):
+                # Properties-Map: Keys sind Property-Namen → in_properties=True
+                result[k] = {pk: clean_schema(pv, in_properties=False) for pk, pv in v.items()}
+            else:
+                result[k] = clean_schema(v, in_properties=False)
+        return result
 
     declarations = []
     for tool in openai_tools:
