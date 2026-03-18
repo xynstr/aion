@@ -328,14 +328,23 @@ async def _telegram_worker(token: str):
 
                 if not r.is_success:
                     if r.status_code == 409:
-                        # 409 = alte Instanz noch aktiv (Long-Poll läuft noch)
-                        # Warte > 8s damit der alte Poll-Timeout abläuft
-                        print(f"[Telegram] getUpdates HTTP 409 — warte 10s auf alten Poll-Timeout...")
-                        await asyncio.sleep(10)
+                        # 409 = anderer Polling-Client aktiv (alter AION-Prozess läuft noch)
+                        # Long-Poll-Timeout ist 8s → nach 8s gibt der alte Client frei.
+                        # Strategie: erst kurz warten, dann länger (Backoff), ab 5 Versuchen warnen.
+                        _409_streak = getattr(_telegram_worker, "_409_streak", 0) + 1
+                        _telegram_worker._409_streak = _409_streak
+                        if _409_streak == 1:
+                            print("[Telegram] getUpdates HTTP 409 — anderer Client aktiv, warte...")
+                        elif _409_streak % 5 == 0:
+                            print(f"[Telegram] 409 hält an ({_409_streak}x) — läuft noch ein anderer AION-Prozess?")
+                        wait = min(10 + _409_streak * 2, 30)  # 12s, 14s, ... max 30s
+                        await asyncio.sleep(wait)
                     else:
                         print(f"[Telegram] getUpdates HTTP {r.status_code} — Retry in 5s")
                         await asyncio.sleep(5)
                     continue
+
+                _telegram_worker._409_streak = 0  # Erfolgreicher Request → Streak reset
 
                 data = r.json()
                 if not data.get("ok"):

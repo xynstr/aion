@@ -169,26 +169,43 @@ echo.
 
 REM Alte AION-Prozesse beenden (verhindert Telegram 409 Conflict)
 echo  Beende alte AION-Instanzen (falls vorhanden)...
+
+REM 1) Port 7000 — Prozess der dort lauscht beenden
 set OLDPID=
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7000 "') do (
     if not defined OLDPID set OLDPID=%%a
 )
 if defined OLDPID (
     taskkill /PID !OLDPID! /F >nul 2>&1
-    echo  OK: Alte Instanz auf Port 7000 beendet.
+    echo  OK: Alte Instanz auf Port 7000 beendet (PID !OLDPID!).
 )
+
+REM 2) Alle python.exe die aion_web oder aion.py in der Kommandozeile haben
 for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /FO list ^| findstr "^PID"') do (
     set CHKPID=%%a
-    wmic process where "ProcessId=!CHKPID!" get CommandLine 2^>nul | findstr /I "aion_web" >nul 2>&1
+    wmic process where "ProcessId=!CHKPID!" get CommandLine 2^>nul | findstr /I "aion_web aion.py" >nul 2>&1
     if not errorlevel 1 (
         taskkill /PID !CHKPID! /F >nul 2>&1
-        echo  OK: aion_web.py Prozess beendet.
+        echo  OK: Python-Prozess !CHKPID! (aion) beendet.
     )
 )
-REM Warte 10s damit Telegrams Server die alte Verbindung als getrennt erkennt
-REM (Long-Polling timeout ist 8s, also reichen 10s als Puffer)
-echo  Warte 10s auf Telegram-Disconnect...
-timeout /t 10 >nul
+
+REM 3) Kurze Pause damit OS die Prozesse wirklich beendet
+timeout /t 2 >nul
+
+REM 4) Nochmal Port 7000 pruefen (manchmal braucht taskkill einen Moment)
+set OLDPID2=
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7000 "') do (
+    if not defined OLDPID2 set OLDPID2=%%a
+)
+if defined OLDPID2 (
+    taskkill /PID !OLDPID2! /F >nul 2>&1
+    echo  OK: Zweiter Kill-Versuch fuer Port 7000 (PID !OLDPID2!).
+)
+
+REM 5) Warte auf Telegram-Disconnect (Long-Poll timeout=8s + 4s Puffer = 12s)
+echo  Warte 12s auf Telegram-Disconnect...
+timeout /t 12 >nul
 
 REM Browser nach kurzer Verzoegerung oeffnen (Python-Prozess startet zuerst)
 start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:7000"
