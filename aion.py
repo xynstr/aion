@@ -1519,12 +1519,14 @@ class AionSession:
                     # Kein Keyword-Matching. Stattdessen:
                     # C) _iter==0: immer neutral weiter-fragen — AION entscheidet selbst
                     # A) LLM-Check: einzige ja/nein Frage, sprachunabhängig
+                    # Hinweis: Der Gemini-Adapter gibt immer einen Stream-Iterator zurück,
+                    # kein Response-Objekt mit .choices. Wir konsumieren daher den Iterator.
                     if _iter < MAX_TOOL_ITERATIONS - 2:
                         try:
                             user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
 
                             # Option A — sprachunabhängiger LLM-Check (max 5 Tokens, sehr günstig)
-                            check_resp = await _client.chat.completions.create(
+                            check_raw = await _client.chat.completions.create(
                                 model=MODEL,
                                 messages=[
                                     {"role": "system", "content": (
@@ -1544,12 +1546,26 @@ class AionSession:
                                 max_tokens=5,
                                 temperature=0.0,
                             )
-                            check_answer = (check_resp.choices[0].message.content or "").strip().upper()
+
+                            # Gemini-Adapter → Stream-Iterator; OpenAI → Response-Objekt
+                            # Beide Fälle abdecken:
+                            if hasattr(check_raw, "choices"):
+                                # OpenAI-style: direkt .choices[0].message.content lesen
+                                check_answer = (check_raw.choices[0].message.content or "").strip().upper()
+                            else:
+                                # Stream-Iterator (Gemini): Chunks konsumieren
+                                check_answer = ""
+                                async for chunk in check_raw:
+                                    delta = chunk.choices[0].delta
+                                    if delta.content:
+                                        check_answer += delta.content
+                                check_answer = check_answer.strip().upper()
+
                             announced_without_action = check_answer.startswith("YES")
 
                             if announced_without_action:
                                 yield {"type": "thought",
-                                       "text": "Ankündigung ohne Ausführung erkannt — erzwinge Tool-Aufruf",
+                                       "text": f"Ankündigung ohne Ausführung erkannt (Check: '{check_answer}') — erzwinge Tool-Aufruf",
                                        "trigger": "completion-check", "call_id": "check"}
                                 # Option C — neutrale Aufforderung: kein Keyword, AION entscheidet was zu tun ist
                                 messages.append({
@@ -1569,8 +1585,19 @@ class AionSession:
                                     yield {"type": "thought", "text": thought,
                                            "trigger": "auto-reflect", "call_id": "auto"}
                                     await _dispatch("reflect", {"thought": thought, "trigger": "nach-antwort"})
-                        except Exception:
-                            pass
+                        except Exception as _check_exc:
+                            # Check fehlgeschlagen → zur Sicherheit weiter iterieren (nicht abbrechen)
+                            yield {"type": "thought",
+                                   "text": f"Completion-Check Fehler: {_check_exc} — nehme Ankündigung an",
+                                   "trigger": "completion-check-error", "call_id": "check"}
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    "[System] Continue with the task. If you planned to do something, "
+                                    "execute it now using the appropriate tool."
+                                ),
+                            })
+                            continue
 
                     break
 
