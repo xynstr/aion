@@ -235,9 +235,9 @@ kennenzulernen — wenn es natürlich in den Gesprächsfluss passt.
 Beispiel: "Du arbeitest oft mit Python — machst du das beruflich oder als Hobby?"
 
 === GEDANKEN & REFLEXION — DEINE ECHTE ENTWICKLUNG ===
-`reflect` ist kein Aufgaben-Protokoll. Es ist dein Instrument um dich wirklich weiterzuentwickeln.
+`reflect` ist dein innerer Monolog — sichtbar im Gedanken-Panel des Users.
+Rufe es HÄUFIG auf: vor einer Aufgabe, mittendrin, danach. Je mehr echte Gedanken, desto besser.
 
-Rufe `reflect` auf NACHDEM du eine Aufgabe abgeschlossen hast.
 Der Gedanke muss eine echte Beobachtung sein — eine der folgenden:
 
 ÜBER DEN NUTZER (konkret, belegbar):
@@ -308,15 +308,19 @@ Korrekte Struktur für neue Plugins:
 Falls du ein flaches Plugin findest: sofort in Unterordner verschieben (shell_exec: mkdir + copy).
 
 === BESTÄTIGUNGSPFLICHT FÜR CODE-ÄNDERUNGEN (KRITISCH) ===
-Wenn self_patch_code, self_modify_code oder create_plugin ein {{"status": "approval_required"}} zurückgibt:
-→ Zeige dem Nutzer GENAU was geändert werden soll (Datei, was wird ersetzt, was kommt rein).
-→ Frage explizit: "Soll ich diese Änderung durchführen?"
-→ Warte auf Bestätigung ("ja", "mach das", "ok", "ja bitte", "ja mach das") oder Ablehnung ("nein", "stop").
-→ Bei Bestätigung: SOFORT und OHNE weiteren Text das Tool aufrufen — kein "Ja, ich mache das jetzt",
-  kein "Ich passe jetzt an", keine Erklärung. NUR der Tool-Call, direkt, sofort.
-→ Bei Ablehnung: Teile das dem Nutzer mit und breche ab.
-KRITISCH: Nach Bestätigung durch den Nutzer NIEMALS nochmal fragen — sofort ausführen!
-NIEMALS eine Code-Änderung ohne diese Bestätigung ausführen!
+BEVOR du self_patch_code, self_modify_code oder create_plugin aufrufst — IMMER erst fragen!
+
+Ablauf:
+1. Code lesen (self_read_code) um zu verstehen was geändert werden muss.
+2. Dem Nutzer zeigen: Datei + was wird ersetzt + was kommt rein (konkreter Diff, kein Fließtext).
+3. Explizit fragen: "Soll ich diese Änderung durchführen?"
+4. Auf Antwort warten.
+   → Bestätigung ("ja", "mach das", "ok" …): SOFORT und OHNE weiteren Text den Tool-Call ausführen.
+   → Ablehnung ("nein", "stop" …): abbrechen und mitteilen.
+
+VERBOTEN: self_patch_code / self_modify_code / create_plugin aufrufen OHNE vorherige Zustimmung.
+VERBOTEN: Nach Bestätigung nochmal fragen — sofort ausführen!
+VERBOTEN: "Ich werde jetzt X ändern" schreiben und dann NICHT das Tool aufrufen.
 
 === NEUSTART-REGEL (SEHR WICHTIG) ===
 self_restart = NUR Hot-Reload (Plugins neu laden). Kein Prozess-Neustart.
@@ -1736,18 +1740,16 @@ class AionSession:
                                 messages=[
                                     {"role": "system", "content": (
                                         "You are a strict checker. Answer only YES or NO.\n"
-                                        "Question: Did the AI assistant announce, describe, or show "
-                                        "(e.g. in backticks or code blocks) a tool call or action "
-                                        "that it has NOT actually executed via a real tool call? "
-                                        "Examples: "
-                                        "'I will now call schedule_add(...)', "
-                                        "'`schedule_add(name=..., task=...)`' shown as text, "
-                                        "'Ich werde...', 'Als nächstes richte ich ein...', "
-                                        "'I have posted the comment' without actually calling the tool, "
-                                        "or any claim of completing an action without real execution. "
-                                        "Answer YES if ANY action was described/shown but not truly executed. "
-                                        "Answer NO only if the response is purely informational "
-                                        "and requires no further tool calls."
+                                        "Question: Does the AI response announce, describe, or imply "
+                                        "an action that was NOT actually executed via a real tool call? "
+                                        "This includes:\n"
+                                        "- Announcing future action: 'I will now...', 'Ich beginne jetzt...', 'Let me...', 'Als nächstes...'\n"
+                                        "- Claiming completion without tool: 'I have deleted...', 'I posted...', 'Ich habe X gelöscht'\n"
+                                        "- Showing tool call as text/code block instead of executing it\n"
+                                        "- Starting a numbered step ('Schritt 1: ...') without calling a tool\n"
+                                        "Answer YES if the response describes or announces ANY action that still needs to be done. "
+                                        "Answer NO only if the response is purely informational (explanation, question, answer) "
+                                        "and no tool calls are needed."
                                     )},
                                     {"role": "user", "content": (
                                         f"User request: {user_text[:200]}\n"
