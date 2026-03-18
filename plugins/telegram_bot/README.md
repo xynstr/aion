@@ -1,21 +1,24 @@
-# Plugin: telegram_bot
+# telegram_bot
 
-**Bidirektionale Telegram-Integration**
+Bidirektionale Telegram-Integration für AION. Text, Bilder und Sprachnachrichten senden und empfangen.
 
-## Funktion
+## Zweck
 
-AION antwortet auf Telegram-Nachrichten und kann Nachrichten an Telegram senden. Nutzt `python-telegram-bot` für Polling und `requests` für das Senden.
+AION antwortet auf Telegram-Nachrichten (Text, Bilder, Sprachnachrichten) und kann von sich aus Nachrichten und Audiodateien versenden. Jeder Telegram-User bekommt eine eigene AionSession mit History und Charakter-Update.
 
 ## Tools
 
-### `send_telegram_message`
+| Tool | Beschreibung |
+|---|---|
+| `send_telegram_message(message)` | Text an konfigurierte Chat-ID senden. Markdown wird automatisch in Telegram-HTML konvertiert. Lange Nachrichten werden aufgeteilt. |
+| `send_telegram_voice(path)` | Audiodatei als Telegram-Sprachnachricht senden. Akzeptiert WAV, MP3, OGG u.a. — konvertiert automatisch zu OGG OPUS via ffmpeg. |
 
-**Parameter:**
-- `message` (string): Nachricht zum Senden
+## Workflow für Sprachnachricht senden
 
-**Ausgabe:**
-- `ok` (boolean): Erfolgreich gesendet?
-- `error` (string): Fehlermeldung falls Problem
+```
+1. audio_tts(text)           → erzeugt WAV-Datei, gibt {ok, path} zurück
+2. send_telegram_voice(path) → sendet WAV als Sprachnachricht (OGG-Konvertierung automatisch)
+```
 
 ## Konfiguration
 
@@ -25,38 +28,22 @@ TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPqrstuvwxyz
 TELEGRAM_CHAT_ID=987654321
 ```
 
-**So bekommst du einen Bot:**
-1. Öffne [@BotFather](https://t.me/BotFather) in Telegram
-2. Sende `/newbot`
-3. Folge den Anweisungen
-4. Kopiere Token in `.env`
+**Bot erstellen:**
+1. [@BotFather](https://t.me/BotFather) öffnen → `/newbot`
+2. Token in `.env` eintragen
+3. `/start` an den Bot senden → Chat-ID wird automatisch gespeichert
 
-**Chat-ID speichern:**
-1. Bot starten
-2. Sende `/start` an den Bot
-3. Chat-ID wird automatisch gespeichert
+## Empfang (Polling)
 
-## Funktionsweise
+- Daemon-Thread läuft im Hintergrund, startet automatisch beim Plugin-Load
+- Nachrichten werden an eine eigene `AionSession(channel="telegram_{chat_id}")` weitergeleitet
+- Sprachnachrichten (OGG) → ffmpeg → Vosk-Transkription → AION → TTS-Rückantwort
+- Bilder → Base64 → AION Vision
 
-### Empfangen (Polling)
-- Daemon-Thread wartet auf neue Nachrichten
-- Startet automatisch beim Plugin-Load (wenn Token vorhanden)
-- Ruft `run_aion_turn` mit Nachricht auf
-- Sendet Antwort zurück
+## Abhängigkeiten
 
-### Senden
-- `send_telegram_message` nutzt HTTP-Request (keine asyncio nötig)
-- Sendung an gespeicherte Chat-ID
-- Max. 4000 Zeichen pro Nachricht
-
-## Beispiel
-
-```
-Du schreibst auf Telegram:
-"Was ist 2+2?"
-
-→ Plugin empfängt Nachricht
-→ run_aion_turn("Was ist 2+2?", "telegram")
-→ AION beantwortet
-→ Antwort wird zurück zu Telegram gesendet
-```
+| Paket | Zweck |
+|---|---|
+| `httpx` | HTTP-Requests zur Telegram API |
+| `ffmpeg` | Audio-Konvertierung (WAV/MP3 → OGG OPUS) |
+| `audio_pipeline` Plugin | TTS + Transkription |

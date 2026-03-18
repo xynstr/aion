@@ -525,6 +525,61 @@ def _start_polling(token: str):
     t.start()
 
 
+# ── Tool: Sprachnachricht senden (sync, für AION-Tool-Dispatch) ──────────────
+
+def send_telegram_voice(path: str = "", **_) -> dict:
+    """Sendet eine Audiodatei als Telegram-Sprachnachricht (sendVoice).
+
+    Akzeptiert beliebige Formate (WAV, MP3, OGG …).
+    Nicht-OGG-Dateien werden automatisch via ffmpeg nach OGG OPUS konvertiert.
+    """
+    token = _get_token()
+    cid   = _get_chat_id()
+    if not token:
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN nicht gesetzt."}
+    if not cid:
+        return {"ok": False, "error": "Keine Chat-ID bekannt. Sende /start an den Bot."}
+    if not path or not os.path.exists(path):
+        return {"ok": False, "error": f"Datei nicht gefunden: {path}"}
+
+    ogg_tmp = None
+    try:
+        import httpx
+
+        # OGG OPUS-Konvertierung wenn nötig
+        send_path = path
+        if not path.lower().endswith(".ogg"):
+            fd, ogg_tmp = tempfile.mkstemp(suffix="_tg.ogg")
+            os.close(fd)
+            proc = subprocess.run(
+                ["ffmpeg", "-y", "-i", path, "-c:a", "libopus", "-b:a", "64k", ogg_tmp],
+                capture_output=True, timeout=30,
+            )
+            if proc.returncode != 0:
+                return {"ok": False, "error": f"ffmpeg Konvertierung fehlgeschlagen: {proc.stderr.decode()[:200]}"}
+            send_path = ogg_tmp
+
+        with httpx.Client(timeout=30) as http:
+            with open(send_path, "rb") as f:
+                r = http.post(
+                    _api_url(token, "sendVoice"),
+                    data={"chat_id": cid},
+                    files={"voice": ("voice.ogg", f, "audio/ogg")},
+                )
+            if not r.is_success:
+                return {"ok": False, "error": f"Telegram API Fehler: {r.status_code} {r.text[:200]}"}
+            return {"ok": True}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        if ogg_tmp and os.path.exists(ogg_tmp):
+            try:
+                os.unlink(ogg_tmp)
+            except Exception:
+                pass
+
+
 # ── Plugin-Registrierung ──────────────────────────────────────────────────────
 
 def register(api):
@@ -542,6 +597,23 @@ def register(api):
                 "message": {"type": "string", "description": "Die zu sendende Nachricht"},
             },
             "required": ["message"],
+        },
+    )
+
+    api.register_tool(
+        name="send_telegram_voice",
+        description=(
+            "Sendet eine Audiodatei als Telegram-Sprachnachricht. "
+            "Akzeptiert beliebige Formate (WAV, MP3, OGG …) — konvertiert automatisch zu OGG OPUS via ffmpeg. "
+            "Nutze audio_tts um erst Text in eine WAV-Datei umzuwandeln, dann dieses Tool zum Versenden."
+        ),
+        func=send_telegram_voice,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absoluter Pfad zur Audiodatei (WAV, MP3, OGG …)"},
+            },
+            "required": ["path"],
         },
     )
 
