@@ -74,10 +74,11 @@ html, body {
 .btn.danger:hover { border-color: var(--red); color: var(--red); }
 
 /* ── Main layout ──────────────────────────────────────────────────── */
-.main { display: grid; grid-template-columns: 1fr 420px; flex: 1; overflow: hidden; }
+/* Flexbox für den Resizer statt Grid */
+.main { display: flex; flex: 1; overflow: hidden; }
 
 /* ── Chat panel ───────────────────────────────────────────────────── */
-.chat-panel { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+.chat-panel { flex: 1; min-width: 300px; display: flex; flex-direction: column; overflow: hidden; }
 
 .messages {
   flex: 1; overflow-y: auto; padding: 28px 24px 16px;
@@ -170,8 +171,20 @@ html, body {
 .send-btn:hover:not(:disabled) { background: #00ffcc; transform: scale(1.06); }
 .send-btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
 
+/* ── Resizer (Handle) ─────────────────────────────────────────────── */
+.resizer {
+  width: 6px; background: var(--bg); border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  cursor: col-resize; z-index: 5; transition: background 0.2s;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.resizer:hover, .resizer.dragging { background: var(--border2); }
+.resizer::after { content: '⋮'; color: var(--text3); font-size: 16px; }
+
 /* ── Side panel ───────────────────────────────────────────────────── */
-.side-panel { display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.side-panel {
+  width: 420px; min-width: 250px; max-width: 60%;
+  display: flex; flex-direction: column; background: var(--bg); overflow: hidden; flex-shrink: 0;
+}
 
 .side-header {
   height: 52px; display: flex; align-items: center; gap: 0;
@@ -223,6 +236,7 @@ html, body {
   background: linear-gradient(135deg, rgba(155,109,219,.1), rgba(0,136,255,.06));
   border: 1px solid rgba(155,109,219,.2); border-left: 3px solid var(--purple);
   border-radius: 10px; padding: 14px 16px; animation: cardIn .2s ease;
+  flex-shrink: 0;
 }
 @keyframes cardIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
 .thought-meta {
@@ -239,27 +253,35 @@ html, body {
   white-space: pre-wrap; word-break: break-word;
 }
 
-/* ── Tool cards ───────────────────────────────────────────────────── */
-.tool-card {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 9px;
-  overflow: hidden; animation: cardIn .2s ease; border-left: 3px solid var(--border2);
+/* ── Tools Grid & Cards ───────────────────────────────────────────── */
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); /* Etwas schmaler für mehr pro Reihe */
+  gap: 8px;
+  align-content: start;
 }
+
+.tool-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; animation: cardIn .2s ease; border-left: 3px solid var(--border2);
+  display: flex; flex-direction: column; cursor: pointer; transition: all 0.15s;
+}
+.tool-card:hover { background: var(--bg4); border-color: var(--text3); transform: translateY(-1px); }
 .tool-card.ok      { border-left-color: var(--green); }
 .tool-card.err     { border-left-color: var(--red); }
 .tool-card.running { border-left-color: var(--accent); }
 
 .tool-header {
-  display: flex; align-items: center; gap: 9px; padding: 9px 12px;
-  cursor: pointer; user-select: none; transition: background .1s;
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  user-select: none;
 }
-.tool-header:hover { background: rgba(255,255,255,.03); }
-
-.tool-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+.tool-icon { font-size: 14px; flex-shrink: 0; }
 .tool-name {
-  flex: 1; font-size: 12px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
-  font-weight: 600; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+  font-weight: 600; color: var(--accent); 
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tool-status { display: flex; align-items: center; gap: 5px; font-size: 11px; flex-shrink: 0; }
+.tool-status { display: flex; align-items: center; font-size: 11px; flex-shrink: 0; }
 .tool-status.ok      { color: var(--green); }
 .tool-status.err     { color: var(--red); }
 .tool-status.running { color: var(--text2); }
@@ -267,29 +289,59 @@ html, body {
   width: 10px; height: 10px; border: 1.5px solid var(--border2);
   border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite;
 }
-.tool-duration {
-  font-size: 10px; color: var(--text3); background: var(--bg4);
-  padding: 1px 6px; border-radius: 8px;
-}
-.tool-chevron {
-  font-size: 10px; color: var(--text3); transition: transform .2s; flex-shrink: 0;
-}
-.tool-card.open .tool-chevron { transform: rotate(180deg); }
 
-/* Tool body — hidden by default, only shown on click */
-.tool-body { display: none; padding: 0 12px 12px; border-top: 1px solid var(--border); }
-.tool-card.open .tool-body { display: block; }
+/* ── Modal (Popup) ────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(2px);
+  display: flex; justify-content: center; align-items: center; z-index: 1000;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: auto; }
 
+.modal-content {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  width: 90%; max-width: 650px; max-height: 85vh; display: flex; flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow: hidden;
+  transform: translateY(20px) scale(0.98); transition: transform 0.2s;
+}
+.modal-overlay.show .modal-content { transform: translateY(0) scale(1); }
+
+.modal-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--bg3);
+  display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+}
+.modal-title { 
+  font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 10px; 
+  font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 14px; 
+}
+.modal-close {
+  background: none; border: none; color: var(--text3); font-size: 24px; line-height: 1; 
+  cursor: pointer; transition: color 0.2s; padding: 0 5px;
+}
+.modal-close:hover { color: var(--red); }
+
+.modal-body {
+  padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
+}
 .detail-label {
-  font-size: 10px; color: var(--text3); letter-spacing: 1.5px;
-  text-transform: uppercase; margin: 10px 0 5px;
+  font-size: 11px; color: var(--text3); letter-spacing: 1.5px;
+  text-transform: uppercase; font-weight: 700;
 }
 .detail-box {
-  background: rgba(0,0,0,.4); border: 1px solid var(--bg5); border-radius: 6px;
-  padding: 8px 10px; font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
-  color: #8888b0; white-space: pre-wrap; word-break: break-all;
-  max-height: 180px; overflow-y: auto; line-height: 1.55;
+  background: #09090b; border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; font-size: 12.5px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+  color: #a0a0b8; white-space: pre-wrap; word-break: break-all;
+  max-height: 300px; overflow-y: auto; line-height: 1.5;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
 }
+
+/* Syntax Highlighting */
+.json-key    { color: #82aaff; }
+.json-string { color: #c3e88d; }
+.json-number { color: #f78c6c; }
+.json-boolean{ color: #c792ea; }
+.json-null   { color: #ff5370; }
 
 /* ── Toast ────────────────────────────────────────────────────────── */
 .toast {
@@ -301,15 +353,17 @@ html, body {
 .toast.show { opacity: 1; }
 
 /* ── Scrollbars ───────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 700px) {
-  .main { grid-template-columns: 1fr; grid-template-rows: 1fr 280px; }
-  .chat-panel { border-right: none; border-bottom: 1px solid var(--border); }
+  .main { flex-direction: column; }
+  .resizer { height: 6px; width: 100%; cursor: row-resize; border-left: none; border-right: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .resizer::after { content: '⋯'; line-height: 6px; }
+  .side-panel { width: 100% !important; height: 35vh; min-height: 200px; max-height: 60vh; }
 }
 </style>
 </head>
@@ -374,8 +428,11 @@ html, body {
       </div>
     </div>
 
+    <!-- Resizer -->
+    <div class="resizer" id="resizer"></div>
+
     <!-- Side panel: Thoughts + Tools (tabs) -->
-    <div class="side-panel">
+    <div class="side-panel" id="sidePanel">
       <div class="side-header">
         <button class="tab-btn active" id="tab-thoughts-btn" onclick="showTab('thoughts')">
           💭 Gedanken
@@ -399,11 +456,29 @@ html, body {
       <div class="tab-content" id="tab-tools">
         <div class="empty-state" id="toolsEmpty">
           <div class="e-icon">⚙</div>
-          <p>Hier erscheinen alle Tool-Aufrufe. Klicke auf einen Eintrag für Details.</p>
+          <p>Hier erscheinen alle Tool-Aufrufe. Klicke auf eine Karte für Details.</p>
         </div>
+        <!-- Grid-Container für die neuen Tool-Karten -->
+        <div class="tools-grid" id="toolsGrid"></div>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Modal für Tool-Details -->
+<div class="modal-overlay" id="toolModal" onclick="closeModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">🔧 tool_name</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-label">Eingabe (Args)</div>
+      <div class="detail-box" id="modalInput"></div>
+      <div class="detail-label">Ergebnis</div>
+      <div class="detail-box" id="modalResult"></div>
+    </div>
   </div>
 </div>
 
@@ -426,6 +501,10 @@ let thoughtCount      = 0;
 let toolCount         = 0;
 let activeTab         = 'thoughts';
 
+// Store für alle Tool-Daten, damit das Modal darauf zugreifen kann
+const toolDataStore = {};
+let currentModalCallId = null;
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -444,6 +523,46 @@ async function init() {
   } catch {}
 }
 init();
+
+// ── Resizer Logic ─────────────────────────────────────────────────────────────
+const resizer = document.getElementById('resizer');
+const sidePanel = document.getElementById('sidePanel');
+let isResizing = false;
+
+resizer.addEventListener('mousedown', function(e) {
+  isResizing = true;
+  resizer.classList.add('dragging');
+  e.preventDefault(); 
+  document.body.style.cursor = window.innerWidth > 700 ? 'col-resize' : 'row-resize';
+});
+
+document.addEventListener('mousemove', function(e) {
+  if (!isResizing) return;
+  if (window.innerWidth > 700) {
+    let newWidth = document.body.clientWidth - e.clientX;
+    if (newWidth < 250) newWidth = 250;
+    if (newWidth > document.body.clientWidth * 0.7) newWidth = document.body.clientWidth * 0.7;
+    sidePanel.style.width = `${newWidth}px`;
+  } else {
+    let newHeight = document.body.clientHeight - e.clientY;
+    if (newHeight < 150) newHeight = 150;
+    if (newHeight > document.body.clientHeight * 0.8) newHeight = document.body.clientHeight * 0.8;
+    sidePanel.style.height = `${newHeight}px`;
+  }
+});
+
+document.addEventListener('mouseup', function() {
+  if (isResizing) {
+    isResizing = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = 'default';
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 700) sidePanel.style.height = ''; 
+  else sidePanel.style.width = '';
+});
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 function showTab(name) {
@@ -486,6 +605,20 @@ function toolIcon(n) { return TOOL_ICONS[n] || '⚙️'; }
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,130)+'px'; }
 function scrollChat()   { const m=document.getElementById('messages'); m.scrollTop=m.scrollHeight; }
 function scrollTab(id)  { const t=document.getElementById(id); t.scrollTop=t.scrollHeight; }
+
+function highlightJSON(jsonStr) {
+  if (!jsonStr) return '';
+  const escaped = esc(jsonStr);
+  return escaped.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+    let cls = 'json-number';
+    if (/^"/.test(match)) {
+        if (/:$/.test(match)) cls = 'json-key';
+        else cls = 'json-string';
+    } else if (/true|false/.test(match)) cls = 'json-boolean';
+    else if (/null/.test(match)) cls = 'json-null';
+    return `<span class="${cls}">${match}</span>`;
+  });
+}
 
 function renderMd(text) {
   let s = text;
@@ -557,18 +690,18 @@ function appendImageBlock(url) {
 // ── Side panel helpers ────────────────────────────────────────────────────────
 function clearSidePanel() {
   thoughtCount = 0; toolCount = 0;
+  for (let key in toolDataStore) delete toolDataStore[key];
   updateCounts();
 
   const tt = document.getElementById('tab-thoughts');
   tt.innerHTML = '<div class="empty-state" id="thoughtsEmpty"><div class="e-icon">💭</div><p>Hier erscheinen AIons Gedanken in Echtzeit.</p></div>';
 
   const tl = document.getElementById('tab-tools');
-  tl.innerHTML = '<div class="empty-state" id="toolsEmpty"><div class="e-icon">⚙</div><p>Hier erscheinen alle Tool-Aufrufe. Klicke für Details.</p></div>';
+  tl.innerHTML = '<div class="empty-state" id="toolsEmpty"><div class="e-icon">⚙</div><p>Hier erscheinen alle Tool-Aufrufe. Klicke auf eine Karte für Details.</p></div><div class="tools-grid" id="toolsGrid"></div>';
 }
 
 function showThinkingRow() {
   if (document.getElementById('thinkingRow')) return;
-  // Show in whichever tab is active; put spinner in thoughts tab
   const tt = document.getElementById('tab-thoughts');
   const empt = document.getElementById('thoughtsEmpty');
   if (empt) empt.remove();
@@ -581,7 +714,7 @@ function showThinkingRow() {
 
 function hideThinkingRow() { const el=document.getElementById('thinkingRow'); if(el)el.remove(); }
 
-// Thought card — auto-switch to thoughts tab
+// Thought card
 function addThoughtCard(text, trigger) {
   hideThinkingRow();
   const empt = document.getElementById('thoughtsEmpty');
@@ -602,59 +735,105 @@ function addThoughtCard(text, trigger) {
   tt.appendChild(card);
   scrollTab('tab-thoughts');
 
-  // Auto-switch to thoughts tab so the user sees the thought
   if (activeTab !== 'thoughts') showTab('thoughts');
 }
 
-// Tool card — collapsed by default, only opens on click
+// ── Tool Cards & Modal Logic ──────────────────────────────────────────────────
 function addToolCard(callId, toolName, args) {
-  if (toolName === 'reflect') return; // reflect is shown as thought card
+  if (toolName === 'reflect') return;
 
   const empt = document.getElementById('toolsEmpty');
   if (empt) empt.remove();
   toolCount++;
   updateCounts();
 
-  const tl   = document.getElementById('tab-tools');
+  // Speichere die Daten für das Modal
+  toolDataStore[callId] = {
+    name: toolName,
+    args: args,
+    result: null,
+    status: 'running'
+  };
+
+  let grid = document.getElementById('toolsGrid');
+  if (!grid) {
+    grid = document.createElement('div');
+    grid.id = 'toolsGrid'; grid.className = 'tools-grid';
+    document.getElementById('tab-tools').appendChild(grid);
+  }
+
+  // Kompakte Karte ohne ein-/ausklappen
   const card = document.createElement('div');
   card.className = 'tool-card running'; card.id = `card-${callId}`;
+  card.onclick = () => openModal(callId);
   card.innerHTML = `
-    <div class="tool-header" onclick="toggleCard('${callId}')">
+    <div class="tool-header">
       <span class="tool-icon">${toolIcon(toolName)}</span>
       <span class="tool-name">${esc(toolName)}</span>
       <span class="tool-status running" id="stat-${callId}"><span class="mini-spinner"></span></span>
-      <span class="tool-chevron" id="chev-${callId}">▾</span>
-    </div>
-    <div class="tool-body" id="body-${callId}">
-      <div class="detail-label">Eingabe</div>
-      <div class="detail-box">${esc(fmtJson(args))}</div>
-      <div class="detail-label">Ergebnis</div>
-      <div class="detail-box" id="res-${callId}">läuft…</div>
     </div>`;
-  tl.appendChild(card);
+  grid.appendChild(card);
   scrollTab('tab-tools');
 }
 
 function updateToolCard(callId, result, ok, duration) {
-  if (callId === undefined) return;
+  if (!toolDataStore[callId]) return;
+  
+  // Update Store
+  toolDataStore[callId].result = result;
+  toolDataStore[callId].status = ok ? 'ok' : 'err';
+
+  // Update Card UI
   const card = document.getElementById(`card-${callId}`);
   const stat = document.getElementById(`stat-${callId}`);
-  const res  = document.getElementById(`res-${callId}`);
   if (card) { card.classList.remove('running'); card.classList.add(ok ? 'ok' : 'err'); }
   if (stat) {
     stat.className = `tool-status ${ok ? 'ok' : 'err'}`;
-    stat.innerHTML = `${ok ? '✓' : '✗'}<span class="tool-duration">${duration}s</span>`;
+    stat.innerHTML = `${ok ? '✓' : '✗'}`;
   }
-  if (res) {
-    const s = fmtJson(result);
-    res.textContent = s.length > 800 ? s.slice(0, 800) + '\n…' : s;
+
+  // Live-Update des Modals, falls es gerade für diese Call-ID geöffnet ist
+  if (currentModalCallId === callId) {
+    openModal(callId);
   }
-  // NOTE: tool card stays CLOSED — user must click to expand
 }
 
-function toggleCard(id) {
-  const c = document.getElementById(`card-${id}`);
-  if (c) c.classList.toggle('open');
+function openModal(callId) {
+  const data = toolDataStore[callId];
+  if (!data) return;
+  currentModalCallId = callId;
+  
+  const statusHtml = data.status === 'running' ? '<span class="mini-spinner"></span>' : (data.status === 'ok' ? '✓' : '✗');
+  const statusColor = data.status === 'running' ? 'var(--text2)' : (data.status === 'ok' ? 'var(--green)' : 'var(--red)');
+
+  document.getElementById('modalTitle').innerHTML = `
+    ${toolIcon(data.name)} ${esc(data.name)}
+    <span style="color:${statusColor}; font-size: 16px; margin-left: 5px;">${statusHtml}</span>
+  `;
+  document.getElementById('modalInput').innerHTML = highlightJSON(fmtJson(data.args));
+  
+  const resBox = document.getElementById('modalResult');
+  if (data.status === 'running') {
+    resBox.innerHTML = '<span style="color:var(--text3); font-style:italic;">Tool wird ausgeführt…</span>';
+  } else {
+    resBox.innerHTML = highlightJSON(fmtJson(data.result));
+  }
+
+  document.getElementById('toolModal').classList.add('show');
+}
+
+function closeModal(e) {
+  if (e) {
+    // Wenn auf den Hintergrund geklickt wurde, schließen.
+    if (e.target.id === 'toolModal') {
+      document.getElementById('toolModal').classList.remove('show');
+      currentModalCallId = null;
+    }
+  } else {
+    // Wenn über den X-Button geschlossen wurde
+    document.getElementById('toolModal').classList.remove('show');
+    currentModalCallId = null;
+  }
 }
 
 // ── UI state ──────────────────────────────────────────────────────────────────
@@ -738,7 +917,6 @@ function handleEvent(ev) {
       }
       awaitingNewBubble = true;
       addToolCard(ev.call_id, ev.tool, ev.args);
-      // Switch to tools tab so user can see the call (but don't force — stay on thoughts if open)
       break;
 
     case 'tool_result':
@@ -749,7 +927,6 @@ function handleEvent(ev) {
     case 'done':
       hideThinkingRow();
       finalizeCurrentBubble();
-      // Bild-Blöcke aus response_blocks rendern
       if (ev.response_blocks && ev.response_blocks.length > 0) {
         for (const block of ev.response_blocks) {
           if (block.type === 'image' && block.url) {

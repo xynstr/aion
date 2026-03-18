@@ -50,8 +50,29 @@ python -m pip install google-genai -q
 python -m pip install "python-telegram-bot>=20.0" -q
 python -m pip install requests -q
 python -m pip install duckduckgo-search -q
+python -m pip install vosk -q
+python -m pip install pyttsx3 -q
 
 echo  OK: Alle Pakete bereit
+
+REM ffmpeg pruefen / installieren (Audio-Pipeline: Formatkonvertierung + TTS)
+echo.
+echo  Pruefe ffmpeg (fuer Sprachnachrichten und TTS)...
+where ffmpeg >nul 2>&1
+if errorlevel 1 (
+    echo  ffmpeg nicht gefunden - installiere via winget...
+    winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements >nul 2>&1
+    where ffmpeg >nul 2>&1
+    if errorlevel 1 (
+        echo  Hinweis: ffmpeg konnte nicht installiert werden.
+        echo  Sprachnachrichten und TTS sind eingeschraenkt.
+        echo  Manuell: winget install Gyan.FFmpeg
+    ) else (
+        echo  OK: ffmpeg installiert
+    )
+) else (
+    echo  OK: ffmpeg vorhanden
+)
 
 REM ===========================================================================
 REM  SCHRITT 3 - .env Setup

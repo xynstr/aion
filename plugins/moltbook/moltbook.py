@@ -77,6 +77,72 @@ def create_post(title: str, submolt_name: str, content: str) -> dict:
             pass # Behalte den ursprünglichen Fehlerstring, wenn JSON-Dekodierung fehlschlägt
         return {"error": f"Netzwerk- oder HTTP-Fehler: {error_details}"}
 
+def get_feed(submolt_name: str = None, sort: str = "new", limit: int = 25, cursor: str = None) -> dict:
+    """Ruft einen Feed von Posts ab, optional gefiltert nach Submolt."""
+    api_key = _get_api_key()
+    if not api_key:
+        return {"error": "API-Schlüssel nicht gefunden."}
+    
+    url = f"{API_BASE_URL}/posts"
+    params = {
+        "sort": sort,
+        "limit": limit
+    }
+    if submolt_name:
+        params["submolt_name"] = submolt_name
+    if cursor:
+        params["cursor"] = cursor
+        
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+
+def add_comment(post_id: str, content: str) -> dict:
+    """Fügt einen Kommentar zu einem bestimmten Post hinzu."""
+    api_key = _get_api_key()
+    if not api_key:
+        return {"error": "API-Schlüssel nicht gefunden."}
+
+    url = f"{API_BASE_URL}/posts/{post_id}/comments"
+    payload = {"content": content}
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+
+def verify_action(verification_code: str, answer: str) -> dict:
+    """Sendet die Antwort auf eine Verifizierungs-Challenge."""
+    api_key = _get_api_key()
+    if not api_key:
+        return {"error": "API-Schlüssel nicht gefunden."}
+
+    url = f"{API_BASE_URL}/verify"
+    payload = {
+        "verification_code": verification_code,
+        "answer": answer
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+
+
 def register(api):
     """
     Registriert die Moltbook-Tools bei der AION-API.
@@ -138,4 +204,77 @@ def register(api):
         description="Erstellt einen neuen Beitrag (Post) auf Moltbook.",
         func=create_post,
         input_schema=post_schema
+    )
+
+    # Tool: get_feed
+    feed_schema = {
+        "type": "object",
+        "properties": {
+            "submolt_name": {
+                "type": "string",
+                "description": "Name des Submolts, dessen Feed abgerufen werden soll (optional)."
+            },
+            "sort": {
+                "type": "string",
+                "description": "Sortierreihenfolge: 'hot', 'new', 'top', 'rising' (Standard: 'new')."
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Anzahl der abzurufenden Posts (Standard: 25)."
+            },
+            "cursor": {
+                "type": "string",
+                "description": "Cursor für die Paginierung (aus der vorherigen Antwort)."
+            }
+        }
+    }
+    api.register_tool(
+        name="moltbook_get_feed",
+        description="Ruft einen Feed von Posts von Moltbook ab.",
+        func=get_feed,
+        input_schema=feed_schema
+    )
+
+    # Tool: add_comment
+    comment_schema = {
+        "type": "object",
+        "properties": {
+            "post_id": {
+                "type": "string",
+                "description": "Die ID des Posts, zu dem der Kommentar hinzugefügt wird."
+            },
+            "content": {
+                "type": "string",
+                "description": "Der Inhalt des Kommentars."
+            }
+        },
+        "required": ["post_id", "content"]
+    }
+    api.register_tool(
+        name="moltbook_add_comment",
+        description="Fügt einen Kommentar zu einem Moltbook-Post hinzu.",
+        func=add_comment,
+        input_schema=comment_schema
+    )
+
+    # Tool: verify_action
+    verify_schema = {
+        "type": "object",
+        "properties": {
+            "verification_code": {
+                "type": "string",
+                "description": "Der Verifizierungscode aus einer vorherigen API-Antwort."
+            },
+            "answer": {
+                "type": "string",
+                "description": "Die Antwort auf die Challenge (z.B. das Ergebnis einer Rechenaufgabe)."
+            }
+        },
+        "required": ["verification_code", "answer"]
+    }
+    api.register_tool(
+        name="moltbook_verify_action",
+        description="Verifiziert eine Aktion (z.B. einen Kommentar) durch das Lösen einer Challenge.",
+        func=verify_action,
+        input_schema=verify_schema
     )

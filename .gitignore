@@ -17,6 +17,13 @@ conversation_history.json
 config.json
 plugins/heartbeat.log
 plugins/todo_list.json
+plugins/scheduler/tasks.json
+moltbook_credentials.json
+systemcheck_result.txt
+
+# ── Vosk Sprachmodelle (große Binär-Dateien — lokal herunterladen) ───────────────
+plugins/audio_transcriber/vosk-model-*/
+plugins/audio_pipeline/vosk-model-*/
 
 # ── Backup-Dateien ──────────────────────────────────────────────────────────────
 *.bak

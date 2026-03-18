@@ -6,16 +6,17 @@ Ein autonomer KI-Agent für Windows. Läuft als Python-Prozess, kommuniziert üb
 
 ## Features
 
-- **Autonomes Arbeiten** — bis zu 20 Tool-Iterationen ohne Nutzer-Warten, mit automatischem Completion-Check
+- **Autonomes Arbeiten** — bis zu 50 Tool-Iterationen ohne Nutzer-Warten, mit automatischem Completion-Check
 - **Geplante Aufgaben** — Cron-ähnlicher Scheduler: AION führt Tasks zu festen Uhrzeiten selbstständig aus
 - **Selbst-Modifikation** — liest, patcht und überschreibt eigenen Code; erstellt neue Plugins
 - **Web UI** — Live-Stream von Antworten, Gedanken (Reflexionen) und Tool-Aufrufen
-- **Telegram** — bidirektional: Nachrichten senden/empfangen + automatische Ergebnis-Zustellung
+- **Telegram** — bidirektional: Text, Bilder und Sprachnachrichten (OGG → Vosk-Transkription, TTS-Rückantwort)
 - **Gedächtnis** — persistentes JSON-Gedächtnis + Konversationshistorie (JSONL)
-- **Persönlichkeit** — `character.md` entwickelt sich durch Gespräche: Humor, Eigenheiten, Nutzer-Wissen
+- **Persönlichkeit** — `character.md` entwickelt sich durch Gespräche; alle 5 Gespräche LLM-Analyse mit Mustererkennung
 - **Multi-Provider** — Google Gemini (2.5-pro, 2.5-flash …) und OpenAI (GPT-4.1, o3 …) wechselbar
-- **Plugin-System** — jede `.py`-Datei in `plugins/` wird automatisch geladen; AION kann selbst neue erstellen
-- **CLIO-Reflexion** — Konfidenz-Check und Gedanken-Protokoll nach jeder Nutzer-Nachricht
+- **Plugin-System** — `plugins/<name>/<name>.py` wird automatisch geladen; READMEs werden als Plugin-Übersicht injiziert
+- **Audio-Pipeline** — beliebiges Audioformat → Transkription (ffmpeg + Vosk, offline) + TTS (pyttsx3/SAPI5, offline)
+- **Moltbook** — soziale Präsenz: Feed lesen, Posts erstellen, kommentieren
 
 ---
 
@@ -146,14 +147,16 @@ AION kann auch zur Laufzeit Plugins via `create_plugin` Tool erstellen.
 AION/
 ├── aion.py                      # Kernlogik: Memory, Tools, LLM-Loop, CLI
 ├── aion_web.py                  # Web-Server (FastAPI + SSE), Port 7000
-├── plugin_loader.py             # Lädt alle Plugins aus plugins/
+├── plugin_loader.py             # Lädt Plugins + liest README-Zusammenfassungen
 ├── static/index.html            # Web UI (Vanilla JS)
 ├── plugins/
-│   ├── scheduler/               # ★ Cron-Scheduler (schedule_add/list/remove/toggle)
-│   ├── telegram_bot/            # Telegram bidirektional
+│   ├── audio_pipeline/          # Beliebige Audiodatei → Text (ffmpeg+Vosk) + TTS (pyttsx3)
+│   ├── audio_transcriber/       # WAV → Text via Vosk (Basis-Transkription)
+│   ├── scheduler/               # Cron-Scheduler (schedule_add/list/remove/toggle)
+│   ├── moltbook/                # Soziale Plattform moltbook.com (Feed, Posts, Kommentare)
+│   ├── telegram_bot/            # Telegram: Text + Bilder + Sprachnachrichten
 │   ├── gemini_provider/         # Google Gemini + switch_model
 │   ├── memory_plugin/           # Konversationshistorie (JSONL)
-│   ├── clio_reflection/         # CLIO-Konfidenz-Check
 │   ├── todo_tools/              # Aufgabenverwaltung
 │   ├── smart_patch/             # Fuzzy-Code-Patching
 │   ├── image_search/            # Bildersuche (Openverse + Bing)
@@ -161,7 +164,6 @@ AION/
 │   └── heartbeat/               # Keep-Alive Timestamp
 ├── character.md                 # Persönlichkeit (selbst-aktualisierend)
 ├── AION_SELF.md                 # Selbst-Dokumentation für AION
-├── aion_documentation.md        # Interne technische Dokumentation
 ├── aion_memory.json             # Persistentes Gedächtnis (max. 300 Einträge)
 ├── thoughts.md                  # Aufgezeichnete Gedanken
 ├── .env                         # API-Keys (nicht in Git)

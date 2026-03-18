@@ -16,8 +16,24 @@ class PluginAPI:
         }
 
 
+def _read_readme_summary(plugin_dir: Path) -> str:
+    """Liest den ersten beschreibenden Satz aus einer README.md.
+    Überspringt Überschriften (#) und leere Zeilen — gibt erste inhaltliche Zeile zurück."""
+    readme = plugin_dir / "README.md"
+    if not readme.is_file():
+        return ""
+    try:
+        for line in readme.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                return stripped
+    except Exception:
+        pass
+    return ""
+
+
 def _load_file(file: Path, tool_registry: dict):
-    """Lädt eine einzelne Plugin-Datei und ruft register(api) auf."""
+    """Lädt eine einzelne Plugin-Datei, ruft register(api) auf und liest README-Zusammenfassung."""
     spec = importlib.util.spec_from_file_location(f"plugin_{file.stem}", file)
     mod = importlib.util.module_from_spec(spec)
     try:
@@ -25,6 +41,10 @@ def _load_file(file: Path, tool_registry: dict):
         if hasattr(mod, "register"):
             api = PluginAPI(tool_registry)
             mod.register(api)
+        # README-Erstzeile speichern — wird in System-Prompt als Plugin-Übersicht genutzt
+        summary = _read_readme_summary(file.parent)
+        if summary:
+            tool_registry[f"__plugin_readme_{file.stem}"] = summary
     except Exception as exc:
         print(f"Fehler beim Laden von Modul {file.name}: {exc}")
 

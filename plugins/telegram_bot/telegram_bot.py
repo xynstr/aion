@@ -16,7 +16,10 @@ Abhängigkeit:
 """
 
 import asyncio
+import importlib.util
 import os
+import subprocess
+import tempfile
 import threading
 from pathlib import Path
 
@@ -24,6 +27,28 @@ _TOKEN_FILE  = Path.home() / ".aion_telegram_token"
 _CHATID_FILE = Path.home() / ".aion_telegram_chatid"
 _polling_lock = threading.Lock()
 _polling_started = False
+
+# ── audio_pipeline Lazy-Import ────────────────────────────────────────────────
+
+_audio_pipeline_mod = None
+
+def _get_audio_pipeline():
+    """Lädt das audio_pipeline-Plugin (einmalig, lazy). Gibt Modul oder None zurück."""
+    global _audio_pipeline_mod
+    if _audio_pipeline_mod is not None:
+        return _audio_pipeline_mod
+    try:
+        _ap_path = Path(__file__).parent.parent / "audio_pipeline" / "audio_pipeline.py"
+        if not _ap_path.exists():
+            return None
+        spec = importlib.util.spec_from_file_location("audio_pipeline", _ap_path)
+        mod  = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _audio_pipeline_mod = mod
+        return mod
+    except Exception as e:
+        print(f"[Telegram] audio_pipeline nicht ladbar: {e}")
+        return None
 
 
 def _get_token() -> str:
@@ -49,6 +74,86 @@ def _save_chat_id(cid: str):
 
 def _api_url(token: str, method: str) -> str:
     return f"https://api.telegram.org/bot{token}/{method}"
+
+
+def _md_to_html(text: str) -> str:
+    """Konvertiert AION-Markdown (CommonMark) in Telegram-kompatibles HTML.
+
+    Reihenfolge ist kritisch:
+      1. Code-Blöcke extrahieren (Inhalt darf nicht weiter verarbeitet werden)
+      2. HTML-Sonderzeichen escapen
+      3. Markdown-Muster → HTML-Tags
+      4. Code-Blöcke wiederherstellen
+    """
+    import re
+
+    # ── Schritt 1: Code-Blöcke extrahieren ───────────────────────────────────
+    code_blocks: list[str] = []
+
+    def _save_block(m: re.Match) -> str:
+        lang    = (m.group(1) or "").strip()
+        content = m.group(2)
+        # Inhalt des Blocks HTML-escapen
+        content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        if lang:
+            html = f'<pre><code class="language-{lang}">{content}</code></pre>'
+        else:
+            html = f"<pre><code>{content}</code></pre>"
+        code_blocks.append(html)
+        return f"\x00CODE{len(code_blocks) - 1}\x00"
+
+    def _save_inline(m: re.Match) -> str:
+        content = m.group(1).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        code_blocks.append(f"<code>{content}</code>")
+        return f"\x00CODE{len(code_blocks) - 1}\x00"
+
+    # Fenced code blocks (``` ... ```) — mehrzeilig
+    text = re.sub(r"```([^\n`]*)\n(.*?)```", _save_block, text, flags=re.DOTALL)
+    # Inline code (` ... `)
+    text = re.sub(r"`([^`\n]+)`", _save_inline, text)
+
+    # ── Schritt 2: HTML-Sonderzeichen escapen ────────────────────────────────
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # ── Schritt 3: Markdown → HTML ───────────────────────────────────────────
+
+    # Headers → Fett (### Titel → <b>Titel</b>)
+    text = re.sub(r"^#{1,6}\s+(.+)$", r"<b>\1</b>", text, flags=re.MULTILINE)
+
+    # Horizontale Linien entfernen
+    text = re.sub(r"^\s*[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+
+    # Fett: **text** oder __text__
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text, flags=re.DOTALL)
+    text = re.sub(r"__(.+?)__",     r"<b>\1</b>", text, flags=re.DOTALL)
+
+    # Durchgestrichen: ~~text~~
+    text = re.sub(r"~~(.+?)~~", r"<s>\1</s>", text, flags=re.DOTALL)
+
+    # Kursiv: *text* oder _text_ (nur wenn nicht Teil von ** oder __)
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text, flags=re.DOTALL)
+    text = re.sub(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)", r"<i>\1</i>", text, flags=re.DOTALL)
+
+    # Links: [text](url) → <a href="url">text</a>
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r'<a href="\2">\1</a>', text)
+
+    # Blockquotes: > text → <blockquote>text</blockquote>
+    def _blockquote(m: re.Match) -> str:
+        inner = re.sub(r"^&gt;\s?", "", m.group(0), flags=re.MULTILINE).strip()
+        return f"<blockquote>{inner}</blockquote>"
+    text = re.sub(r"(?:^&gt;[^\n]*\n?)+", _blockquote, text, flags=re.MULTILINE)
+
+    # Listen: - item / * item → • item
+    text = re.sub(r"^[ \t]*[-*]\s+", "• ", text, flags=re.MULTILINE)
+
+    # Nummerierte Listen: 1. item → bleibt (Telegram hat kein <ol>)
+    # → Nichts tun, Ziffern + Punkt sind lesbar
+
+    # ── Schritt 4: Code-Blöcke wiederherstellen ──────────────────────────────
+    for i, block in enumerate(code_blocks):
+        text = text.replace(f"\x00CODE{i}\x00", block)
+
+    return text.strip()
 
 
 def _split_message(text: str, max_len: int = 4000) -> list:
@@ -85,15 +190,14 @@ def send_telegram_message(message: str = "", **_) -> dict:
         with httpx.Client(timeout=10) as http:
             for chunk in _split_message(message, 4000):
                 try:
-                    # Versuch 1: Mit MarkdownV2
+                    html = _md_to_html(chunk)
                     r = http.post(_api_url(token, "sendMessage"),
-                                  json={"chat_id": cid, "text": chunk, "parse_mode": "MarkdownV2"})
-                    # Fallback auf reinen Text
-                    if not r.is_success and "can't parse" in r.text.lower():
+                                  json={"chat_id": cid, "text": html, "parse_mode": "HTML"})
+                    if not r.is_success:
+                        # Fallback: reiner Text (ohne HTML-Tags)
                         http.post(_api_url(token, "sendMessage"),
                                   json={"chat_id": cid, "text": chunk})
                 except Exception:
-                    # Fallback bei generischem Fehler
                     http.post(_api_url(token, "sendMessage"),
                               json={"chat_id": cid, "text": chunk})
         return {"ok": True}
@@ -123,7 +227,8 @@ async def _telegram_worker(token: str):
         print("[Telegram] AionSession nicht gefunden — aion.py zu alt?")
         return
 
-    sessions: dict = {}  # chat_id (str) → AionSession
+    sessions: dict = {}   # chat_id (str) → AionSession
+    busy: set = set()     # chat_ids die gerade einen Stream verarbeiten
     offset = 0
     print("[Telegram] Async Long-Polling Worker gestartet.")
 
@@ -132,17 +237,13 @@ async def _telegram_worker(token: str):
         async def _send(chat_id: str, text: str):
             for chunk in _split_message(text, 4000):
                 try:
-                    # Versuch 1: Mit MarkdownV2 senden
+                    html = _md_to_html(chunk)
                     r = await http.post(
                         _api_url(token, "sendMessage"),
-                        json={
-                            "chat_id": chat_id,
-                            "text": chunk,
-                            "parse_mode": "MarkdownV2",
-                        },
+                        json={"chat_id": chat_id, "text": html, "parse_mode": "HTML"},
                     )
-                    # Wenn das fehlschlägt (z.B. wegen Syntax), als reinen Text senden
-                    if not r.is_success and "can't parse" in r.text.lower():
+                    if not r.is_success:
+                        # Fallback: reiner Text
                         await http.post(
                             _api_url(token, "sendMessage"),
                             json={"chat_id": chat_id, "text": chunk},
@@ -166,6 +267,57 @@ async def _telegram_worker(token: str):
                     )
                 except Exception as e:
                     print(f"[Telegram] Fehler beim Senden von Bild {url}: {e}")
+
+        async def _send_voice_reply(chat_id: str, text_reply: str) -> bool:
+            """Generiert TTS-Audio und sendet es als Telegram-Sprachnachricht (OGG OPUS).
+            Gibt True zurück wenn erfolgreich, sonst False (Fallback auf Text)."""
+            ap = _get_audio_pipeline()
+            if not ap:
+                return False
+            wav_tmp = ogg_tmp = None
+            try:
+                # TTS: Text → WAV (sync, im Executor damit asyncio nicht blockiert)
+                loop = asyncio.get_event_loop()
+                tts_res = await loop.run_in_executor(None, ap.audio_tts, text_reply)
+                if not tts_res.get("ok"):
+                    print(f"[Telegram] TTS Fehler: {tts_res.get('error')}")
+                    return False
+                wav_tmp = tts_res["path"]
+
+                # ffmpeg: WAV → OGG OPUS (Telegram-kompatibel für sendVoice)
+                ogg_tmp = wav_tmp.replace(".wav", "_tg.ogg")
+                cmd = [
+                    "ffmpeg", "-y", "-i", wav_tmp,
+                    "-c:a", "libopus", "-b:a", "64k",
+                    ogg_tmp,
+                ]
+                proc = await loop.run_in_executor(
+                    None,
+                    lambda: subprocess.run(cmd, capture_output=True, timeout=30),
+                )
+                if proc.returncode != 0:
+                    print(f"[Telegram] ffmpeg OGG-Konvertierung fehlgeschlagen")
+                    return False
+
+                # Senden als Telegram Voice-Nachricht
+                with open(ogg_tmp, "rb") as f:
+                    r = await http.post(
+                        _api_url(token, "sendVoice"),
+                        data={"chat_id": chat_id},
+                        files={"voice": ("voice.ogg", f, "audio/ogg")},
+                    )
+                return r.is_success
+
+            except Exception as e:
+                print(f"[Telegram] Voice-Reply Fehler: {e}")
+                return False
+            finally:
+                for p in [wav_tmp, ogg_tmp]:
+                    if p and os.path.exists(p):
+                        try:
+                            os.unlink(p)
+                        except Exception:
+                            pass
 
         while True:
             try:
@@ -197,8 +349,9 @@ async def _telegram_worker(token: str):
                     text    = (msg.get("text") or msg.get("caption") or "").strip()
                     chat_id = str(msg.get("chat", {}).get("id", ""))
                     photos  = msg.get("photo", [])
+                    voice   = msg.get("voice") or msg.get("audio")
 
-                    if not chat_id or (not text and not photos):
+                    if not chat_id or (not text and not photos and not voice):
                         continue
 
                     _save_chat_id(chat_id)
@@ -234,6 +387,54 @@ async def _telegram_worker(token: str):
                         except Exception as e:
                             print(f"[Telegram] Bild-Download Fehler: {e}")
 
+                    # ── Voice/Audio-Nachricht transkribieren ─────────────────
+                    is_voice_input = False
+                    if voice and not text:
+                        tmp_audio_path = None
+                        try:
+                            fr = await http.get(
+                                _api_url(token, "getFile"),
+                                params={"file_id": voice["file_id"]},
+                            )
+                            remote_path = fr.json().get("result", {}).get("file_path", "")
+                            audio_bytes = (
+                                await http.get(
+                                    f"https://api.telegram.org/file/bot{token}/{remote_path}"
+                                )
+                            ).content
+                            mime = voice.get("mime_type", "audio/ogg")
+                            ext  = ".mp3" if "mp3" in mime else ".m4a" if "m4a" in mime else ".ogg"
+                            tmp  = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+                            tmp.write(audio_bytes)
+                            tmp.close()
+                            tmp_audio_path = tmp.name
+
+                            ap = _get_audio_pipeline()
+                            if ap:
+                                res = ap.audio_transcribe_any(tmp_audio_path)
+                                if res.get("ok") and res.get("text", "").strip():
+                                    text = res["text"].strip()
+                                    is_voice_input = True
+                                    print(f"[Telegram] Sprachnachricht → '{text[:70]}'")
+                                else:
+                                    text = f"[Sprachnachricht — Transkription fehlgeschlagen: {res.get('error', '?')}]"
+                            else:
+                                text = "[audio_pipeline-Plugin nicht verfügbar — Sprachnachrichten nicht unterstützt]"
+                        except Exception as _ve:
+                            print(f"[Telegram] Voice-Fehler: {_ve}")
+                            text = "[Fehler bei Sprachnachricht-Verarbeitung]"
+                        finally:
+                            if tmp_audio_path and os.path.exists(tmp_audio_path):
+                                try:
+                                    os.unlink(tmp_audio_path)
+                                except Exception:
+                                    pass
+
+                    # Busy-Check: Keine parallele Verarbeitung für denselben Chat
+                    if chat_id in busy:
+                        await _send(chat_id, "⏳ Ich bin noch am Antworten — bitte warten...")
+                        continue
+
                     # Typing-Keepalive: sendet alle 4s "typing" während KI arbeitet
                     async def _typing_keepalive():
                         while True:
@@ -245,6 +446,7 @@ async def _telegram_worker(token: str):
                             await asyncio.sleep(4)
 
                     # Stream nutzen damit Typing parallel läuft
+                    busy.add(chat_id)
                     typing_task     = asyncio.create_task(_typing_keepalive())
                     response        = ""
                     response_blocks = []
@@ -265,6 +467,7 @@ async def _telegram_worker(token: str):
                         print(f"[Telegram] stream() Fehler für {chat_id}: {e}")
                     finally:
                         typing_task.cancel()
+                        busy.discard(chat_id)
 
                     if not response.strip() and not response_blocks:
                         response = "Fertig."
@@ -286,6 +489,11 @@ async def _telegram_worker(token: str):
                                         )
                                     except Exception as img_e:
                                         print(f"[Telegram] sendPhoto Fehler: {img_e}")
+                    elif is_voice_input and response.strip():
+                        # Bei Sprachnachrichten: Voice-Reply versuchen, Text als Fallback
+                        sent = await _send_voice_reply(chat_id, response)
+                        if not sent:
+                            await _send(chat_id, response)
                     else:
                         await _send(chat_id, response or "…")
 

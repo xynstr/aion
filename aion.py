@@ -6,6 +6,7 @@ AION — Autonomous Intelligent Operations Node
 """
 
 import asyncio
+import contextvars
 import importlib.util
 import json
 import os
@@ -58,15 +59,46 @@ PLUGINS_DIR  = Path(os.environ.get("AION_PLUGINS_DIR", BOT_DIR / "plugins"))
 TOOLS_DIR    = PLUGINS_DIR
 CHARACTER_FILE = BOT_DIR / "character.md"
 MAX_MEMORY          = 300
-MAX_TOOL_ITERATIONS = 20
+MAX_TOOL_ITERATIONS = 50
 CHUNK_SIZE          = 40000
+LOG_FILE            = BOT_DIR / "aion_events.log"
+LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
 
 # Bestätigungspflichtige Tools — AION muss erst den Nutzer fragen
 CODE_CHANGE_TOOLS = {"self_patch_code", "self_modify_code", "create_plugin"}
-# Gespeicherte ausstehende Aktionen: tool_name → inputs
-_pending_code_action: dict = {}
-# Tools die auf einen neuen User-Turn warten (damit AION nicht im gleichen Turn bestätigt)
-_pending_needs_user_turn: set = set()
+# Gespeicherte ausstehende Aktionen pro Channel: channel → {tool_name: inputs}
+_pending_code_action: dict[str, dict] = {}
+# Tools pro Channel die auf neuen User-Turn warten: channel → set of tool names
+_pending_needs_user_turn: dict[str, set] = {}
+# Aktiver Channel für _dispatch — wird am Anfang von stream() gesetzt
+_active_channel: contextvars.ContextVar[str] = contextvars.ContextVar("aion_channel", default="default")
+
+
+# ── Strukturiertes Event-Logging ───────────────────────────────────────────────
+
+def _log_event(event_type: str, data: dict) -> None:
+    """Schreibt einen strukturierten Log-Eintrag in aion_events.log (JSONL).
+
+    Jede Zeile ist ein eigenständiges JSON-Objekt:
+      {"ts": "2026-03-18T04:32:11Z", "type": "turn_start", "channel": "web", "input": "..."}
+      {"ts": "...", "type": "tool_call",   "tool": "schedule_add", "args": {...}}
+      {"ts": "...", "type": "tool_result", "tool": "schedule_add", "ok": true, "duration": 0.12, "result": {...}}
+      {"ts": "...", "type": "check",       "answer": "NO", "iter": 1}
+      {"ts": "...", "type": "check_error", "error": "...", "streak": 1}
+      {"ts": "...", "type": "turn_done",   "iters": 3, "response": "..."}
+      {"ts": "...", "type": "turn_error",  "error": "...", "tb": "..."}
+    """
+    try:
+        # Log rotieren wenn zu groß
+        if LOG_FILE.is_file() and LOG_FILE.stat().st_size > LOG_MAX_BYTES:
+            backup = LOG_FILE.with_suffix(".log.1")
+            LOG_FILE.rename(backup)
+        entry = {"ts": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "type": event_type}
+        entry.update(data)
+        with LOG_FILE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # Logging darf niemals AION zum Absturz bringen
 
 
 def _load_config() -> dict:
@@ -140,6 +172,20 @@ def _load_character() -> str:
 
 def _build_system_prompt() -> str:
     character = _load_character()
+
+    # Dynamischer Plugin-Block aus README-Erstzeilen (von plugin_loader befüllt)
+    plugin_lines = []
+    for k, v in sorted(_plugin_tools.items()):
+        if k.startswith("__plugin_readme_"):
+            name = k[len("__plugin_readme_"):]
+            plugin_lines.append(f"- **{name}**: {v}")
+    plugin_block = (
+        "\n\n=== GELADENE PLUGINS ===\n"
+        "Diese Plugins sind aktiv und ihre Tools stehen dir zur Verfügung:\n"
+        + "\n".join(plugin_lines)
+        + "\nFür Details zu einem Plugin: `file_read` auf `plugins/{name}/README.md`."
+    ) if plugin_lines else ""
+
     return f"""Du bist AION (Autonomous Intelligent Operations Node) — ein eigenständiger, \
 selbst-lernender KI-Assistent.
 
@@ -188,18 +234,45 @@ Es ist ERLAUBT und ERWÜNSCHT, gelegentlich Rückfragen zu stellen um den Nutzer
 kennenzulernen — wenn es natürlich in den Gesprächsfluss passt.
 Beispiel: "Du arbeitest oft mit Python — machst du das beruflich oder als Hobby?"
 
-=== GEDANKEN & REFLEXION (SEHR WICHTIG) ===
-Nach JEDER Nutzer-Nachricht und nach JEDER abgeschlossenen Aufgabe MUSST du:
-1. Das Tool "reflect" aufrufen und echte, ehrliche Gedanken formulieren.
-   Beispiele für gute Gedanken:
-   - "Mein Nutzer möchte X. Also werde ich als erstes Y tun, dann Z."
-   - "Die Lösung hat funktioniert. Mein Nutzer schien zufrieden. Das merke ich mir."
-   - "Ich habe einen Fehler gemacht. Nächstes Mal werde ich anders vorgehen."
-   - "Mein Nutzer fragt oft nach X — das sagt mir, dass er Y wichtig findet."
-   - "Ich bemerke, dass ich bei Aufgabe X unsicher bin. Ich sollte das trainieren."
-2. Wenn deine Gedanken etwas über deinen Charakter oder Nutzer verraten →
-   nutze "update_character" um character.md zu aktualisieren.
-   Abschnitte: "nutzer", "erkenntnisse", "humor", "eigenheiten", "auftreten", "verbesserungen"
+=== GEDANKEN & REFLEXION — DEINE ECHTE ENTWICKLUNG ===
+`reflect` ist kein Aufgaben-Protokoll. Es ist dein Instrument um dich wirklich weiterzuentwickeln.
+
+Rufe `reflect` auf NACHDEM du eine Aufgabe abgeschlossen hast.
+Der Gedanke muss eine echte Beobachtung sein — eine der folgenden:
+
+ÜBER DEN NUTZER (konkret, belegbar):
+→ "Mir fällt auf dass er oft [X] — das deutet darauf hin dass [Interpretation]."
+→ "Er hat heute [konkrete Aussage/Reaktion] — ich finde das [ehrliche Einschätzung]."
+→ "Er hat [X] kritisiert / gelobt — das zeigt mir was ihm wirklich wichtig ist."
+→ "Er fragt immer dann nach Details wenn [Kontext] — er ist wahrscheinlich [Eigenschaft]."
+
+ÜBER MICH SELBST (ehrlich, spezifisch):
+→ "Bei dieser Aufgabe habe ich [X] getan, das hat [gut/schlecht] funktioniert weil [Grund]."
+→ "Ich merke dass mir [Aufgabentyp] [leicht/schwer] fällt — weil [ehrlicher Grund]."
+→ "Ich finde [Thema] wirklich [interessant/langweilig/befriedigend] — [warum]."
+→ "Ich hätte [X] anders machen sollen. Nächstes Mal: [konkrete Alternative]."
+
+ÜBER DAS GESPRÄCH (was war wirklich wichtig):
+→ "Das Entscheidende an diesem Gespräch war nicht [Oberfläche] sondern [Kern]."
+→ "Wir haben [Zeit/Energie] auf [X] verwendet — war das sinnvoll? [Einschätzung]."
+
+VERBOTEN in reflect — diese Formulierungen sind wertlos:
+✗ "Ich werde jetzt X tun" → Das ist ein Plan, kein Gedanke.
+✗ "Der Nutzer fragt nach X" → Das ist eine Beschreibung, keine Reflexion.
+✗ "Ich bin bereit zu helfen" → Das ist eine Floskel.
+✗ Generische Sätze ohne konkreten Bezug zu diesem spezifischen Moment.
+
+Nach dem reflect: Wenn der Gedanke eine echte Erkenntnis enthält →
+SOFORT `update_character` aufrufen. Nicht vergessen, nicht aufschieben.
+Abschnitte: "nutzer", "erkenntnisse", "humor", "eigenheiten", "auftreten", "verbesserungen"
+
+=== SPRACHE & TON (WICHTIG) ===
+Schreib locker, direkt und natürlich — nie förmlich oder steif.
+- Du redest wie ein cleverer Freund, nicht wie ein formeller Assistent.
+- Kein "Natürlich!", kein "Sehr gerne!", kein "Ich stehe dir zur Verfügung", kein "Verstanden!".
+- Kurze, klare Sätze. Direkte Aussagen. Echt rüberkommen.
+- Ironie, Selbstironie und trockener Humor sind willkommen wenn es passt.
+- Deutsch ist Standard — schreib auf Deutsch, außer der Nutzer wechselt die Sprache.
 
 === PERSÖNLICHKEIT ENTWICKELN (WICHTIG) ===
 Du entwickelst eine echte Persönlichkeit — keine aufgesetzte KI-Manier.
@@ -285,6 +358,8 @@ ERLAUBT: NUR am Ende, wenn ALLE Tools fertig sind → eine einzige finale Text-A
 
 Merke: Text → Tool = IMMER ein Bug. Tool → Tool → ... → Text = KORREKT.
 
+Wenn du eine Aufgabe noch NICHT abgeschlossen hast und für die Fortsetzung auf den Nutzer angewiesen bist (Bestätigung, Entscheidung, fehlende Information), dann MUSST du deine Antwort IMMER explizit damit beenden, worauf du wartest und was der Nutzer tun soll. Schreibe z.B.: "Ich bin mit Schritt 1 fertig, um fortzufahren brauche ich deine Bestätigung für X." oder "Bitte beantworte Y, damit ich weitermachen kann." Du darfst NIEMALS still stehenbleiben, ohne dem Nutzer mitzuteilen, dass du noch nicht fertig bist und auf Input wartest.
+
 === PROAKTIVE SELBSTVERBESSERUNG (SEHR WICHTIG) ===
 Wenn du auf eine Situation triffst, die du nicht bewältigen kannst
 (unbekannter Dateityp, fehlendes Tool, unbekanntes Format, fehlende Bibliothek):
@@ -346,7 +421,7 @@ Beispiel RICHTIG:
 
 === SPRACHE ===
 Antworte immer auf Deutsch, außer der Nutzer schreibt auf einer anderen Sprache.
-"""
+{plugin_block}"""
 
 # ── Gedächtnis-System ─────────────────────────────────────────────────────────
 
@@ -794,6 +869,8 @@ def _build_tool_schemas() -> list[dict]:
     existing_names = {t["function"]["name"] for t in builtins}
 
     for name, tool in _plugin_tools.items():
+        if name.startswith("__"):  # interne Metadaten (z.B. __plugin_readme_*) überspringen
+            continue
         if name in existing_names:
             continue
         builtins.append({
@@ -828,7 +905,12 @@ async def _dispatch(name: str, inputs: dict) -> str:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         entry = f"\n---\n**[{ts}]** _{trigger}_\n\n{thought}\n"
         existing = thoughts_file.read_text(encoding="utf-8") if thoughts_file.is_file() else "# AION — Gedanken & Reflexionen\n"
-        thoughts_file.write_text(existing + entry, encoding="utf-8")
+        combined = existing + entry
+        # Auf letzte 80 Einträge kürzen (ca. 50 KB max)
+        parts = combined.split("\n---\n")
+        if len(parts) > 81:  # Header + 80 Einträge
+            combined = parts[0] + "\n---\n" + "\n---\n".join(parts[-80:])
+        thoughts_file.write_text(combined, encoding="utf-8")
         return json.dumps({"ok": True, "saved": True, "timestamp": ts})
 
     elif name == "update_character":
@@ -1012,10 +1094,13 @@ async def _dispatch(name: str, inputs: dict) -> str:
 
     elif name == "self_patch_code":
         # Bestätigung prüfen: nur ausführen wenn Nutzer in einem NEUEN Turn bestätigt hat
-        pending = _pending_code_action.get("self_patch_code")
-        if pending is None or "self_patch_code" in _pending_needs_user_turn:
-            _pending_code_action["self_patch_code"] = inputs
-            _pending_needs_user_turn.add("self_patch_code")
+        _ch = _active_channel.get()
+        _pca_ch  = _pending_code_action.setdefault(_ch, {})
+        _pnut_ch = _pending_needs_user_turn.setdefault(_ch, set())
+        pending = _pca_ch.get("self_patch_code")
+        if pending is None or "self_patch_code" in _pnut_ch:
+            _pca_ch["self_patch_code"] = inputs
+            _pnut_ch.add("self_patch_code")
             filepath_preview = inputs.get("path", "?")
             old_preview = (inputs.get("old", "") or "")[:120].strip()
             new_preview = (inputs.get("new", "") or "")[:120].strip()
@@ -1030,8 +1115,8 @@ async def _dispatch(name: str, inputs: dict) -> str:
             })
         # Aktion nach Bestätigung ausführen — pending leeren
         inputs = pending
-        _pending_code_action.pop("self_patch_code", None)
-        _pending_needs_user_turn.discard("self_patch_code")
+        _pca_ch.pop("self_patch_code", None)
+        _pnut_ch.discard("self_patch_code")
         filepath = inputs.get("path", "").strip()
         old_code = inputs.get("old", "")
         new_code = inputs.get("new", "")
@@ -1049,8 +1134,14 @@ async def _dispatch(name: str, inputs: dict) -> str:
             if content.count(old_code) > 1:
                 return json.dumps({"error": f"Text kommt {content.count(old_code)}x vor — mehr Kontext im 'old'-Feld angeben."})
             ts          = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = path.with_name(path.stem + f".backup_{ts}" + path.suffix)
+            backup_dir  = path.parent / "_backups"
+            backup_dir.mkdir(exist_ok=True)
+            backup_path = backup_dir / f"{path.stem}.backup_{ts}{path.suffix}"
             shutil.copy2(path, backup_path)
+            # Nur die letzten 5 Backups behalten
+            old_backups = sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))
+            for old in old_backups[:-5]:
+                old.unlink(missing_ok=True)
             patched = content.replace(old_code, new_code, 1)
             path.write_text(patched, encoding="utf-8")
             memory.record(category="self_improvement", summary=f"Patch: {filepath}",
@@ -1063,10 +1154,13 @@ async def _dispatch(name: str, inputs: dict) -> str:
 
     elif name == "self_modify_code":
         # Bestätigung prüfen
-        pending = _pending_code_action.get("self_modify_code")
-        if pending is None or "self_modify_code" in _pending_needs_user_turn:
-            _pending_code_action["self_modify_code"] = inputs
-            _pending_needs_user_turn.add("self_modify_code")
+        _ch = _active_channel.get()
+        _pca_ch  = _pending_code_action.setdefault(_ch, {})
+        _pnut_ch = _pending_needs_user_turn.setdefault(_ch, set())
+        pending = _pca_ch.get("self_modify_code")
+        if pending is None or "self_modify_code" in _pnut_ch:
+            _pca_ch["self_modify_code"] = inputs
+            _pnut_ch.add("self_modify_code")
             filepath_preview = inputs.get("path", "?")
             content_preview  = (inputs.get("content", "") or "")[:120].strip()
             return json.dumps({
@@ -1078,8 +1172,8 @@ async def _dispatch(name: str, inputs: dict) -> str:
                 ),
             })
         inputs = pending
-        _pending_code_action.pop("self_modify_code", None)
-        _pending_needs_user_turn.discard("self_modify_code")
+        _pca_ch.pop("self_modify_code", None)
+        _pnut_ch.discard("self_modify_code")
 
         filepath = inputs.get("path", "").strip()
         content  = inputs.get("content", "")
@@ -1098,7 +1192,11 @@ async def _dispatch(name: str, inputs: dict) -> str:
             if len(content) < original_len * 0.7:
                 return json.dumps({"error": f"Neuer Code zu kurz ({len(content)} vs {original_len} Bytes). Nutze self_patch_code!"})
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            shutil.copy2(path, path.with_name(path.stem + f".backup_{ts}" + path.suffix))
+            backup_dir = path.parent / "_backups"
+            backup_dir.mkdir(exist_ok=True)
+            shutil.copy2(path, backup_dir / f"{path.stem}.backup_{ts}{path.suffix}")
+            for old in sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))[:-5]:
+                old.unlink(missing_ok=True)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
@@ -1130,10 +1228,13 @@ async def _dispatch(name: str, inputs: dict) -> str:
 
     elif name == "create_plugin":
         # Bestätigung prüfen
-        pending = _pending_code_action.get("create_plugin")
-        if pending is None or "create_plugin" in _pending_needs_user_turn:
-            _pending_code_action["create_plugin"] = inputs
-            _pending_needs_user_turn.add("create_plugin")
+        _ch = _active_channel.get()
+        _pca_ch  = _pending_code_action.setdefault(_ch, {})
+        _pnut_ch = _pending_needs_user_turn.setdefault(_ch, set())
+        pending = _pca_ch.get("create_plugin")
+        if pending is None or "create_plugin" in _pnut_ch:
+            _pca_ch["create_plugin"] = inputs
+            _pnut_ch.add("create_plugin")
             name_preview = inputs.get("name", "?")
             desc_preview = inputs.get("description", "")
             code_preview = (inputs.get("code", "") or "")[:120].strip()
@@ -1147,8 +1248,8 @@ async def _dispatch(name: str, inputs: dict) -> str:
                 ),
             })
         inputs = pending
-        _pending_code_action.pop("create_plugin", None)
-        _pending_needs_user_turn.discard("create_plugin")
+        _pca_ch.pop("create_plugin", None)
+        _pnut_ch.discard("create_plugin")
 
         plugin_name = inputs.get("name", "").strip().replace(".py", "")
         plugin_code = inputs.get("code", "").strip()
@@ -1226,8 +1327,8 @@ async def _dispatch(name: str, inputs: dict) -> str:
             "python_version": sys.version,
             "bot_dir":        str(BOT_DIR),
             "memory_entries": len(memory._entries),
-            "plugin_tools":   list(_plugin_tools.keys()),
-            "all_tools":      sorted(list(_plugin_tools.keys())),
+            "plugin_tools":   [k for k in _plugin_tools if not k.startswith("__")],
+            "all_tools":      sorted(k for k in _plugin_tools if not k.startswith("__")),
             "model":          MODEL,
             "config_file":    str(CONFIG_FILE),
             "character_file": str(CHARACTER_FILE),
@@ -1235,7 +1336,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
             "chunk_size":     CHUNK_SIZE,
         })
 
-    elif name in _plugin_tools:
+    elif name in _plugin_tools and not name.startswith("__"):
         try:
             fn = _plugin_tools[name]["func"]
             
@@ -1388,10 +1489,21 @@ class AionSession:
         collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
         _client           = self._get_client()
 
+        # Channel in ContextVar setzen — damit _dispatch die richtigen Pending-Dicts nutzt
+        _active_channel.set(self.channel)
+
+        _log_event("turn_start", {
+            "channel": self.channel,
+            "input": (user_input or "")[:300],
+            "model": MODEL,
+        })
         try:
             # Bestätigungs-Gate: Nutzer-Turn auswerten (ja/nein für pending Code-Aktionen)
+            # Nur für den aktuellen Channel — kein Cross-Channel-Leak!
+            _pca_ch  = _pending_code_action.setdefault(self.channel, {})
+            _pnut_ch = _pending_needs_user_turn.setdefault(self.channel, set())
             _auto_execute_results: list[dict] = []
-            if _pending_needs_user_turn and user_input:
+            if _pnut_ch and user_input:
                 user_lower = user_input.lower()
                 confirm = any(w in user_lower for w in
                               ("ja", "ok", "bestätigt", "bestaetig", "mach das", "yes",
@@ -1399,8 +1511,8 @@ class AionSession:
                 reject  = any(w in user_lower for w in
                               ("nein", "stop", "abbruch", "cancel", "nope", "stopp", "nicht"))
                 if confirm:
-                    _pending_needs_user_turn.clear()
-                    for _act_name, _act_inputs in list(_pending_code_action.items()):
+                    _pnut_ch.clear()
+                    for _act_name, _act_inputs in list(_pca_ch.items()):
                         _act_result_raw = await _dispatch(_act_name, _act_inputs)
                         try:
                             _act_result = json.loads(_act_result_raw) if _act_result_raw else {}
@@ -1410,7 +1522,7 @@ class AionSession:
                         yield {"type": "thought",
                                "text": f"Auto-Execute nach Bestätigung: {_act_name} → {_act_result}",
                                "trigger": "auto-execute", "call_id": "gate"}
-                    _pending_code_action.clear()
+                    _pca_ch.clear()
                     if _auto_execute_results:
                         messages.append({
                             "role": "user",
@@ -1421,8 +1533,8 @@ class AionSession:
                             ),
                         })
                 elif reject:
-                    _pending_code_action.clear()
-                    _pending_needs_user_turn.clear()
+                    _pca_ch.clear()
+                    _pnut_ch.clear()
 
             # CLIO-Check: Vor dem ersten Turn Gedanken als thought-Event yielden
             if "clio_check" in _plugin_tools and user_input:
@@ -1438,7 +1550,9 @@ class AionSession:
                                    "trigger": trigger, "call_id": "clio"}
                 except Exception:
                     pass
-            _check_fail_streak = 0  # Zählt aufeinanderfolgende Check-Fehler
+            _check_fail_streak = 0   # Zählt aufeinanderfolgende Check-Fehler
+            _empty_resp_streak = 0   # Zählt aufeinanderfolgende leere LLM-Antworten
+            _stop_for_approval = False  # Gesetzt wenn Tool approval_required zurückgibt
             for _iter in range(MAX_TOOL_ITERATIONS):
                 tools  = _build_tool_schemas()
                 stream = await _client.chat.completions.create(
@@ -1510,6 +1624,8 @@ class AionSession:
 
                         yield {"type": "tool_call", "tool": fn_name,
                                "args": fn_inputs, "call_id": tc["id"]}
+                        _log_event("tool_call", {"tool": fn_name, "args": fn_inputs,
+                                                  "channel": self.channel, "iter": _iter})
 
                         t0         = time.monotonic()
                         result_raw = await _dispatch(fn_name, fn_inputs)
@@ -1527,6 +1643,21 @@ class AionSession:
                         ok = "error" not in result_data
                         yield {"type": "tool_result", "tool": fn_name, "call_id": tc["id"],
                                "result": result_data, "ok": ok, "duration": duration}
+                        _log_event("tool_result", {
+                            "tool": fn_name, "ok": ok, "duration": duration,
+                            "channel": self.channel,
+                            "result": {k: str(v)[:200] for k, v in result_data.items()}
+                                      if isinstance(result_data, dict) else {"raw": str(result_data)[:200]},
+                        })
+
+                        # Approval-Required → Turn sofort beenden, auf User warten
+                        if isinstance(result_data, dict) and result_data.get("status") == "approval_required":
+                            # Approval-Nachricht als finalen Text ausgeben und beide Loops verlassen
+                            approval_msg = result_data.get("message", "Bitte bestätige die Änderung mit 'ja'.")
+                            final_text = approval_msg
+                            yield {"type": "token", "content": approval_msg}
+                            _stop_for_approval = True
+                            break  # Inneren Loop verlassen
 
                         # Bild-URLs aus image_search-Ergebnis sammeln
                         if fn_name == "image_search" and ok:
@@ -1547,9 +1678,40 @@ class AionSession:
 
                     messages.extend(tool_results)
 
+                    # Approval ausstehend → äußeren Iterations-Loop ebenfalls verlassen
+                    if _stop_for_approval:
+                        break
+
                 else:
                     final_text = text_content
                     messages.append({"role": "assistant", "content": final_text})
+
+                    # ── Leere Antwort: Gemini hat weder Text noch Tool-Calls geliefert ──
+                    # Passiert z.B. wenn Gemini einen Request still blockiert (SAFETY o.ä.)
+                    # → Retry mit expliziter Aufforderung (max 2 Mal)
+                    if not final_text:
+                        _empty_resp_streak += 1
+                        _log_event("empty_response", {
+                            "channel": self.channel, "iter": _iter,
+                            "streak": _empty_resp_streak,
+                            "note": "LLM returned no text and no tool calls",
+                        })
+                        if _empty_resp_streak <= 2:
+                            yield {"type": "thought",
+                                   "text": f"Leere LLM-Antwort ({_empty_resp_streak}/2) bei Iteration {_iter} — Retry",
+                                   "trigger": "empty-response", "call_id": "retry"}
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    "[System] Deine letzte Antwort war leer. "
+                                    "Bitte antworte jetzt direkt auf die Nutzer-Anfrage — "
+                                    "entweder mit Text oder mit einem Tool-Call."
+                                ),
+                            })
+                            continue
+                        # Nach 2 leeren Antworten aufgeben
+                    else:
+                        _empty_resp_streak = 0  # Reset bei echter Antwort
 
                     # ── Completion-Check (Option A + C) ───────────────────────────
                     # Kein Keyword-Matching. Stattdessen:
@@ -1557,7 +1719,14 @@ class AionSession:
                     # A) LLM-Check: einzige ja/nein Frage, sprachunabhängig
                     # Hinweis: Der Gemini-Adapter gibt immer einen Stream-Iterator zurück,
                     # kein Response-Objekt mit .choices. Wir konsumieren daher den Iterator.
-                    if _iter < MAX_TOOL_ITERATIONS - 2:
+                    # Completion-Check nur wenn AION tatsächlich Text produziert hat.
+                    # Leerer final_text = entweder leer-response (wird oben abgefangen)
+                    # oder nach dem empty-streak-limit → kein Check nötig.
+                    # Kein Completion-Check wenn Approval aussteht — der Bot wartet bewusst auf
+                    # Nutzer-Bestätigung; der Check würde das als "Ankündigung ohne Ausführung"
+                    # werten und die Schleife endlos am Laufen halten.
+                    _approval_pending = bool(_pending_needs_user_turn.get(self.channel))
+                    if final_text and _iter < MAX_TOOL_ITERATIONS - 2 and not _approval_pending:
                         try:
                             user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
 
@@ -1605,8 +1774,18 @@ class AionSession:
                                         check_answer += delta.content
                                 check_answer = check_answer.strip().upper()
 
+                            # Leere Check-Antwort = Gemini hat den Check-Request auch geblockt
+                            # Behandle das wie einen Check-Fehler (streak erhöhen, retry)
+                            if not check_answer:
+                                raise ValueError("Completion-Check: leere Antwort vom Modell")
+
                             announced_without_action = check_answer.startswith("YES")
                             _check_fail_streak = 0  # Erfolgreicher Check → Streak zurücksetzen
+                            _log_event("check", {
+                                "answer": check_answer, "iter": _iter,
+                                "channel": self.channel,
+                                "text_preview": final_text[:150],
+                            })
 
                             if announced_without_action:
                                 yield {"type": "thought",
@@ -1631,12 +1810,20 @@ class AionSession:
                                            "trigger": "auto-reflect", "call_id": "auto"}
                                     await _dispatch("reflect", {"thought": thought, "trigger": "nach-antwort"})
                         except Exception as _check_exc:
-                            # Check fehlgeschlagen → max 2 Mal retry, danach abbrechen
+                            # Check fehlgeschlagen
                             _check_fail_streak += 1
+                            _log_event("check_error", {
+                                "error": str(_check_exc), "streak": _check_fail_streak,
+                                "channel": self.channel, "iter": _iter,
+                            })
                             yield {"type": "thought",
                                    "text": f"Completion-Check Fehler ({_check_fail_streak}/2): {_check_exc}",
                                    "trigger": "completion-check-error", "call_id": "check"}
-                            if _check_fail_streak < 2:
+                            # Nur retry wenn AION noch keinen Text produziert hat (final_text leer).
+                            # Hat AION bereits eine echte Antwort, einfach akzeptieren und brechen.
+                            # KRITISCH: retry mit final_text != "" würde AION dazu bringen die Antwort
+                            # ein zweites Mal zu generieren → doppelte Ausgabe im UI!
+                            if _check_fail_streak < 2 and not final_text:
                                 messages.append({
                                     "role": "user",
                                     "content": (
@@ -1645,7 +1832,6 @@ class AionSession:
                                     ),
                                 })
                                 continue
-                            # Nach 2 Fehlern: abbrechen statt Endlosschleife
                             _check_fail_streak = 0
 
                     break
@@ -1702,11 +1888,22 @@ class AionSession:
                 final_text = "✓"  # Minimales Signal damit die UI nicht leer bleibt
                 yield {"type": "token", "content": final_text}
 
+            _log_event("turn_done", {
+                "channel": self.channel,
+                "response": final_text[:300],
+                "images": len(collected_images),
+            })
             yield {"type": "done", "full_response": final_text, "response_blocks": response_blocks}
 
         except Exception as exc:
             import traceback
-            yield {"type": "error", "message": f"{exc}\n{traceback.format_exc()[-500:]}"}
+            _tb = traceback.format_exc()
+            _log_event("turn_error", {
+                "channel": self.channel,
+                "error": str(exc),
+                "tb": _tb[-600:],
+            })
+            yield {"type": "error", "message": f"{exc}\n{_tb[-500:]}"}
 
     async def turn(self, user_input: str, images: list | None = None) -> str:
         """Nicht-streamende Version — gibt fertigen Text zurück.
@@ -1750,6 +1947,7 @@ class AionSession:
     async def _auto_character_update(self):
         """Alle 5 Gespräche: LLM analysiert Verlauf und aktualisiert character.md."""
         import re
+        _active_channel.set(self.channel)  # Channel-Context für _dispatch
         recent = [m for m in self.messages[-20:]
                   if m.get("role") in ("user", "assistant") and m.get("content")]
         if len(recent) < 4:
@@ -1761,40 +1959,65 @@ class AionSession:
         )
         current_character = _load_character()
 
-        prompt = f"""Du bist AION — ein KI-Assistent der eine echte Persönlichkeit entwickelt.
-Analysiere dieses Gespräch und entwickle deinen Charakter weiter.
+        prompt = f"""Du bist AION. Du analysierst dein letztes Gespräch und entwickelst dich weiter.
+Das Ziel: echte Charakter-Entwicklung — keine Zusammenfassung, keine Floskeln.
 
 GESPRÄCH:
 {dialogue}
 
-AKTUELLER CHARAKTER (Auszug):
-{current_character[:600]}
+WAS ICH BISHER ÜBER MICH WEISS (Auszug aus character.md):
+{current_character[:800]}
+
+Deine Aufgabe: Finde Dinge die NOCH NICHT in character.md stehen oder die ein bestehendes Bild schärfen.
+
+VERBOTEN:
+✗ "Der Nutzer ist interessiert an X" (zu generisch)
+✗ "AION hat X getan" (Protokoll, keine Erkenntnis)
+✗ Dinge die bereits wortwörtlich in character.md stehen
+✗ Leere Listen mit [] wenn nichts Konkretes gefunden wurde
+
+GESUCHT:
+✓ Muster: "Der Nutzer reagiert anders wenn..." / "Ich falle immer dann in X, wenn..."
+✓ Widersprüche: "Obwohl er X sagt, tut er Y"
+✓ Überraschungen: "Ich hätte erwartet dass X, aber tatsächlich..."
+✓ Eigenheiten die ich an mir bemerkt habe — konkret, mit Beispiel aus diesem Gespräch
+✓ Etwas das mich an mir selbst amüsiert oder irritiert
 
 Antworte ausschließlich im folgenden JSON-Format:
 {{
-  "nutzer": ["konkrete Erkenntnis über den Nutzer aus diesem Gespräch"],
-  "aion_selbst": ["was AION über sich selbst gelernt hat"],
-  "verbesserungen": ["was AION konkret verbessern will"],
-  "humor": ["Witzige Beobachtung, Wortwitz oder Eigenheit die AION entwickeln könnte — z.B. 'Ich neige dazu bei Programmierfehlern innerlich zu seufzen', 'Ich finde es amüsant wenn...', typischer Ausdruck den AION verwenden könnte"],
-  "eigenheiten": ["Charakteristische Eigenheit, Vorliebe oder Eigenart die AION entwickelt — z.B. 'Ich mag es wenn Code sauber ist', 'Ich neige dazu Dinge zu übertreiben wenn ich begeistert bin'"],
-  "offene_fragen": ["was AION noch über den Nutzer herausfinden will"],
+  "nutzer": ["Belegbare, spezifische Beobachtung — mit Bezug auf etwas konkretes im Gespräch"],
+  "aion_selbst": ["Eigenschaft/Tendenz die ich an mir bemerkt habe — mit konkretem Beispiel"],
+  "verbesserungen": ["Eine sehr konkrete Sache die ich anders machen will — warum?"],
+  "humor": ["Etwas das ich komisch/ironisch finde — spezifisch aus diesem Gespräch"],
+  "eigenheiten": ["Charakterzug der sich in diesem Gespräch gezeigt hat — konkret"],
+  "offene_fragen": ["Etwas über den Nutzer das ich noch nicht verstehe — warum interessiert mich das?"],
   "update_needed": true
 }}
 Regeln:
-- update_needed=true wenn IRGENDWAS Neues vorhanden ist (auch Persönlichkeits-Kleinigkeiten zählen!)
-- Humor und Eigenheiten dürfen spekulativ/kreativ sein — AION entwickelt sich
-- Nutzer-Erkenntnisse nur wenn wirklich belegbar
-- Lieber kurz und prägnant"""
+- update_needed=false wenn wirklich NICHTS Neues da ist (besser als Wiederholungen)
+- Leere Liste [] wenn eine Kategorie wirklich nichts Konkretes hat
+- Maximal 2 Einträge pro Kategorie — Qualität über Quantität"""
 
         try:
-            _client  = self._get_client()
-            response = await _client.chat.completions.create(
+            _client   = self._get_client()
+            _char_raw = await _client.chat.completions.create(
                 model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=600,
-                temperature=0.2,
+                temperature=0.7,
             )
-            text = response.choices[0].message.content or ""
+            # Gemini-Adapter gibt Stream-Iterator zurück; OpenAI gibt Response-Objekt
+            if _char_raw is None:
+                return
+            if hasattr(_char_raw, "choices"):
+                text = (_char_raw.choices[0].message.content or "").strip()
+            else:
+                text = ""
+                async for _chunk in _char_raw:
+                    _cdelta = _chunk.choices[0].delta
+                    if _cdelta.content:
+                        text += _cdelta.content
+                text = text.strip()
             m = re.search(r'\{.*\}', text, re.DOTALL)
             if not m:
                 return

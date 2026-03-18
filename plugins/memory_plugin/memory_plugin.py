@@ -6,7 +6,8 @@ from pathlib import Path
 # BOT_DIR ist das Verzeichnis, in dem aion.py liegt (Elternverzeichnis von plugins/)
 BOT_DIR = Path(__file__).parent.parent
 
-HISTORY_FILE = BOT_DIR / "conversation_history.jsonl"
+HISTORY_FILE  = BOT_DIR / "conversation_history.jsonl"
+HISTORY_MAX   = 1000  # Maximale Einträge — älteste werden entfernt
 
 
 def _ts() -> str:
@@ -14,12 +15,19 @@ def _ts() -> str:
 
 
 def append_to_history(role: str, content: str) -> dict:
-    """Fügt einen neuen Eintrag (mit Zeitstempel) zur Konversationshistorie hinzu."""
+    """Fügt einen neuen Eintrag zur Konversationshistorie hinzu (max HISTORY_MAX Einträge)."""
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     entry = {"role": role, "content": content, "ts": _ts()}
     try:
-        with open(HISTORY_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        # Bestehende Einträge lesen und neuen anhängen
+        lines = []
+        if HISTORY_FILE.exists():
+            lines = [l for l in HISTORY_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
+        lines.append(json.dumps(entry, ensure_ascii=False))
+        # Auf HISTORY_MAX kürzen (älteste zuerst entfernen)
+        if len(lines) > HISTORY_MAX:
+            lines = lines[-HISTORY_MAX:]
+        HISTORY_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}

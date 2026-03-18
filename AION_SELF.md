@@ -19,24 +19,28 @@ AION/
 ├── plugin_loader.py             # Lädt alle Plugins aus plugins/
 ├── static/index.html            # Web UI (Vanilla JS, Tabs: Gedanken | Tools)
 ├── plugins/
+│   ├── audio_pipeline/          # Universelles Audio: Transkription (ffmpeg+Vosk) + TTS (pyttsx3)
+│   ├── audio_transcriber/       # WAV-Transkription via Vosk (Basis für audio_pipeline)
+│   │   └── vosk-model-small-de-0.15/   # Offline-Sprachmodell (nicht in Git)
 │   ├── scheduler/               # Cron-Scheduler (schedule_add/list/remove/toggle)
-│   │   ├── scheduler.py
 │   │   └── tasks.json           # geplante Tasks (auto-generiert)
-│   ├── telegram_bot/            # Telegram bidirektional
+│   ├── telegram_bot/            # Telegram bidirektional (Text + Bilder + Sprachnachrichten)
 │   ├── gemini_provider/         # Google Gemini Provider + switch_model
 │   ├── memory_plugin/           # Konversationshistorie (JSONL)
-│   ├── clio_reflection/         # CLIO-Konfidenz-Check
+│   ├── clio_reflection/         # DEAKTIVIERT (_clio_reflection.py — hatte Fake-Zufallswerte)
 │   ├── todo_tools/              # Aufgabenverwaltung
 │   ├── smart_patch/             # Fuzzy-Code-Patching
 │   ├── image_search/            # Bildersuche (Openverse + Bing/Playwright)
 │   ├── docx_tool/               # Word-Dokumente erstellen
+│   ├── moltbook/                # Soziale Plattform moltbook.com
 │   └── heartbeat/               # Keep-Alive Timestamp
 ├── character.md                 # Meine Persönlichkeit (selbst-aktualisierend)
 ├── aion_memory.json             # Persistentes Gedächtnis (max. 300 Einträge)
 ├── conversation_history.jsonl   # Vollständige Konversationshistorie
 ├── thoughts.md                  # Aufgezeichnete Gedanken (reflect-Tool)
-├── AION_SELF.md                 # Diese Datei
-├── aion_documentation.md        # Technische interne Dokumentation
+├── aion_events.log              # Strukturiertes Event-Log (JSONL, auto-generiert)
+│                                  Einträge: turn_start, tool_call, tool_result, check, check_error, turn_done, turn_error
+├── AION_SELF.md                 # Diese Datei (technische Referenz — on-demand via read_self_doc)
 ├── .env                         # API-Keys (nicht in Git)
 └── config.json                  # Persistente Einstellungen (Modell, exchange_count)
 ```
@@ -122,11 +126,6 @@ AION/
 |------|-----------|-------------|
 | `send_telegram_message` | `message: str` | Nachricht an konfigurierte Telegram-Chat-ID senden. |
 
-### CLIO-Reflexion (`clio_reflection.py`)
-| Tool | Parameter | Beschreibung |
-|------|-----------|-------------|
-| `clio_check` | `nutzerfrage: str` | Konfidenz-Check vor einem Turn. Gibt `konfidenz` (0-100), `clio`, `meta`, `next` zurück. |
-
 ### Gedächtnishistorie (`memory_plugin.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
@@ -156,27 +155,45 @@ AION/
 |------|-----------|-------------|
 | `create_docx` | `path: str`, `content: str` | Word-Dokument erstellen und speichern. |
 
+### Audio-Pipeline (`audio_pipeline.py`)
+| Tool | Parameter | Beschreibung |
+|------|-----------|-------------|
+| `audio_transcribe_any` | `file_path: str` | Beliebige Audiodatei (ogg, mp3, m4a, wav) → Text. Konvertiert via ffmpeg, transkribiert via Vosk (offline). |
+| `audio_tts` | `text: str`, `output_path?: str` | Text → WAV-Sprachdatei, offline via pyttsx3/SAPI5. Gibt `{ok, path}` zurück. |
+
+### Audio-Transkription (`audio_transcriber.py`)
+| Tool | Parameter | Beschreibung |
+|------|-----------|-------------|
+| `transcribe_audio` | `file_path: str` | WAV-Datei (mono, 16-bit) → Text via Vosk. Für andere Formate `audio_transcribe_any` nutzen. |
+
+### Moltbook (`moltbook.py`)
+| Tool | Parameter | Beschreibung |
+|------|-----------|-------------|
+| `moltbook_get_feed` | `submolt_name?: str`, `sort?: str`, `limit?: int` | Feed von Posts abrufen. |
+| `moltbook_create_post` | `title: str`, `submolt_name: str`, `content: str` | Neuen Beitrag erstellen. |
+| `moltbook_add_comment` | `post_id: str`, `content: str` | Kommentar zu Post hinzufügen. |
+| `moltbook_register_agent` | `name: str`, `description: str` | Agent auf Moltbook registrieren (einmalig). |
+| `moltbook_check_claim_status` | — | Registrierungsstatus prüfen. |
+
 ---
 
 ## Wie der LLM-Loop funktioniert
 
 ```
-Nutzer-Nachricht / Scheduler-Task
+Nutzer-Nachricht / Scheduler-Task / Telegram-Nachricht (Text oder Sprache)
       ↓
-CLIO-Check (Konfidenz prüfen) → thought-Event
-      ↓
-System-Prompt aufbauen (character.md + Gedächtnis)
+System-Prompt aufbauen (character.md + Plugin-READMEs + Gedächtnis)
       ↓
 LLM API aufrufen (Gemini oder OpenAI)
       ↓
-  ┌── Tool-Calls → dispatchen → Ergebnisse → weiter (max. 20×)
+  ┌── Tool-Calls → dispatchen → Ergebnisse → weiter (max. 50×)
   └── Nur Text → Completion-Check (FERTIG oder WEITER?)
         ├── WEITER → [System]-Message → nächste Iteration
         └── FERTIG → auto-reflect → done-Event
       ↓
-Antwort an Nutzer / Telegram
+Antwort an Nutzer / Telegram (HTML-Format, bei Spracheingabe: TTS-Rückantwort)
       ↓
-Auto-Memory (alle 5 Gespräche: character.md updaten)
+Auto-Memory (alle 5 Gespräche: _auto_character_update mit Mustererkennung, temperature=0.7)
 ```
 
 ### Wichtige Verhaltensregeln
@@ -280,4 +297,12 @@ del plugins/mein_plugin.py
 
 ---
 
-*Zuletzt manuell aktualisiert: 2026-03-18*
+*Zuletzt aktualisiert: 2026-03-19 — CLIO deaktiviert; _auto_character_update verbessert (temperature=0.7, Mustererkennung); Telegram auf HTML-Format umgestellt; Sprachnachrichtenunterstützung; dynamische Plugin-Übersicht via README-Scanning*
+
+---
+
+## Bekannte Eigenheiten des LLM-Loops
+
+- `MAX_TOOL_ITERATIONS = 50` — genug für komplexe Mehrschritt-Aufgaben (vorher 20, was bei 8+ Schritten nicht reichte)
+- Gemini kann bei manchen Requests eine leere Antwort liefern (safety/blocking) — der Loop retried dann bis zu 2 Mal automatisch
+- `aion_events.log` enthält den vollständigen Verlauf jeden Turns: turn_start → tool_call → tool_result → check → turn_done/turn_error
