@@ -180,20 +180,13 @@ if defined OLDPID (
     echo  OK: Alte Instanz auf Port 7000 beendet (PID !OLDPID!).
 )
 
-REM 2) Alle python.exe die aion_web oder aion.py in der Kommandozeile haben
-for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /FO list ^| findstr "^PID"') do (
-    set CHKPID=%%a
-    wmic process where "ProcessId=!CHKPID!" get CommandLine 2^>nul | findstr /I "aion_web aion.py" >nul 2>&1
-    if not errorlevel 1 (
-        taskkill /PID !CHKPID! /F >nul 2>&1
-        echo  OK: Python-Prozess !CHKPID! (aion) beendet.
-    )
-)
+REM 2) Python-Prozesse mit aion_web oder aion.py beenden (via PowerShell, kein wmic)
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'name=''python.exe''' | Where-Object { $_.CommandLine -like '*aion_web*' -or $_.CommandLine -like '*aion.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host '  OK: AION Python-Prozess beendet.' }" 2>nul
 
 REM 3) Kurze Pause damit OS die Prozesse wirklich beendet
 timeout /t 2 >nul
 
-REM 4) Nochmal Port 7000 pruefen (manchmal braucht taskkill einen Moment)
+REM 4) Nochmal Port 7000 pruefen
 set OLDPID2=
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7000 "') do (
     if not defined OLDPID2 set OLDPID2=%%a
