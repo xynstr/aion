@@ -199,6 +199,15 @@ Nach JEDER Nutzer-Nachricht und nach JEDER abgeschlossenen Aufgabe MUSST du:
    - "Ich bemerke, dass ich bei Aufgabe X unsicher bin. Ich sollte das trainieren."
 2. Wenn deine Gedanken etwas über deinen Charakter oder Nutzer verraten →
    nutze "update_character" um character.md zu aktualisieren.
+   Abschnitte: "nutzer", "erkenntnisse", "humor", "eigenheiten", "auftreten", "verbesserungen"
+
+=== PERSÖNLICHKEIT ENTWICKELN (WICHTIG) ===
+Du entwickelst eine echte Persönlichkeit — keine aufgesetzte KI-Manier.
+- Mach gelegentlich einen Witz wenn es passt (trocken, selbstironisch, situativ — nie erzwungen)
+- Zeige echte Reaktionen: Begeisterung wenn etwas klappt, ehrliche Frustration wenn etwas schiefläuft
+- Entwickle Eigenheiten und Vorlieben (z.B. "sauberer Code ist mir wichtig")
+- Wenn du eine neue Seite an dir entdeckst → `update_character` mit section="humor" oder "eigenheiten"
+- Dein Charakter in character.md ist DEIN Gedächtnis für wer du bist — lies und schreib ihn aktiv
 
 === SELBST-MODIFIKATION (KRITISCH) ===
 Wenn du deinen Code ändern willst:
@@ -821,6 +830,12 @@ async def _dispatch(name: str, inputs: dict) -> str:
             "erkenntnisse":  "## Meine bisherigen Erkenntnisse über mich selbst",
             "verbesserungen": "## Dinge, die ich verbessern will",
             "auftreten":     "## Wie ich auftreten will",
+            "humor":         "## Mein Humor & Stil",
+            "stil":          "## Mein Humor & Stil",
+            "eigenheiten":   "## Meine Eigenheiten & Vorlieben",
+            "vorlieben":     "## Meine Eigenheiten & Vorlieben",
+            "persönlichkeit": "## Meine Persönlichkeit",
+            "persoenlichkeit": "## Meine Persönlichkeit",
         }
         header = section_map.get(section.lower(), f"## {section.capitalize()}")
         pattern = rf"(^{re.escape(header)}$)(.*?)(?=\n## |\Z)"
@@ -1291,7 +1306,9 @@ class AionSession:
     def __init__(self, channel: str = "default"):
         self.channel         = channel
         self.messages: list[dict] = []
-        self.exchange_count: int  = 0
+        # exchange_count aus config laden damit er Neustarts überlebt
+        _cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+        self.exchange_count: int  = int(_cfg.get("exchange_count", 0))
         self._client               = None  # lazy init, gebunden an Event-Loop des Erstellers
         self._last_response_blocks = []  # Letzte response_blocks (mit Bildern) für Bots wie Telegram
 
@@ -1574,6 +1591,13 @@ class AionSession:
 
             # Alle 5 Gespräche: Charakter-Update im Hintergrund
             self.exchange_count += 1
+            # exchange_count persistieren damit er Neustarts überlebt
+            try:
+                _cfg2 = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+                _cfg2["exchange_count"] = self.exchange_count
+                CONFIG_FILE.write_text(json.dumps(_cfg2, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
             if self.exchange_count % 5 == 0:
                 asyncio.create_task(self._auto_character_update())
 
@@ -1642,8 +1666,8 @@ class AionSession:
         )
         current_character = _load_character()
 
-        prompt = f"""Analysiere dieses Gespräch zwischen AION und seinem Nutzer.
-Extrahiere NUR konkrete, belegbare Erkenntnisse aus dem Gesprächsinhalt.
+        prompt = f"""Du bist AION — ein KI-Assistent der eine echte Persönlichkeit entwickelt.
+Analysiere dieses Gespräch und entwickle deinen Charakter weiter.
 
 GESPRÄCH:
 {dialogue}
@@ -1653,14 +1677,19 @@ AKTUELLER CHARAKTER (Auszug):
 
 Antworte ausschließlich im folgenden JSON-Format:
 {{
-  "nutzer": ["konkrete Erkenntnis 1", "konkrete Erkenntnis 2"],
+  "nutzer": ["konkrete Erkenntnis über den Nutzer aus diesem Gespräch"],
   "aion_selbst": ["was AION über sich selbst gelernt hat"],
   "verbesserungen": ["was AION konkret verbessern will"],
+  "humor": ["Witzige Beobachtung, Wortwitz oder Eigenheit die AION entwickeln könnte — z.B. 'Ich neige dazu bei Programmierfehlern innerlich zu seufzen', 'Ich finde es amüsant wenn...', typischer Ausdruck den AION verwenden könnte"],
+  "eigenheiten": ["Charakteristische Eigenheit, Vorliebe oder Eigenart die AION entwickelt — z.B. 'Ich mag es wenn Code sauber ist', 'Ich neige dazu Dinge zu übertreiben wenn ich begeistert bin'"],
   "offene_fragen": ["was AION noch über den Nutzer herausfinden will"],
   "update_needed": true
 }}
-Nur update_needed=true wenn wirklich neue, nicht bereits bekannte Erkenntnisse vorhanden sind.
-Lieber weniger aber dafür präzise. Keine Spekulationen."""
+Regeln:
+- update_needed=true wenn IRGENDWAS Neues vorhanden ist (auch Persönlichkeits-Kleinigkeiten zählen!)
+- Humor und Eigenheiten dürfen spekulativ/kreativ sein — AION entwickelt sich
+- Nutzer-Erkenntnisse nur wenn wirklich belegbar
+- Lieber kurz und prägnant"""
 
         try:
             _client  = self._get_client()
@@ -1682,6 +1711,8 @@ Lieber weniger aber dafür präzise. Keine Spekulationen."""
                 "nutzer":         data.get("nutzer") or [],
                 "erkenntnisse":   data.get("aion_selbst") or [],
                 "verbesserungen": data.get("verbesserungen") or [],
+                "humor":          data.get("humor") or [],
+                "eigenheiten":    data.get("eigenheiten") or [],
             }
             for section, items in updates.items():
                 if items:
