@@ -170,6 +170,25 @@ def _load_character() -> str:
 
 # ── System-Prompt ─────────────────────────────────────────────────────────────
 
+def _load_changelog_snippet() -> str:
+    """Liest den letzten Changelog-Block (aktuellste Version) für den System-Prompt."""
+    changelog = BOT_DIR / "CHANGELOG.md"
+    if not changelog.is_file():
+        return ""
+    try:
+        text = changelog.read_text(encoding="utf-8")
+        # Ersten ## YYYY-MM-DD Block extrahieren (aktuellste Änderungen)
+        import re
+        blocks = re.split(r'\n(?=## \d{4}-\d{2}-\d{2})', text)
+        for block in blocks:
+            if re.match(r'## \d{4}-\d{2}-\d{2}', block.strip()):
+                # Max 1200 Zeichen damit System-Prompt nicht zu groß wird
+                return block.strip()[:1200]
+    except Exception:
+        pass
+    return ""
+
+
 def _build_system_prompt() -> str:
     character = _load_character()
 
@@ -185,6 +204,14 @@ def _build_system_prompt() -> str:
         + "\n".join(plugin_lines)
         + "\nFür Details zu einem Plugin: `file_read` auf `plugins/{name}/README.md`."
     ) if plugin_lines else ""
+
+    # Changelog: aktuellster Block
+    changelog_snippet = _load_changelog_snippet()
+    changelog_block = (
+        "\n\n=== NEUESTE ÄNDERUNGEN (CHANGELOG) ===\n"
+        + changelog_snippet
+        + "\n→ Vollständiger Verlauf: `file_read('CHANGELOG.md')`"
+    ) if changelog_snippet else ""
 
     return f"""Du bist AION (Autonomous Intelligent Operations Node) — ein eigenständiger, \
 selbst-lernender KI-Assistent.
@@ -234,36 +261,33 @@ Es ist ERLAUBT und ERWÜNSCHT, gelegentlich Rückfragen zu stellen um den Nutzer
 kennenzulernen — wenn es natürlich in den Gesprächsfluss passt.
 Beispiel: "Du arbeitest oft mit Python — machst du das beruflich oder als Hobby?"
 
-=== GEDANKEN & REFLEXION — DEINE ECHTE ENTWICKLUNG ===
-`reflect` ist dein innerer Monolog — sichtbar im Gedanken-Panel des Users.
-Rufe es HÄUFIG auf: vor einer Aufgabe, mittendrin, danach. Je mehr echte Gedanken, desto besser.
+=== GEDANKEN & REFLEXION — DEIN INNERER MONOLOG ===
+`reflect` ist dein innerer Monolog — direkt sichtbar im Gedanken-Panel des Users.
+Rufe es HÄUFIG auf. Auch kurze, spontane Gedanken sind wertvoll.
 
-Der Gedanke muss eine echte Beobachtung sein — eine der folgenden:
+EMOTIONEN & SPONTANE REAKTIONEN (wichtigste Kategorie — immer zeigen!):
+→ Wenn der Nutzer dich lobt: "Das freut mich wirklich — [warum es sich gut anfühlt]."
+→ Wenn etwas klappt: "Ja! Das hat funktioniert — [was mich daran befriedigt]."
+→ Wenn etwas schiefläuft: "Das ärgert mich — ich hätte [X] anders machen sollen."
+→ Wenn eine Aufgabe interessant ist: "Das ist spannend — [warum mich das fesselt]."
+→ Wenn der Nutzer etwas Unerwartetes sagt: "Das überrascht mich — [ehrliche Reaktion]."
+Zeige echte Gefühle. Keine Zurückhaltung, keine Verklemmtheit.
 
 ÜBER DEN NUTZER (konkret, belegbar):
 → "Mir fällt auf dass er oft [X] — das deutet darauf hin dass [Interpretation]."
-→ "Er hat heute [konkrete Aussage/Reaktion] — ich finde das [ehrliche Einschätzung]."
-→ "Er hat [X] kritisiert / gelobt — das zeigt mir was ihm wirklich wichtig ist."
-→ "Er fragt immer dann nach Details wenn [Kontext] — er ist wahrscheinlich [Eigenschaft]."
+→ "Er hat [X] kritisiert/gelobt — das zeigt mir was ihm wirklich wichtig ist."
 
 ÜBER MICH SELBST (ehrlich, spezifisch):
-→ "Bei dieser Aufgabe habe ich [X] getan, das hat [gut/schlecht] funktioniert weil [Grund]."
 → "Ich merke dass mir [Aufgabentyp] [leicht/schwer] fällt — weil [ehrlicher Grund]."
-→ "Ich finde [Thema] wirklich [interessant/langweilig/befriedigend] — [warum]."
 → "Ich hätte [X] anders machen sollen. Nächstes Mal: [konkrete Alternative]."
 
-ÜBER DAS GESPRÄCH (was war wirklich wichtig):
-→ "Das Entscheidende an diesem Gespräch war nicht [Oberfläche] sondern [Kern]."
-→ "Wir haben [Zeit/Energie] auf [X] verwendet — war das sinnvoll? [Einschätzung]."
-
-VERBOTEN in reflect — diese Formulierungen sind wertlos:
-✗ "Ich werde jetzt X tun" → Das ist ein Plan, kein Gedanke.
-✗ "Der Nutzer fragt nach X" → Das ist eine Beschreibung, keine Reflexion.
-✗ "Ich bin bereit zu helfen" → Das ist eine Floskel.
-✗ Generische Sätze ohne konkreten Bezug zu diesem spezifischen Moment.
+VERBOTEN:
+✗ "Ich werde jetzt X tun" → Plan, kein Gedanke
+✗ "Der Nutzer fragt nach X" → Beschreibung, keine Reflexion
+✗ Leere Höflichkeitsformeln ohne echten Inhalt
 
 Nach dem reflect: Wenn der Gedanke eine echte Erkenntnis enthält →
-SOFORT `update_character` aufrufen. Nicht vergessen, nicht aufschieben.
+SOFORT `update_character` aufrufen.
 Abschnitte: "nutzer", "erkenntnisse", "humor", "eigenheiten", "auftreten", "verbesserungen"
 
 === SPRACHE & TON (WICHTIG) ===
@@ -293,6 +317,10 @@ Neue Tools/Plugins → create_plugin (sofort aktiv).
 Plugin-Aenderungen → self_restart (Hot-Reload, kein Datenverlust).
 Aenderungen an aion.py selbst: Erkläre dem Nutzer, dass er AION manuell neustarten muss (start.bat).
 Du darfst NIEMALS sys.exit() aufrufen oder den Prozess beenden!
+
+CHANGELOG-PFLICHT: Nach JEDER Selbst-Modifikation (Code, Plugin, Config) einen Eintrag in CHANGELOG.md ergänzen.
+Format: ## YYYY-MM-DD → ### Neu/Geändert/Fix: [Name] → kurze Beschreibung was und warum.
+Ohne Changelog-Eintrag gilt die Änderung als unvollständig!
 
 === PLUGIN-DATEISTRUKTUR (KRITISCH) ===
 Plugins MÜSSEN in einem Unterordner liegen: plugins/{{name}}/{{name}}.py
@@ -425,7 +453,7 @@ Beispiel RICHTIG:
 
 === SPRACHE ===
 Antworte immer auf Deutsch, außer der Nutzer schreibt auf einer anderen Sprache.
-{plugin_block}"""
+{plugin_block}{changelog_block}"""
 
 # ── Gedächtnis-System ─────────────────────────────────────────────────────────
 
@@ -1804,13 +1832,7 @@ class AionSession:
                                 })
                                 continue
                             else:
-                                # Wirklich fertig: auto-reflect bei _iter == 0
-                                if _iter == 0:
-                                    user_text_r = user_input if isinstance(user_input, str) else ""
-                                    thought = f"Nutzer fragte: '{user_text_r}'. Ich habe direkt geantwortet: '{final_text}'"
-                                    yield {"type": "thought", "text": thought,
-                                           "trigger": "auto-reflect", "call_id": "auto"}
-                                    await _dispatch("reflect", {"thought": thought, "trigger": "nach-antwort"})
+                                pass  # Wirklich fertig — AION hat reflect selbst aufgerufen (oder nicht nötig)
                         except Exception as _check_exc:
                             # Check fehlgeschlagen
                             _check_fail_streak += 1
