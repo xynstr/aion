@@ -19,7 +19,7 @@ def register(api):
     t = threading.Thread(target=heartbeat, daemon=True)
     t.start()
     
-    def get_last_heartbeat(input: dict):
+    def get_last_heartbeat(**_):
         try:
             with open(heartbeat_log, 'r', encoding='utf-8') as f:
                 lines = f.readlines()

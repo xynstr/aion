@@ -3,20 +3,9 @@ def register(api):
     import re
     from pathlib import Path
 
-    def smart_patch(input: dict):
-        """
-        Führt einen kontextsensitiven Patch in einer Datei durch. Findet den Zielblock auch bei Zeilenumbruch- oder Whitespace-Abweichungen.
-        Erwartet:
-          - path: Pfad zur Datei
-          - old_block: Mehrzeiliger Original-Codeabschnitt (Referenz)
-          - new_block: Neuer Codeabschnitt
-          - context_lines: (optional, default=5) Zeilen Kontext davor und danach, um die Stelle zu finden
-        Rückgabe: {ok: true/false, patch_applied: bool, details: ...}
-        """
-        path = Path(input['path'])
-        old_block = input['old_block']
-        new_block = input['new_block']
-        context_lines = int(input.get('context_lines', 5))
+    def smart_patch(path: str = "", old_block: str = "", new_block: str = "", context_lines: int = 5, **_):
+        path = Path(path)
+        context_lines = int(context_lines)
         if not path.is_file():
             return {'ok': False, 'error': f'Datei nicht gefunden: {path}'}
         orig = path.read_text(encoding='utf-8', errors='replace')

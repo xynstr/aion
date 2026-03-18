@@ -13,19 +13,18 @@ def register(api):
         with open(todo_path, 'w', encoding='utf-8') as f:
             json.dump(todos, f, ensure_ascii=False, indent=2)
 
-    def add_todo(input: dict):
+    def add_todo(task: str = "", created: str = None, **_):
         todos = load_todos()
-        todos.append({"task": input["task"], "created": input.get("created")})
+        todos.append({"task": task, "created": created})
         save_todos(todos)
-        return {"ok": True, "task": input["task"]}
+        return {"ok": True, "task": task}
 
-    def list_todos(input: dict):
+    def list_todos(**_):
         todos = load_todos()
         return {"todos": todos}
 
-    def remove_todo(input: dict):
+    def remove_todo(task: str = "", **_):
         todos = load_todos()
-        task = input["task"]
         todos = [t for t in todos if t["task"] != task]
         save_todos(todos)
         return {"ok": True, "removed": task}

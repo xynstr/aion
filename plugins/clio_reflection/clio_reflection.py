@@ -1,18 +1,10 @@
 def register(api):
     import random
     
-    def clio_check(input: dict):
-        """
-        Führt einen CLIO-Reflexionszyklus aus: Ansatz, Konfidenzbewertung, ggf. weiter zerlegen, Meta-Check.
-        Erwartet input: {
-            'nutzerfrage': str,           # Die aktuelle Nutzerfrage oder Aufgabe
-            'letzte_antwort': str = '',  # Optional: letzte Antwort von AION
-            'force': bool = False        # Falls True, wird der Zyklus erzwungen, sonst nur auf expliziten Aufruf
-        }
-        """
-        frage = input.get('nutzerfrage', '').strip()
-        letzte_antwort = input.get('letzte_antwort', '').strip()
-        force = bool(input.get('force', False))
+    def clio_check(nutzerfrage: str = "", letzte_antwort: str = "", force: bool = False, **_):
+        frage = (nutzerfrage or "").strip()
+        letzte_antwort = (letzte_antwort or "").strip()
+        force = bool(force)
         # 1. Lösungsansatz formulieren
         ansatz = f"Ich werde zunächst recherchieren, welche Faktoren für diese Aufgabe relevant sind und sie ggf. in Teilschritte zerlegen."
         # (In Realität sollte dies KI-generiert sein, hier als Platzhalter)
