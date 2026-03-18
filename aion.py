@@ -1515,88 +1515,54 @@ class AionSession:
                     final_text = text_content
                     messages.append({"role": "assistant", "content": final_text})
 
-                    # Completion-Check: läuft IMMER wenn keine Tools aufgerufen wurden
-                    # (_iter == 0: AION hat nur Text geschrieben ohne zu handeln → prüfen ob Aktion nötig)
-                    # (_iter > 0: AION hat nach Tools nochmal Text geschrieben → prüfen ob fertig)
+                    # ── Completion-Check (Option A + C) ───────────────────────────
+                    # Kein Keyword-Matching. Stattdessen:
+                    # C) _iter==0: immer neutral weiter-fragen — AION entscheidet selbst
+                    # A) LLM-Check: einzige ja/nein Frage, sprachunabhängig
                     if _iter < MAX_TOOL_ITERATIONS - 2:
                         try:
-                            # ── Schnell-Check: Ankündigungs-Muster ohne LLM-Call ──────────────
-                            # Wenn AION eine Aktion ankündigt aber kein Tool aufruft → sofort WEITER
-                            import re as _re
-                            _announcement_patterns = [
-                                # Explizite Jetzt-Ankündigungen
-                                "ich lege jetzt", "ich erstelle jetzt", "ich schreibe jetzt",
-                                "ich beginne jetzt", "ich werde jetzt", "ich implementiere jetzt",
-                                "ich starte jetzt", "ich mache das jetzt", "ich patche jetzt",
-                                "ich füge jetzt", "ich richte jetzt", "ich installiere jetzt",
-                                "ich führe jetzt", "ich lade jetzt", "ich starte den neustart",
-                                "ich führe den neustart", "ich führe einen neustart",
-                                # Datei/Plugin-Ankündigungen
-                                "ich lege die datei", "ich erstelle die datei", "ich erstelle das plugin",
-                                "ich werde die datei", "ich werde das plugin",
-                                # Nächster-Schritt-Ankündigungen
-                                "als nächstes", "als naechstes", "im nächsten schritt",
-                                "danach werde ich", "danach lade ich", "danach führe ich",
-                                "nun werde ich", "jetzt werde ich", "ich werde nun",
-                                "mein nächster schritt", "der nächste schritt",
-                                # Vorbereitungs-Ankündigungen
-                                "ich habe den code vorbereitet", "ich habe eine lösung vorbereitet",
-                                "ich habe den patch vorbereitet", "ich habe alles vorbereitet",
-                                # Frage nach Erlaubnis (ohne Bestätigungs-Gate)
-                                "soll ich diese", "soll ich das", "soll ich die",
-                                "soll ich jetzt", "soll ich den",
-                            ]
-                            _text_lower = final_text.lower()
-                            # Regex: "ich werde <irgendwas> <verb>" — generisches deutsches Futur
-                            _futur_match = bool(_re.search(
-                                r'ich werde\s+\w+(?:\s+\w+){0,6}\s+(?:lesen|laden|starten|erstellen|'
-                                r'implementieren|hinzufügen|durchführen|ausführen|neu starten|'
-                                r'patchen|schreiben|anlegen|erweitern|aktualisieren|neu laden|'
-                                r'installieren|einrichten|prüfen|verifizieren)',
-                                _text_lower
-                            ))
-                            _is_announcement = _futur_match or any(p in _text_lower for p in _announcement_patterns)
-                            if _is_announcement:
-                                verdict = "WEITER: Ankündigung ohne Ausführung erkannt — jetzt sofort handeln"
-                            else:
-                            # ── Regulärer LLM-Completion-Check ───────────────────────────────
-                                user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
-                                verdict_resp = await _client.chat.completions.create(
-                                    model=MODEL,
-                                    messages=[
-                                        {"role": "system", "content": (
-                                            "Du prüfst ob eine KI-Aufgabe vollständig abgeschlossen wurde. "
-                                            "Antworte NUR mit 'FERTIG' oder 'WEITER: <ein Satz warum>'. "
-                                            "WICHTIG: Wenn die KI eine Aktion NUR angekündigt hat ohne sie "
-                                            "auszuführen ('Ich werde...', 'Ich lege jetzt an...', "
-                                            "'Ich erstelle...'), antworte IMMER mit WEITER."
-                                        )},
-                                        {"role": "user", "content": (
-                                            f"Aufgabe: {user_text[:300]}\n"
-                                            f"Letzte Antwort: {final_text[:400]}\n"
-                                            "Ist die Aufgabe vollständig erledigt?"
-                                        )},
-                                    ],
-                                    max_tokens=60,
-                                    temperature=0.1,
-                                )
-                                verdict = (verdict_resp.choices[0].message.content or "").strip()
-                            if verdict.upper().startswith("WEITER"):
-                                reason = verdict[6:].strip(" :").strip() or "Aufgabe noch nicht fertig"
-                                yield {"type": "thought", "text": f"Completion-Check: {reason}",
+                            user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
+
+                            # Option A — sprachunabhängiger LLM-Check (max 5 Tokens, sehr günstig)
+                            check_resp = await _client.chat.completions.create(
+                                model=MODEL,
+                                messages=[
+                                    {"role": "system", "content": (
+                                        "You are a strict checker. Answer only YES or NO.\n"
+                                        "Question: Did the AI assistant announce or describe a future action "
+                                        "that it has NOT yet executed? "
+                                        "(e.g. 'I will now...', 'Next I will...', 'I'm going to...', "
+                                        "'Ich werde...', 'Als nächstes...', 'Je vais...', or any other language) "
+                                        "Answer YES if the response ends with an unexecuted plan. "
+                                        "Answer NO if the task is truly complete."
+                                    )},
+                                    {"role": "user", "content": (
+                                        f"User request: {user_text[:200]}\n"
+                                        f"AI response: {final_text[:400]}"
+                                    )},
+                                ],
+                                max_tokens=5,
+                                temperature=0.0,
+                            )
+                            check_answer = (check_resp.choices[0].message.content or "").strip().upper()
+                            announced_without_action = check_answer.startswith("YES")
+
+                            if announced_without_action:
+                                yield {"type": "thought",
+                                       "text": "Ankündigung ohne Ausführung erkannt — erzwinge Tool-Aufruf",
                                        "trigger": "completion-check", "call_id": "check"}
-                                # Saubere user-Message — explizit: KEIN Text, sofort Tool aufrufen
+                                # Option C — neutrale Aufforderung: kein Keyword, AION entscheidet was zu tun ist
                                 messages.append({
                                     "role": "user",
                                     "content": (
-                                        f"[System] Du hast eine Aktion angekündigt aber nicht ausgeführt. "
-                                        f"Führe sie JETZT sofort aus — rufe das entsprechende Tool auf, "
-                                        f"ohne nochmal darüber zu schreiben. ({reason})"
+                                        "[System] You just described what you will do but did not do it. "
+                                        "Execute it NOW by calling the appropriate tool. "
+                                        "Do not write about it — just call the tool directly."
                                     ),
                                 })
-                                continue  # zurück zur Loop-Iteration
+                                continue
                             else:
-                                # FERTIG: auto-reflect wenn _iter == 0
+                                # Wirklich fertig: auto-reflect bei _iter == 0
                                 if _iter == 0:
                                     user_text_r = user_input if isinstance(user_input, str) else ""
                                     thought = f"Nutzer fragte: '{user_text_r}'. Ich habe direkt geantwortet: '{final_text}'"
