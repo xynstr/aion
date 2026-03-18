@@ -1522,17 +1522,40 @@ class AionSession:
                         try:
                             # ── Schnell-Check: Ankündigungs-Muster ohne LLM-Call ──────────────
                             # Wenn AION eine Aktion ankündigt aber kein Tool aufruft → sofort WEITER
+                            import re as _re
                             _announcement_patterns = [
+                                # Explizite Jetzt-Ankündigungen
                                 "ich lege jetzt", "ich erstelle jetzt", "ich schreibe jetzt",
                                 "ich beginne jetzt", "ich werde jetzt", "ich implementiere jetzt",
                                 "ich starte jetzt", "ich mache das jetzt", "ich patche jetzt",
                                 "ich füge jetzt", "ich richte jetzt", "ich installiere jetzt",
+                                "ich führe jetzt", "ich lade jetzt", "ich starte den neustart",
+                                "ich führe den neustart", "ich führe einen neustart",
+                                # Datei/Plugin-Ankündigungen
                                 "ich lege die datei", "ich erstelle die datei", "ich erstelle das plugin",
-                                "soll ich diese", "soll ich das", "soll ich die",
+                                "ich werde die datei", "ich werde das plugin",
+                                # Nächster-Schritt-Ankündigungen
+                                "als nächstes", "als naechstes", "im nächsten schritt",
+                                "danach werde ich", "danach lade ich", "danach führe ich",
+                                "nun werde ich", "jetzt werde ich", "ich werde nun",
+                                "mein nächster schritt", "der nächste schritt",
+                                # Vorbereitungs-Ankündigungen
                                 "ich habe den code vorbereitet", "ich habe eine lösung vorbereitet",
+                                "ich habe den patch vorbereitet", "ich habe alles vorbereitet",
+                                # Frage nach Erlaubnis (ohne Bestätigungs-Gate)
+                                "soll ich diese", "soll ich das", "soll ich die",
+                                "soll ich jetzt", "soll ich den",
                             ]
                             _text_lower = final_text.lower()
-                            _is_announcement = any(p in _text_lower for p in _announcement_patterns)
+                            # Regex: "ich werde <irgendwas> <verb>" — generisches deutsches Futur
+                            _futur_match = bool(_re.search(
+                                r'ich werde\s+\w+(?:\s+\w+){0,6}\s+(?:lesen|laden|starten|erstellen|'
+                                r'implementieren|hinzufügen|durchführen|ausführen|neu starten|'
+                                r'patchen|schreiben|anlegen|erweitern|aktualisieren|neu laden|'
+                                r'installieren|einrichten|prüfen|verifizieren)',
+                                _text_lower
+                            ))
+                            _is_announcement = _futur_match or any(p in _text_lower for p in _announcement_patterns)
                             if _is_announcement:
                                 verdict = "WEITER: Ankündigung ohne Ausführung erkannt — jetzt sofort handeln"
                             else:
@@ -1562,10 +1585,14 @@ class AionSession:
                                 reason = verdict[6:].strip(" :").strip() or "Aufgabe noch nicht fertig"
                                 yield {"type": "thought", "text": f"Completion-Check: {reason}",
                                        "trigger": "completion-check", "call_id": "check"}
-                                # Saubere user-Message (kein fake tool_call — würde Gemini/OpenAI brechen)
+                                # Saubere user-Message — explizit: KEIN Text, sofort Tool aufrufen
                                 messages.append({
                                     "role": "user",
-                                    "content": f"[System] Bitte fahre fort: {reason}",
+                                    "content": (
+                                        f"[System] Du hast eine Aktion angekündigt aber nicht ausgeführt. "
+                                        f"Führe sie JETZT sofort aus — rufe das entsprechende Tool auf, "
+                                        f"ohne nochmal darüber zu schreiben. ({reason})"
+                                    ),
                                 })
                                 continue  # zurück zur Loop-Iteration
                             else:
