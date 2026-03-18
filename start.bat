@@ -164,10 +164,10 @@ for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /FO list ^| fi
         echo  OK: aion_web.py Prozess beendet.
     )
 )
-REM Warte 5s damit Telegrams Server die alte Verbindung als getrennt erkennt
-REM (Long-Polling Verbindung bleibt serverseitig bis zu 30s offen)
-echo  Warte 5s auf Telegram-Disconnect...
-timeout /t 5 >nul
+REM Warte 10s damit Telegrams Server die alte Verbindung als getrennt erkennt
+REM (Long-Polling timeout ist 8s, also reichen 10s als Puffer)
+echo  Warte 10s auf Telegram-Disconnect...
+timeout /t 10 >nul
 
 REM Browser nach kurzer Verzoegerung oeffnen (Python-Prozess startet zuerst)
 start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:7000"

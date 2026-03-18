@@ -171,12 +171,18 @@ async def _telegram_worker(token: str):
             try:
                 r = await http.get(
                     _api_url(token, "getUpdates"),
-                    params={"offset": offset, "timeout": 30},
+                    params={"offset": offset, "timeout": 8},
                 )
 
                 if not r.is_success:
-                    print(f"[Telegram] getUpdates HTTP {r.status_code} — Retry in 5s")
-                    await asyncio.sleep(5)
+                    if r.status_code == 409:
+                        # 409 = alte Instanz noch aktiv (Long-Poll läuft noch)
+                        # Warte > 8s damit der alte Poll-Timeout abläuft
+                        print(f"[Telegram] getUpdates HTTP 409 — warte 10s auf alten Poll-Timeout...")
+                        await asyncio.sleep(10)
+                    else:
+                        print(f"[Telegram] getUpdates HTTP {r.status_code} — Retry in 5s")
+                        await asyncio.sleep(5)
                     continue
 
                 data = r.json()

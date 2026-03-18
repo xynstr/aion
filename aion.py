@@ -1572,12 +1572,18 @@ class AionSession:
                                 messages=[
                                     {"role": "system", "content": (
                                         "You are a strict checker. Answer only YES or NO.\n"
-                                        "Question: Did the AI assistant announce or describe a future action "
-                                        "that it has NOT yet executed? "
-                                        "(e.g. 'I will now...', 'Next I will...', 'I'm going to...', "
-                                        "'Ich werde...', 'Als nächstes...', 'Je vais...', or any other language) "
-                                        "Answer YES if the response ends with an unexecuted plan. "
-                                        "Answer NO if the task is truly complete."
+                                        "Question: Did the AI assistant announce, describe, or show "
+                                        "(e.g. in backticks or code blocks) a tool call or action "
+                                        "that it has NOT actually executed via a real tool call? "
+                                        "Examples: "
+                                        "'I will now call schedule_add(...)', "
+                                        "'`schedule_add(name=..., task=...)`' shown as text, "
+                                        "'Ich werde...', 'Als nächstes richte ich ein...', "
+                                        "'I have posted the comment' without actually calling the tool, "
+                                        "or any claim of completing an action without real execution. "
+                                        "Answer YES if ANY action was described/shown but not truly executed. "
+                                        "Answer NO only if the response is purely informational "
+                                        "and requires no further tool calls."
                                     )},
                                     {"role": "user", "content": (
                                         f"User request: {user_text[:200]}\n"
