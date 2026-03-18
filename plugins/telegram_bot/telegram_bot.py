@@ -510,9 +510,20 @@ async def _telegram_worker(token: str):
 def _start_polling(token: str):
     """Startet den async Worker in einem Daemon-Thread mit eigenem Event-Loop.
 
-    Verhindert mehrfaches Starten durch Lock.
+    Verhindert mehrfaches Starten durch Lock UND Thread-Namen-Check.
+    Wichtig: plugin_loader erstellt bei self_reload_tools ein neues Modul-Objekt —
+    dabei wird _polling_started zurückgesetzt. Der Thread-Namen-Check verhindert
+    dass ein zweiter Polling-Thread gestartet wird wenn der erste noch läuft.
     """
     global _polling_started
+
+    # Prüfe ob ein Thread mit diesem Namen bereits aktiv ist (überlebt Modul-Reload)
+    for existing in threading.enumerate():
+        if existing.name == "TelegramWorkerThread" and existing.is_alive():
+            print("[Telegram] Polling-Thread läuft bereits — kein zweiter Start.")
+            _polling_started = True
+            return
+
     with _polling_lock:
         if _polling_started:
             return
