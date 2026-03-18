@@ -246,7 +246,7 @@ class _GeminyChatCompletions:
         tool_calls_out = []
 
         for candidate in response.candidates or []:
-            for part in (candidate.content.parts if candidate.content else []):
+            for part in ((candidate.content.parts or []) if candidate.content else []):
                 if hasattr(part, "function_call") and part.function_call:
                     fc = part.function_call
                     global _tool_call_counter
