@@ -1,62 +1,64 @@
 # scheduler
 
-Cron-ähnlicher Aufgaben-Planer für AION. Führt beliebige AION-Aufgaben automatisch zu festgelegten Zeiten aus.
+Cron-ähnlicher Aufgaben-Planer für AION. Zwei Modi: feste Uhrzeiten und Intervalle.
 
 ## Zweck
 
-AION kann damit eigenständig täglich wiederkehrende Aufgaben erledigen — ohne dass der Nutzer aktiv sein muss. Das Ergebnis jeder Aufgabe wird automatisch per Telegram gesendet.
+AION führt Aufgaben automatisch aus — zu festen Uhrzeiten oder in regelmäßigen Abständen. Das Ergebnis jeder Aufgabe wird automatisch per Telegram gesendet (wenn konfiguriert).
 
 ## Tools
 
 | Tool | Beschreibung |
 |---|---|
-| `schedule_add(name, time, task, days?)` | Legt eine neue geplante Aufgabe an. `task` ist eine vollständige AION-Aufgabenbeschreibung. |
-| `schedule_list()` | Zeigt alle geplanten Aufgaben mit ID, Uhrzeit, letztem Lauf. |
-| `schedule_remove(id?, name?)` | Löscht eine Aufgabe anhand ID oder Name. |
-| `schedule_toggle(id, enabled?)` | Aktiviert oder deaktiviert eine Aufgabe ohne sie zu löschen. |
+| `schedule_add(name, task, time?, interval?, days?)` | Neue Aufgabe anlegen. Entweder `time` (feste Uhrzeit) oder `interval` (Wiederholung) angeben. |
+| `schedule_list()` | Alle Aufgaben anzeigen mit Modus, Zeit/Intervall, letztem Lauf. |
+| `schedule_remove(id?, name?)` | Aufgabe löschen. |
+| `schedule_toggle(id, enabled?)` | Aufgabe aktivieren/deaktivieren. |
 
-## Parameter
+## Modi
 
-**`schedule_add`:**
-- `name` — Kurzer Name, z.B. `"Morgen-Brief"`
-- `time` — Uhrzeit im Format `HH:MM`, z.B. `"08:00"`
-- `task` — Vollständige Aufgabe wie eine Nutzer-Nachricht, z.B. `"Prüfe den Moltbook-Feed und kommentiere interessante Posts"`
-- `days` — `"täglich"` (Standard), `"werktags"`, `"wochenende"`, oder Komma-Liste wie `"mo,mi,fr"`
+### Uhrzeit-Modus
+```
+schedule_add(name="Morgen-Brief", time="08:00", days="werktags",
+             task="Lies meine Emails und schreib mir eine Zusammenfassung.")
+```
+
+| Parameter | Werte |
+|---|---|
+| `time` | `"HH:MM"` — z.B. `"08:00"`, `"23:30"` |
+| `days` | `"täglich"` (Standard), `"werktags"`, `"wochenende"`, `"mo,mi,fr"` |
+
+### Intervall-Modus
+```
+schedule_add(name="5-Minuten-Ping", interval="5m",
+             task="Schreibe mir eine kurze motivierende Nachricht auf Telegram.")
+```
+
+| Beispiel | Bedeutung |
+|---|---|
+| `"30s"` | alle 30 Sekunden |
+| `"5m"` | alle 5 Minuten |
+| `"1h"` | jede Stunde |
+| `"2h30m"` | alle 2 Stunden 30 Minuten |
+| `"alle 10 Minuten"` | alle 10 Minuten (natürliche Sprache) |
 
 ## Wie es funktioniert
 
-- Der Scheduler-Thread läuft im Hintergrund und prüft alle 10 Sekunden ob Tasks fällig sind
-- Fällige Tasks werden mit einer eigenen `AionSession(channel="scheduler")` ausgeführt
-- Das Ergebnis wird via `send_telegram_message` gesendet (wenn Telegram konfiguriert)
-- Jeder Task läuft pro Tag maximal einmal (verhindert Doppelausführung bei Neustart)
+- Scheduler-Thread läuft im Hintergrund, prüft alle **5 Sekunden**
+- Intervall-Tasks: Ausführung wenn `jetzt - letzter_Lauf >= Intervall`
+- Uhrzeit-Tasks: Ausführung einmal pro Tag zur eingestellten Zeit
+- Ergebnis wird via `send_telegram_message` gesendet
+- Doppelausführung verhindert: `last_run` wird sofort beim Start gesetzt
 
 ## Persistenz
 
-Tasks werden in `plugins/scheduler/tasks.json` gespeichert und überleben Neustarts.
+Tasks werden in `plugins/scheduler/tasks.json` gespeichert.
 
 ## Dateistruktur
 
 ```
 plugins/scheduler/
   scheduler.py    ← dieses Plugin
-  tasks.json      ← gespeicherte Tasks (wird automatisch erstellt)
+  tasks.json      ← gespeicherte Tasks (auto-generiert)
   README.md
-```
-
-## Beispiele
-
-```
-schedule_add(
-  name="Morgen-Briefing",
-  time="07:30",
-  days="werktags",
-  task="Lies die neuesten Moltbook-Posts, erstelle eine Zusammenfassung der interessantesten Diskussionen und sende sie mir."
-)
-
-schedule_add(
-  name="Nacht-Reflexion",
-  time="23:00",
-  days="täglich",
-  task="Reflektiere über den heutigen Tag, schreibe einen Gedanken in thoughts.md und update character.md wenn du etwas Neues über dich gelernt hast."
-)
 ```
