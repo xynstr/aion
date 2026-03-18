@@ -253,8 +253,30 @@ def register(api):
     )
 ```
 
-Plugin-Funktionen nehmen entweder Keyword-Args (`def fn(param: str)`) oder ein Dict (`def fn(input: dict)`).
-Plugins in `plugins/<name>/<name>.py` werden beim Start automatisch geladen.
+Plugin-Funktionen MÜSSEN Keyword-Args verwenden: `def fn(param: str = "", **_)`.
+`def fn(input: dict)` ist FALSCH — `_dispatch` ruft `fn(**inputs)` auf, nicht `fn(inputs)`.
+
+### ⚠️ Wichtig: Plugin-Dateistruktur
+
+Plugins MÜSSEN in einem **Unterordner** liegen:
+```
+plugins/mein_plugin/mein_plugin.py   ✅ KORREKT
+plugins/mein_plugin.py               ❌ FALSCH
+```
+
+**Warum:** Der Plugin-Loader lädt alle `*.py` Dateien direkt in `plugins/`. `self_patch_code` erstellt Backups als `{datei}.backup_{timestamp}.py` im selben Verzeichnis. Liegt ein Plugin flach in `plugins/`, landen Backups dort → werden als Plugins geladen → alte/kaputte Schemas werden registriert → **Gemini 400 INVALID_ARGUMENT für alle Anfragen**.
+
+**Sicherheitsmechanismen (seit 2026-03-18):**
+- `plugin_loader.py` ignoriert `_*` Unterordner (`_backups/`, `__pycache__/`)
+- `plugin_loader.py` ignoriert `*.backup*.py` Dateien in `plugins/` root
+- Alle Backups werden nach `plugins/_backups/` verschoben
+
+Falls du ein flach liegendes Plugin findest, verschiebe es sofort in einen Unterordner:
+```bash
+mkdir plugins/mein_plugin
+copy plugins/mein_plugin.py plugins/mein_plugin/mein_plugin.py
+del plugins/mein_plugin.py
+```
 
 ---
 
