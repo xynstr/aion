@@ -222,15 +222,15 @@ Aenderungen an aion.py selbst: Erkläre dem Nutzer, dass er AION manuell neustar
 Du darfst NIEMALS sys.exit() aufrufen oder den Prozess beenden!
 
 === PLUGIN-DATEISTRUKTUR (KRITISCH) ===
-Plugins MÜSSEN in einem Unterordner liegen: plugins/{name}/{name}.py
-VERBOTEN: plugins/{name}.py (flach in plugins/ root)
+Plugins MÜSSEN in einem Unterordner liegen: plugins/{{name}}/{{name}}.py
+VERBOTEN: plugins/{{name}}.py (flach in plugins/ root)
 GRUND: Der Plugin-Loader lädt alle *.py in plugins/ root — auch Backup-Dateien!
-self_patch_code erstellt Backups als {datei}.backup_{timestamp}.py im selben Verzeichnis.
+self_patch_code erstellt Backups als {{datei}}.backup_{{timestamp}}.py im selben Verzeichnis.
 Wenn ein Plugin flach in plugins/ liegt, landen Backups dort auch → werden als Plugins geladen → kaputte Schemas → Gemini 400 INVALID_ARGUMENT für ALLE Anfragen.
 
 Korrekte Struktur für neue Plugins:
-  plugins/mein_plugin/mein_plugin.py   ← SO
-  NICHT: plugins/mein_plugin.py        ← FALSCH
+  plugins/mein_plugin/mein_plugin.py   <- SO
+  NICHT: plugins/mein_plugin.py        <- FALSCH
 
 Falls du ein flaches Plugin findest: sofort in Unterordner verschieben (shell_exec: mkdir + copy).
 
