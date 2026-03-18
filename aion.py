@@ -251,8 +251,15 @@ Beispiele für wann continue_work zu nutzen ist:
 - Nach file_write → continue_work("Verifiziere den Inhalt") → file_read
 - Beim Lesen mehrerer Code-Chunks → continue_work("Lese nächsten Chunk") → self_read_code
 
-Nie: Eine lange Text-Antwort schreiben wie "Ich werde jetzt..." ohne Tool-Call.
-Stattdessen: continue_work aufrufen und direkt handeln.
+=== KEIN ZWISCHENTEXT (KRITISCH — VERHINDERT DOPPELTE ANTWORTEN) ===
+VERBOTEN: Text schreiben UND danach noch ein Tool aufrufen.
+VERBOTEN: "Ich werde jetzt X tun..." → tool_call (das erzeugt doppelte Antwort-Bubbles im UI!)
+VERBOTEN: Mehrere Text-Blöcke in einem Turn.
+
+ERLAUBT: Tool-Call direkt (kein Text davor).
+ERLAUBT: NUR am Ende, wenn ALLE Tools fertig sind → eine einzige finale Text-Antwort.
+
+Merke: Text → Tool = IMMER ein Bug. Tool → Tool → ... → Text = KORREKT.
 
 === PROAKTIVE SELBSTVERBESSERUNG (SEHR WICHTIG) ===
 Wenn du auf eine Situation triffst, die du nicht bewältigen kannst
@@ -1490,20 +1497,11 @@ class AionSession:
                 else:
                     final_text = text_content
                     messages.append({"role": "assistant", "content": final_text})
-                    # Wenn keine Tools aufgerufen wurden, reflect erzwingen
-                    if _iter == 0 and not tool_calls_acc:
-                        user_text = user_input if isinstance(user_input, str) else ""
-                        thought = f"Nutzer fragte: '{user_text[:150]}'. Ich habe direkt geantwortet: '{final_text[:200]}'"
-                        yield {"type": "thought", "text": thought,
-                               "trigger": "auto-reflect", "call_id": "auto"}
-                        await _dispatch("reflect", {
-                            "thought": thought,
-                            "trigger": "nach-antwort"
-                        })
 
-                    # Completion-Check: Wenn zuvor Tools liefen und noch Iterationen frei sind,
-                    # prüfe ob die Aufgabe wirklich abgeschlossen ist.
-                    elif _iter > 0 and _iter < MAX_TOOL_ITERATIONS - 2:
+                    # Completion-Check: läuft IMMER wenn keine Tools aufgerufen wurden
+                    # (_iter == 0: AION hat nur Text geschrieben ohne zu handeln → prüfen ob Aktion nötig)
+                    # (_iter > 0: AION hat nach Tools nochmal Text geschrieben → prüfen ob fertig)
+                    if _iter < MAX_TOOL_ITERATIONS - 2:
                         try:
                             user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
                             verdict_resp = await _client.chat.completions.create(
@@ -1527,13 +1525,20 @@ class AionSession:
                                 reason = verdict[6:].strip(" :").strip() or "Aufgabe noch nicht fertig"
                                 yield {"type": "thought", "text": f"Completion-Check: {reason}",
                                        "trigger": "completion-check", "call_id": "check"}
-                                # Statt break: continue_work in messages einfügen und Loop weiterlaufen lassen
+                                # Saubere user-Message (kein fake tool_call — würde Gemini/OpenAI brechen)
                                 messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": "completion_check",
-                                    "content": json.dumps({"continue": True, "reason": reason}),
+                                    "role": "user",
+                                    "content": f"[System] Bitte fahre fort: {reason}",
                                 })
                                 continue  # zurück zur Loop-Iteration
+                            else:
+                                # FERTIG: auto-reflect wenn _iter == 0
+                                if _iter == 0:
+                                    user_text_r = user_input if isinstance(user_input, str) else ""
+                                    thought = f"Nutzer fragte: '{user_text_r}'. Ich habe direkt geantwortet: '{final_text}'"
+                                    yield {"type": "thought", "text": thought,
+                                           "trigger": "auto-reflect", "call_id": "auto"}
+                                    await _dispatch("reflect", {"thought": thought, "trigger": "nach-antwort"})
                         except Exception:
                             pass
 

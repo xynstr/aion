@@ -9,7 +9,7 @@ import urllib.request
 import urllib.parse
 
 
-def search_images(query: str, count: int = 3, **_) -> dict:
+def search_images(query: str, count: int = 1, **_) -> dict:
     """Sucht Bilder. Primär: Openverse API. Fallback: Bing via Playwright."""
 
     # Primär: Openverse (freie CC-Bilder, kein API-Key, kein Browser)
@@ -86,8 +86,8 @@ def register(api):
                 },
                 "count": {
                     "type": "integer",
-                    "description": "Anzahl der Bilder (1–10, Standard: 3)",
-                    "default": 3,
+                    "description": "Anzahl der Bilder (1–10, Standard: 1)",
+                    "default": 1,
                 },
             },
             "required": ["query"],

@@ -13,6 +13,9 @@ import json
 import os
 import aion as _aion_module
 
+# Globaler Zähler damit Tool-Call-IDs über mehrere API-Aufrufe hinweg eindeutig bleiben
+_tool_call_counter = 0
+
 GEMINI_MODELS = [
     "gemini-2.5-pro",
     "gemini-2.5-flash",
@@ -246,8 +249,10 @@ class _GeminyChatCompletions:
             for part in (candidate.content.parts if candidate.content else []):
                 if hasattr(part, "function_call") and part.function_call:
                     fc = part.function_call
+                    global _tool_call_counter
+                    _tool_call_counter += 1
                     tool_calls_out.append({
-                        "id":        f"call_{fc.name}_{len(tool_calls_out)}",
+                        "id":        f"call_{fc.name}_{_tool_call_counter}",
                         "name":      fc.name,
                         "arguments": json.dumps(dict(fc.args) if fc.args else {}),
                     })

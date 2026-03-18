@@ -146,6 +146,25 @@ echo.
 echo  Starte Python-Server...
 echo.
 
+REM Alte AION-Prozesse beenden (verhindert Telegram 409 Conflict)
+echo  Beende alte AION-Instanzen (falls vorhanden)...
+set OLDPID=
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7000 "') do (
+    if not defined OLDPID set OLDPID=%%a
+)
+if defined OLDPID (
+    taskkill /PID !OLDPID! /F >nul 2>&1
+    echo  OK: Alte Instanz auf Port 7000 beendet.
+    timeout /t 1 >nul
+)
+for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq python.exe" /FO list ^| findstr "^PID"') do (
+    set CHKPID=%%a
+    wmic process where "ProcessId=!CHKPID!" get CommandLine 2^>nul | findstr /I "aion_web" >nul 2>&1
+    if not errorlevel 1 (
+        taskkill /PID !CHKPID! /F >nul 2>&1
+    )
+)
+
 REM Browser nach kurzer Verzoegerung oeffnen (Python-Prozess startet zuerst)
 start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:7000"
 
