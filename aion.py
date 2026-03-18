@@ -1376,6 +1376,7 @@ class AionSession:
         _client           = self._get_client()
 
         # Bestätigungs-Gate: Nutzer-Turn auswerten (ja/nein für pending Code-Aktionen)
+        _auto_execute_results: list[dict] = []   # Auto-ausgeführte Code-Aktionen
         if _pending_needs_user_turn and user_input:
             user_lower = user_input.lower()
             confirm = any(w in user_lower for w in
@@ -1384,7 +1385,31 @@ class AionSession:
             reject  = any(w in user_lower for w in
                           ("nein", "stop", "abbruch", "cancel", "nope", "stopp", "nicht"))
             if confirm:
-                _pending_needs_user_turn.clear()   # Gate öffnen — nächster Tool-Call führt aus
+                # Gate öffnen UND alle pending Aktionen sofort selbst ausführen —
+                # nicht auf AION warten (AION schreibt sonst Text statt Tool-Call)
+                _pending_needs_user_turn.clear()
+                for _act_name, _act_inputs in list(_pending_code_action.items()):
+                    _act_result_raw = await _dispatch(_act_name, _act_inputs)
+                    try:
+                        _act_result = json.loads(_act_result_raw) if _act_result_raw else {}
+                    except Exception:
+                        _act_result = {"raw": str(_act_result_raw)}
+                    _auto_execute_results.append({"action": _act_name, "result": _act_result})
+                    yield {"type": "thought",
+                           "text": f"Auto-Execute nach Bestätigung: {_act_name} → {_act_result}",
+                           "trigger": "auto-execute", "call_id": "gate"}
+                _pending_code_action.clear()
+                # Ergebnis als System-Nachricht einbauen damit AION Bescheid weiß
+                if _auto_execute_results:
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            f"[System] Du hast Bestätigung erhalten. "
+                            f"Die Änderungen wurden automatisch ausgeführt: "
+                            f"{json.dumps(_auto_execute_results, ensure_ascii=False)}. "
+                            "Informiere den Nutzer kurz über das Ergebnis."
+                        ),
+                    })
             elif reject:
                 _pending_code_action.clear()
                 _pending_needs_user_turn.clear()
