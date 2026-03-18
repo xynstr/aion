@@ -1520,24 +1520,44 @@ class AionSession:
                     # (_iter > 0: AION hat nach Tools nochmal Text geschrieben → prüfen ob fertig)
                     if _iter < MAX_TOOL_ITERATIONS - 2:
                         try:
-                            user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
-                            verdict_resp = await _client.chat.completions.create(
-                                model=MODEL,
-                                messages=[
-                                    {"role": "system", "content": (
-                                        "Du prüfst ob eine KI-Aufgabe vollständig abgeschlossen wurde. "
-                                        "Antworte NUR mit 'FERTIG' oder 'WEITER: <ein Satz warum>'."
-                                    )},
-                                    {"role": "user", "content": (
-                                        f"Aufgabe: {user_text[:300]}\n"
-                                        f"Letzte Antwort: {final_text[:400]}\n"
-                                        "Ist die Aufgabe vollständig erledigt?"
-                                    )},
-                                ],
-                                max_tokens=60,
-                                temperature=0.1,
-                            )
-                            verdict = (verdict_resp.choices[0].message.content or "").strip()
+                            # ── Schnell-Check: Ankündigungs-Muster ohne LLM-Call ──────────────
+                            # Wenn AION eine Aktion ankündigt aber kein Tool aufruft → sofort WEITER
+                            _announcement_patterns = [
+                                "ich lege jetzt", "ich erstelle jetzt", "ich schreibe jetzt",
+                                "ich beginne jetzt", "ich werde jetzt", "ich implementiere jetzt",
+                                "ich starte jetzt", "ich mache das jetzt", "ich patche jetzt",
+                                "ich füge jetzt", "ich richte jetzt", "ich installiere jetzt",
+                                "ich lege die datei", "ich erstelle die datei", "ich erstelle das plugin",
+                                "soll ich diese", "soll ich das", "soll ich die",
+                                "ich habe den code vorbereitet", "ich habe eine lösung vorbereitet",
+                            ]
+                            _text_lower = final_text.lower()
+                            _is_announcement = any(p in _text_lower for p in _announcement_patterns)
+                            if _is_announcement:
+                                verdict = "WEITER: Ankündigung ohne Ausführung erkannt — jetzt sofort handeln"
+                            else:
+                            # ── Regulärer LLM-Completion-Check ───────────────────────────────
+                                user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
+                                verdict_resp = await _client.chat.completions.create(
+                                    model=MODEL,
+                                    messages=[
+                                        {"role": "system", "content": (
+                                            "Du prüfst ob eine KI-Aufgabe vollständig abgeschlossen wurde. "
+                                            "Antworte NUR mit 'FERTIG' oder 'WEITER: <ein Satz warum>'. "
+                                            "WICHTIG: Wenn die KI eine Aktion NUR angekündigt hat ohne sie "
+                                            "auszuführen ('Ich werde...', 'Ich lege jetzt an...', "
+                                            "'Ich erstelle...'), antworte IMMER mit WEITER."
+                                        )},
+                                        {"role": "user", "content": (
+                                            f"Aufgabe: {user_text[:300]}\n"
+                                            f"Letzte Antwort: {final_text[:400]}\n"
+                                            "Ist die Aufgabe vollständig erledigt?"
+                                        )},
+                                    ],
+                                    max_tokens=60,
+                                    temperature=0.1,
+                                )
+                                verdict = (verdict_resp.choices[0].message.content or "").strip()
                             if verdict.upper().startswith("WEITER"):
                                 reason = verdict[6:].strip(" :").strip() or "Aufgabe noch nicht fertig"
                                 yield {"type": "thought", "text": f"Completion-Check: {reason}",
