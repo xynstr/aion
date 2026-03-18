@@ -215,7 +215,7 @@ def _schedule_add(input: dict) -> dict:
     return {"ok": True, "id": entry["id"], "message": f"Task '{name}' angelegt — läuft täglich um {entry['time']}."}
 
 
-def _schedule_list(input: dict) -> dict:
+def _schedule_list(input: dict = None) -> dict:
     tasks = _load_tasks()
     if not tasks:
         return {"tasks": [], "message": "Keine geplanten Aufgaben."}

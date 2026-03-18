@@ -1,10 +1,7 @@
 from docx import Document
 
-def create_docx_func(params, memory):
+def create_docx_func(path, content="", memory=None):
     """Erstellt eine neue .docx-Datei mit dem angegebenen Inhalt."""
-    path = params.get('path')
-    content = params.get('content', '')
-
     if not path:
         return {'error': 'Path is required'}
 
