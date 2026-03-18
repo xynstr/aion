@@ -1403,6 +1403,7 @@ class AionSession:
                 pass
 
         try:
+            _check_fail_streak = 0  # Zählt aufeinanderfolgende Check-Fehler
             for _iter in range(MAX_TOOL_ITERATIONS):
                 tools  = _build_tool_schemas()
                 stream = await _client.chat.completions.create(
@@ -1549,6 +1550,8 @@ class AionSession:
 
                             # Gemini-Adapter → Stream-Iterator; OpenAI → Response-Objekt
                             # Beide Fälle abdecken:
+                            if check_raw is None:
+                                raise ValueError("check_raw ist None — Client-Fehler")
                             if hasattr(check_raw, "choices"):
                                 # OpenAI-style: direkt .choices[0].message.content lesen
                                 check_answer = (check_raw.choices[0].message.content or "").strip().upper()
@@ -1562,6 +1565,7 @@ class AionSession:
                                 check_answer = check_answer.strip().upper()
 
                             announced_without_action = check_answer.startswith("YES")
+                            _check_fail_streak = 0  # Erfolgreicher Check → Streak zurücksetzen
 
                             if announced_without_action:
                                 yield {"type": "thought",
@@ -1586,18 +1590,22 @@ class AionSession:
                                            "trigger": "auto-reflect", "call_id": "auto"}
                                     await _dispatch("reflect", {"thought": thought, "trigger": "nach-antwort"})
                         except Exception as _check_exc:
-                            # Check fehlgeschlagen → zur Sicherheit weiter iterieren (nicht abbrechen)
+                            # Check fehlgeschlagen → max 2 Mal retry, danach abbrechen
+                            _check_fail_streak += 1
                             yield {"type": "thought",
-                                   "text": f"Completion-Check Fehler: {_check_exc} — nehme Ankündigung an",
+                                   "text": f"Completion-Check Fehler ({_check_fail_streak}/2): {_check_exc}",
                                    "trigger": "completion-check-error", "call_id": "check"}
-                            messages.append({
-                                "role": "user",
-                                "content": (
-                                    "[System] Continue with the task. If you planned to do something, "
-                                    "execute it now using the appropriate tool."
-                                ),
-                            })
-                            continue
+                            if _check_fail_streak < 2:
+                                messages.append({
+                                    "role": "user",
+                                    "content": (
+                                        "[System] Continue with the task. If you planned to do something, "
+                                        "execute it now using the appropriate tool."
+                                    ),
+                                })
+                                continue
+                            # Nach 2 Fehlern: abbrechen statt Endlosschleife
+                            _check_fail_streak = 0
 
                     break
 
