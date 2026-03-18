@@ -37,9 +37,12 @@ def load_plugins(tool_registry: dict):
     loaded = set()
 
     # Konvention 1: Unterordner — plugins/{name}/{name}.py
+    # Ignoriert _backups/ und andere Unterordner die mit _ beginnen
     for subfolder in sorted(PLUGINS_DIR.iterdir()):
         if not subfolder.is_dir():
             continue
+        if subfolder.name.startswith("_"):
+            continue  # _backups/, __pycache__ etc. ignorieren
         plugin_file = subfolder / f"{subfolder.name}.py"
         if plugin_file.is_file():
             _load_file(plugin_file, tool_registry)
@@ -50,6 +53,8 @@ def load_plugins(tool_registry: dict):
     for file in sorted(PLUGINS_DIR.glob("*.py")):
         if file.name.startswith("_") or file.name == "__init__.py":
             continue
+        if ".backup" in file.name:
+            continue  # Backup-Dateien (von self_patch_code erstellt) ignorieren
         if file.stem in loaded:
             continue  # bereits über Unterordner geladen
         _load_file(file, tool_registry)
