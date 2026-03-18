@@ -182,11 +182,11 @@ def _scheduler_loop() -> None:
 
 # ── Tool-Funktionen ───────────────────────────────────────────────────────────
 
-def _schedule_add(input: dict) -> dict:
-    name  = input.get("name", "").strip()
-    time_ = input.get("time", "").strip()
-    days  = input.get("days", "täglich").strip()
-    task  = input.get("task", "").strip()
+def _schedule_add(name: str = "", time: str = "", days: str = "täglich", task: str = "", **_) -> dict:
+    name  = (name or "").strip()
+    time_ = (time or "").strip()
+    days  = (days or "täglich").strip()
+    task  = (task or "").strip()
 
     if not name or not time_ or not task:
         return {"error": "name, time und task sind Pflichtfelder."}
@@ -233,9 +233,9 @@ def _schedule_list(input: dict = None) -> dict:
     return {"tasks": summary, "count": len(tasks)}
 
 
-def _schedule_remove(input: dict) -> dict:
-    task_id = input.get("id", "").strip()
-    name    = input.get("name", "").strip()
+def _schedule_remove(id: str = "", name: str = "", **_) -> dict:
+    task_id = (id or "").strip()
+    name    = (name or "").strip()
     if not task_id and not name:
         return {"error": "id oder name angeben."}
 
@@ -247,9 +247,8 @@ def _schedule_remove(input: dict) -> dict:
     return {"ok": True, "removed": removed}
 
 
-def _schedule_toggle(input: dict) -> dict:
-    task_id = input.get("id", "").strip()
-    enabled = input.get("enabled", None)
+def _schedule_toggle(id: str = "", enabled=None, **_) -> dict:
+    task_id = (id or "").strip()
     tasks   = _load_tasks()
     for t in tasks:
         if t.get("id") == task_id:
