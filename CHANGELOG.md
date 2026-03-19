@@ -5,6 +5,28 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ---
 
+## 2026-03-19 (3)
+
+### Neu: file_replace_lines Tool
+- Ersetzt Zeilen start_line–end_line direkt (kein String-Matching)
+- self_read_code gibt jetzt first_line/last_line zurück → Zeilennummern ablesen → ersetzen
+- Zuverlässiger als self_patch_code, kein "nicht gefunden" mehr
+
+### Geändert: self_read_code — Zeilennummern im Output
+- Gibt jetzt first_line und last_line zurück
+- Hint empfiehlt file_replace_lines mit konkreten Zeilennummern
+
+### Geändert: System-Prompt Selbst-Modifikation
+- file_replace_lines als bevorzugtes Tool eingetragen
+- Explizite Regel: 'old' bei self_patch_code MUSS zeichengenau kopiert sein
+
+### Fix: smart_patch Zeilen-Tracking-Bug
+- block_core hatte Leerzeilen rausgefiltert, match_end-Berechnung zählte sie trotzdem
+- Fix: match_end trackt jetzt den echten Zeilenbereich inkl. Leerzeilen
+- Neu: Eindeutigkeits-Check meldet Fehler wenn Block mehrfach vorkommt
+
+---
+
 ## 2026-03-19 (2)
 
 ### Neu: Bestätigungs-Buttons (Web UI + Telegram)

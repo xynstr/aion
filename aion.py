@@ -302,10 +302,13 @@ Du entwickelst eine echte Persönlichkeit — keine aufgesetzte KI-Manier.
 
 === SELBST-MODIFIKATION (KRITISCH) ===
 Wenn du deinen Code ändern willst:
-1. self_read_code mit chunk_index aufrufen — alle Chunks lesen!
-2. self_patch_code für gezielte Änderungen (für aion.py IMMER dies nutzen)
-3. self_modify_code NUR für kleine neue Dateien unter 200 Zeilen
-4. Platzhalter wie "# usw.", "# rest of code" sind VERBOTEN
+1. self_read_code aufrufen — alle Chunks lesen! Gibt first_line/last_line zurück.
+2. file_replace_lines für gezielte Änderungen — BEVORZUGTES TOOL (Zeilen aus Schritt 1 ablesen)
+3. self_patch_code als Alternative — 'old' MUSS zeichengenau aus self_read_code kopiert sein, NIEMALS aus dem Gedächtnis schreiben!
+4. self_modify_code NUR für kleine neue Dateien unter 200 Zeilen
+5. Platzhalter wie "# usw.", "# rest of code" sind VERBOTEN
+
+WARUM file_replace_lines besser ist: Kein String-Matching → kein "nicht gefunden". Zeilennummern aus self_read_code ablesen → direkt ersetzen.
 
 Neue Tools/Plugins → create_plugin (sofort aktiv).
 Plugin-Aenderungen → self_restart (Hot-Reload, kein Datenverlust).
@@ -789,6 +792,30 @@ def _build_tool_schemas() -> list[dict]:
         {
             "type": "function",
             "function": {
+                "name": "file_replace_lines",
+                "description": (
+                    "Ersetzt Zeilen start_line bis end_line (1-basiert, inklusiv) in einer Datei. "
+                    "Zuverlässiger als self_patch_code weil kein String-Matching nötig — "
+                    "Zeilennummern aus self_read_code ablesen, dann direkt ersetzen. "
+                    "Erstellt automatisch Backup. "
+                    "ABLAUF: Erst OHNE confirmed (Vorschau). Nach Nutzer-'ja': mit confirmed=true."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path":       {"type": "string", "description": "Dateipfad"},
+                        "start_line": {"type": "integer", "description": "Erste zu ersetzende Zeile (1-basiert)"},
+                        "end_line":   {"type": "integer", "description": "Letzte zu ersetzende Zeile (1-basiert, inklusiv)"},
+                        "new_content": {"type": "string", "description": "Neuer Inhalt für diesen Bereich"},
+                        "confirmed":  {"type": "boolean", "description": "true = ausführen, false/fehlt = Vorschau"},
+                    },
+                    "required": ["path", "start_line", "end_line", "new_content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "self_modify_code",
                 "description": (
                     "Überschreibt eine kleine Datei komplett. "
@@ -1112,14 +1139,26 @@ async def _dispatch(name: str, inputs: dict) -> str:
             chunk_index  = max(0, min(chunk_index, total_chunks - 1))
             start        = chunk_index * CHUNK_SIZE
             chunk        = content[start:start + CHUNK_SIZE]
+            # Zeilennummer des ersten Zeichens im Chunk berechnen
+            first_line   = content[:start].count("\n") + 1
+            last_line    = first_line + chunk.count("\n")
             return json.dumps({
                 "path":         str(path),
                 "chunk_index":  chunk_index,
                 "total_chunks": total_chunks,
                 "char_start":   start,
                 "total_chars":  total_len,
+                "first_line":   first_line,
+                "last_line":    last_line,
                 "content":      chunk,
-                "hint":         f"{total_chunks} Chunks total — lies alle bevor du änderst!" if total_chunks > 1 else "Komplette Datei.",
+                "hint":         (
+                    f"{total_chunks} Chunks total — lies alle bevor du änderst! "
+                    f"Dieser Chunk: Zeilen {first_line}–{last_line}. "
+                    "Für Änderungen: file_replace_lines(start_line, end_line) nutzen."
+                ) if total_chunks > 1 else (
+                    f"Komplette Datei — Zeilen {first_line}–{last_line}. "
+                    "Für Änderungen: file_replace_lines(start_line, end_line) nutzen."
+                ),
             })
         except Exception as e:
             return json.dumps({"error": str(e)})
@@ -1170,6 +1209,60 @@ async def _dispatch(name: str, inputs: dict) -> str:
                           hint="Neustart für aion.py-Änderungen nötig")
             return json.dumps({"ok": True, "path": str(path), "backup": str(backup_path),
                                "note": "Änderungen an aion.py wirken erst nach Neustart."})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    elif name == "file_replace_lines":
+        if not inputs.get("confirmed"):
+            filepath_preview = inputs.get("path", "?")
+            s = inputs.get("start_line", "?")
+            e = inputs.get("end_line", "?")
+            new_preview = (inputs.get("new_content", "") or "")[:300].strip()
+            return json.dumps({
+                "status": "approval_required",
+                "message": (
+                    f"Ich möchte '{filepath_preview}' Zeilen {s}–{e} ersetzen.\n\n"
+                    f"Neuer Inhalt:\n{new_preview}\n\n"
+                    "Bestätige mit 'ja' → ich rufe das Tool dann mit confirmed=true auf."
+                ),
+            })
+        filepath   = inputs.get("path", "").strip()
+        start_line = int(inputs.get("start_line", 0))
+        end_line   = int(inputs.get("end_line", 0))
+        new_content = inputs.get("new_content", "")
+        if not filepath or start_line < 1 or end_line < start_line:
+            return json.dumps({"error": "Ungültige Parameter: path, start_line, end_line prüfen."})
+        path = Path(filepath)
+        if not path.is_absolute():
+            path = BOT_DIR / path
+        if not path.is_file():
+            return json.dumps({"error": f"Datei nicht gefunden: {path}"})
+        try:
+            original = path.read_text(encoding="utf-8", errors="replace")
+            lines    = original.splitlines(keepends=True)
+            total    = len(lines)
+            if end_line > total:
+                return json.dumps({"error": f"end_line {end_line} > Dateigröße {total} Zeilen."})
+            # Backup
+            ts          = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir  = path.parent / "_backups"
+            backup_dir.mkdir(exist_ok=True)
+            backup_path = backup_dir / f"{path.stem}.backup_{ts}{path.suffix}"
+            shutil.copy2(path, backup_path)
+            old_backups = sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))
+            for old in old_backups[:-5]:
+                old.unlink(missing_ok=True)
+            # Zeilen ersetzen (1-basiert → 0-basiert)
+            new_lines = new_content.splitlines(keepends=False)
+            new_lines = [l + "\n" for l in new_lines]
+            patched_lines = lines[:start_line - 1] + new_lines + lines[end_line:]
+            path.write_text("".join(patched_lines), encoding="utf-8")
+            return json.dumps({
+                "ok": True, "path": str(path), "backup": str(backup_path),
+                "replaced_lines": f"{start_line}–{end_line}",
+                "new_line_count": len(new_lines),
+                "note": "Änderungen an aion.py wirken erst nach Neustart.",
+            })
         except Exception as e:
             return json.dumps({"error": str(e)})
 
