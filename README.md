@@ -7,7 +7,7 @@ Ein autonomer KI-Agent für Windows. Läuft als Python-Prozess, kommuniziert üb
 ## Features
 
 - **Autonomes Arbeiten** — bis zu 50 Tool-Iterationen ohne Nutzer-Warten, mit automatischem Completion-Check
-- **Geplante Aufgaben** — Cron-ähnlicher Scheduler: AION führt Tasks zu festen Uhrzeiten selbstständig aus
+- **Geplante Aufgaben** — Scheduler mit Uhrzeiten (`06:00`) und Intervallen (`alle 5m`) — läuft vollständig autonom
 - **Selbst-Modifikation** — liest, patcht und überschreibt eigenen Code; erstellt neue Plugins
 - **Web UI** — Live-Stream von Antworten, Gedanken (Reflexionen) und Tool-Aufrufen
 - **Telegram** — bidirektional: Text, Bilder und Sprachnachrichten (OGG → Vosk-Transkription, TTS-Rückantwort)
@@ -56,7 +56,7 @@ Das aktive Modell wird in `config.json` gespeichert und beim nächsten Start wie
 ## Starten / Stoppen
 
 ```bash
-start.bat    # Startet Server + öffnet Browser (killt alte Instanzen automatisch)
+start.bat    # Startet Server + öffnet Browser (visueller 6-Schritt-Assistent, killt alte Instanzen)
 stop.bat     # Stoppt alle AION-Prozesse sauber
 restart.bat  # Stop + Start
 status.bat   # Zeigt ob Server läuft
@@ -83,16 +83,19 @@ python aion.py       # CLI-Modus
 
 ## Geplante Aufgaben (Scheduler)
 
-AION kann Aufgaben zu festen Uhrzeiten selbstständig ausführen:
+AION kann Aufgaben zu festen Uhrzeiten **oder in Intervallen** selbstständig ausführen:
 
 ```
 "Plane täglich um 06:00: Lese meine Emails, extrahiere Termine und trage sie in den Kalender ein."
 "Plane werktags um 08:00: Schreibe mir eine kurze Tages-Zusammenfassung via Telegram."
-"Plane jeden Montag um 09:00: Erstelle einen Wochenplan."
+"Schreibe mir alle 5 Minuten eine Telegram-Nachricht mit dem aktuellen Status."
+"Erinnere mich jede Stunde an meine Wasserration."
 ```
 
 AION legt den Task mit `schedule_add` an und führt ihn zur geplanten Zeit aus.
 Das Ergebnis wird automatisch per Telegram gesendet (wenn konfiguriert).
+
+**Intervall-Syntax:** `"5m"`, `"30s"`, `"1h"`, `"2h30m"`, `"alle 10 Minuten"`
 
 Verwaltung per Sprache oder direkt:
 - `schedule_list` — alle Tasks anzeigen

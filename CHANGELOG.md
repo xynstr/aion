@@ -39,6 +39,18 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 ### Fix: Telegram Doppel-Antworten nach self_reload_tools
 - Thread-Namen-Check verhindert zweiten Polling-Thread bei Plugin-Reload
 
+### Neu: start.bat — visuelles Redesign
+- ASCII-Logo, ANSI-Farben (grün/gelb/rot), Box-Rahmen für jeden Schritt
+- 6-stufige Fortschrittsanzeige mit ✓/!/✗ Symbolen
+- Aktives Modell wird beim Start angezeigt
+- Vollständiges Log in `aion_start.log` (absoluter Pfad, ab Zeile 1)
+- Bei Fehler: letzte 25 Log-Zeilen direkt in der Konsole
+- `python-telegram-bot` aus optionalen Installs entfernt (nicht verwendet, verursachte Konflikte)
+
+### Fix: aion_web.py — Crash bei reinem Gemini-Setup
+- Startprüfung akzeptiert jetzt `GEMINI_API_KEY` als Alternative zu `OPENAI_API_KEY`
+- Vorher: `sys.exit(1)` wenn kein OpenAI-Key → Crash bei Gemini-only-Nutzern
+
 ### Fix: Telegram 409-Loop
 - start.bat beendet alte Prozesse aggressiver (zweiter Kill-Versuch, 12s Wartezeit)
 - Backoff-Strategie: 12s → 14s → max 30s; Log-Warnung alle 5 Versuche

@@ -1,93 +1,115 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
-title AION - Start
+title AION
 cd /d "%~dp0"
 
+REM ── ANSI Farben ─────────────────────────────────────────────────────────────
+for /f %%a in ('echo prompt $E^| cmd') do set "E=%%a"
+set "RESET=%E%[0m"
+set "BOLD=%E%[1m"
+set "DIM=%E%[2m"
+set "CYAN=%E%[96m"
+set "GREEN=%E%[92m"
+set "YELLOW=%E%[93m"
+set "RED=%E%[91m"
+set "BLUE=%E%[94m"
+set "MAGENTA=%E%[95m"
+set "WHITE=%E%[97m"
+set "GRAY=%E%[90m"
+
+REM ── Log ─────────────────────────────────────────────────────────────────────
+set "LOG=%~dp0aion_start.log"
+echo ========================================== > "%LOG%"
+echo  AION Start - %date% %time% >> "%LOG%"
+echo ========================================== >> "%LOG%"
+
 cls
+
+REM ── Header ──────────────────────────────────────────────────────────────────
 echo.
-echo  ==========================================
-echo       AION - Autonomous AI Agent
-echo  ==========================================
+echo %CYAN%%BOLD%  ╔══════════════════════════════════════════╗%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ║    %WHITE%██████  %CYAN%  █████  %WHITE%██████  %CYAN%███   ██    %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║    %WHITE%██   ██ %CYAN% ██   ██ %WHITE%██   ██ %CYAN%████  ██    %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║    %WHITE%███████ %CYAN% ██   ██ %WHITE%██   ██ %CYAN%██ ██ ██    %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║    %WHITE%██   ██ %CYAN% ██   ██ %WHITE%██   ██ %CYAN%██  ████    %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║    %WHITE%██   ██ %CYAN%  █████  %WHITE%██████  %CYAN%██   ███    %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ║  %GRAY%Autonomous AI Agent  ·  Web UI v2.0   %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ╚══════════════════════════════════════════╝%RESET%
+echo.
+echo %GRAY%  Log: %LOG%%RESET%
 echo.
 
-REM ===========================================================================
-REM  SCHRITT 1 - Python pruefen
-REM ===========================================================================
-echo  [1/4] Pruefe Python...
-python --version >nul 2>&1
+REM ── Hilfsmakros ─────────────────────────────────────────────────────────────
+REM  step_ok  "Text"   →  grüner Haken
+REM  step_warn "Text"  →  gelbes Ausrufezeichen
+REM  step_fail "Text"  →  roter X + pause + exit
+REM  (inline via goto da Batch keine echten Funktionen hat)
+
+REM ══════════════════════════════════════════════════════════════════════════════
+echo %BOLD%  ┌─ Schritt 1 / 6 ── Python ─────────────────────────┐%RESET%
+echo [S1] Python >> "%LOG%"
+python --version >> "%LOG%" 2>&1
 if errorlevel 1 (
-    echo.
-    echo  FEHLER: Python nicht gefunden!
-    echo  Bitte Python 3.10+ installieren: https://www.python.org/downloads/
-    echo  Sicherstellen dass "Add Python to PATH" aktiviert ist.
-    echo.
-    pause
-    exit /b 1
+    echo %RED%  │  ✗  Python nicht gefunden!%RESET%
+    echo %YELLOW%  │     Bitte installieren: python.org/downloads%RESET%
+    echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+    echo [FEHLER] Python nicht gefunden >> "%LOG%"
+    echo. & pause & exit /b 1
 )
-for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo  OK: %%v gefunden
-
-REM ===========================================================================
-REM  SCHRITT 2 - Pakete installieren
-REM ===========================================================================
-echo.
-echo  [2/4] Installiere / aktualisiere Abhaengigkeiten...
-echo        (Beim ersten Start kann das ein paar Minuten dauern)
+for /f "tokens=*" %%v in ('python --version 2^>^&1') do (
+    echo %GREEN%  │  ✓  %%v%RESET%
+    echo [OK] %%v >> "%LOG%"
+)
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
 echo.
 
-python -m pip install --upgrade pip -q
-if errorlevel 1 echo  Warnung: pip-Upgrade fehlgeschlagen, fahre trotzdem fort.
+REM ══════════════════════════════════════════════════════════════════════════════
+echo %BOLD%  ┌─ Schritt 2 / 6 ── Pakete ─────────────────────────┐%RESET%
+echo [S2] Pakete >> "%LOG%"
 
-python -m pip install -r requirements.txt -q
+echo %GRAY%  │  ·  pip upgrade...%RESET%
+python -m pip install --upgrade pip -q >> "%LOG%" 2>&1
+
+echo %GRAY%  │  ·  requirements.txt...%RESET%
+python -m pip install -r requirements.txt -q >> "%LOG%" 2>&1
 if errorlevel 1 (
-    echo  FEHLER: requirements.txt konnte nicht installiert werden.
-    pause
-    exit /b 1
+    echo %RED%  │  ✗  requirements.txt fehlgeschlagen!%RESET%
+    echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+    echo [FEHLER] requirements install >> "%LOG%"
+    echo. & pause & exit /b 1
+)
+echo %GREEN%  │  ✓  Kern-Pakete OK%RESET%
+
+echo %GRAY%  │  ·  Optionale Pakete (google-genai, vosk, ...)%RESET%
+python -m pip install google-genai -q    >> "%LOG%" 2>&1
+python -m pip install requests -q        >> "%LOG%" 2>&1
+python -m pip install duckduckgo-search -q >> "%LOG%" 2>&1
+python -m pip install vosk -q            >> "%LOG%" 2>&1
+python -m pip install pyttsx3 -q         >> "%LOG%" 2>&1
+echo %GREEN%  │  ✓  Optionale Pakete OK%RESET%
+echo [OK] Alle Pakete >> "%LOG%"
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo.
+
+REM ══════════════════════════════════════════════════════════════════════════════
+echo %BOLD%  ┌─ Schritt 3 / 6 ── Konfiguration ──────────────────┐%RESET%
+echo [S3] .env >> "%LOG%"
+
+if exist ".env" (
+    echo %GREEN%  │  ✓  .env gefunden%RESET%
+    echo [OK] .env vorhanden >> "%LOG%"
+    goto :env_check
 )
 
-REM Optionale Pakete (Gemini, Telegram)
-python -m pip install google-genai -q
-python -m pip install "python-telegram-bot>=20.0" -q
-python -m pip install requests -q
-python -m pip install duckduckgo-search -q
-python -m pip install vosk -q
-python -m pip install pyttsx3 -q
-
-echo  OK: Alle Pakete bereit
-
-REM ffmpeg pruefen / installieren (Audio-Pipeline: Formatkonvertierung + TTS)
+REM .env fehlt — Setup-Wizard
+echo %YELLOW%  │  !  .env fehlt — Setup-Wizard%RESET%
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
 echo.
-echo  Pruefe ffmpeg (fuer Sprachnachrichten und TTS)...
-where ffmpeg >nul 2>&1
-if errorlevel 1 (
-    echo  ffmpeg nicht gefunden - installiere via winget...
-    winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements >nul 2>&1
-    where ffmpeg >nul 2>&1
-    if errorlevel 1 (
-        echo  Hinweis: ffmpeg konnte nicht installiert werden.
-        echo  Sprachnachrichten und TTS sind eingeschraenkt.
-        echo  Manuell: winget install Gyan.FFmpeg
-    ) else (
-        echo  OK: ffmpeg installiert
-    )
-) else (
-    echo  OK: ffmpeg vorhanden
-)
-
-REM ===========================================================================
-REM  SCHRITT 3 - .env Setup
-REM ===========================================================================
-echo.
-echo  [3/4] Pruefe Konfiguration...
-
-if exist ".env" goto :env_ok
-
-REM .env fehlt - Setup-Wizard
-echo.
-echo  .env nicht gefunden - Erster Start: Setup-Wizard
-echo.
-echo  AION benoetigt mindestens einen API-Key (OpenAI ODER Gemini).
-echo  Leere Eingabe = Feld ueberspringen.
+echo %CYAN%  AION benoetigt mindestens einen API-Key (OpenAI ODER Gemini).%RESET%
+echo %GRAY%  Leere Eingabe = Feld ueberspringen.%RESET%
 echo.
 
 set "OPENAI_KEY="
@@ -96,23 +118,20 @@ set "TG_TOKEN="
 set "TG_CHAT="
 set "AION_MODEL_INPUT="
 
-set /p "OPENAI_KEY=  OpenAI API-Key   (sk-...):  "
-set /p "GEMINI_KEY=  Gemini API-Key   (AIza...): "
-set /p "TG_TOKEN=    Telegram Token   (optional): "
-set /p "TG_CHAT=     Telegram Chat-ID (optional): "
-set /p "AION_MODEL_INPUT= Startmodell (leer = gpt-4.1): "
+set /p "OPENAI_KEY=%CYAN%  OpenAI  API-Key  (sk-...):   %RESET%"
+set /p "GEMINI_KEY=%CYAN%  Gemini  API-Key  (AIza...):  %RESET%"
+set /p "TG_TOKEN=%CYAN%  Telegram Token   (optional): %RESET%"
+set /p "TG_CHAT=%CYAN%  Telegram Chat-ID (optional): %RESET%"
+set /p "AION_MODEL_INPUT=%CYAN%  Startmodell (leer = gemini-2.0-flash): %RESET%"
 
 if "!OPENAI_KEY!"=="" if "!GEMINI_KEY!"=="" (
     echo.
-    echo  FEHLER: Mindestens ein API-Key erforderlich!
-    echo  Starte start.bat erneut oder lege .env manuell an.
-    pause
-    exit /b 1
+    echo %RED%  FEHLER: Mindestens ein API-Key erforderlich!%RESET%
+    echo [FEHLER] Kein Key eingegeben >> "%LOG%"
+    pause & exit /b 1
 )
+if "!AION_MODEL_INPUT!"=="" set "AION_MODEL_INPUT=gemini-2.0-flash"
 
-if "!AION_MODEL_INPUT!"=="" set "AION_MODEL_INPUT=gpt-4.1"
-
-REM .env schreiben
 (
     echo # AION Konfiguration - generiert von start.bat
     if not "!OPENAI_KEY!"=="" echo OPENAI_API_KEY=!OPENAI_KEY!
@@ -122,99 +141,119 @@ REM .env schreiben
     echo AION_MODEL=!AION_MODEL_INPUT!
     echo AION_PORT=7000
 ) > .env
-
+echo %GREEN%  │  ✓  .env erstellt%RESET%
+echo [OK] .env erstellt >> "%LOG%"
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
 echo.
-echo  OK: .env erstellt
-goto :env_check
-
-:env_ok
-echo  OK: .env gefunden
 
 :env_check
-REM Pruefen ob mindestens ein Key vorhanden ist
-python -c "from dotenv import load_dotenv; import os; load_dotenv(); ok = bool(os.getenv('OPENAI_API_KEY','').strip()) or bool(os.getenv('GEMINI_API_KEY','').strip()); exit(0 if ok else 1)"
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); ok = bool(os.getenv('OPENAI_API_KEY','').strip()) or bool(os.getenv('GEMINI_API_KEY','').strip()); exit(0 if ok else 1)" >> "%LOG%" 2>&1
 if errorlevel 1 (
-    echo.
-    echo  FEHLER: Weder OPENAI_API_KEY noch GEMINI_API_KEY in .env gesetzt!
-    echo  Bitte .env oeffnen und mindestens einen API-Key eintragen.
-    echo.
-    pause
-    exit /b 1
+    echo %RED%  │  ✗  Kein API-Key in .env gefunden!%RESET%
+    echo %YELLOW%  │     Bitte .env oeffnen und Key eintragen.%RESET%
+    echo [FEHLER] Kein API-Key >> "%LOG%"
+    echo. & pause & exit /b 1
 )
-echo  OK: API-Key vorhanden
-
-REM ===========================================================================
-REM  SCHRITT 4 - AION starten
-REM ===========================================================================
-echo.
-echo  [4/4] Starte AION Web UI...
-echo.
-echo  AION laeuft unter: http://localhost:7000
-echo  Beenden: Strg+C
+echo %GREEN%  │  ✓  API-Key vorhanden%RESET%
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
 echo.
 
-REM Ueberpruefe ob aion_web.py existiert
-if not exist "aion_web.py" (
-    echo.
-    echo  FEHLER: aion_web.py nicht gefunden!
-    echo  Du befindest dich wahrscheinlich im falschen Verzeichnis.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo.
-echo  Starte Python-Server...
+REM ══════════════════════════════════════════════════════════════════════════════
+echo %BOLD%  ┌─ Schritt 4 / 6 ── Modell ─────────────────────────┐%RESET%
+echo [S4] Modell >> "%LOG%"
+for /f %%m in ('python -c "from dotenv import load_dotenv; import os, json; load_dotenv(); cfg={}; open_ = open('config.json') if __import__('os').path.exists('config.json') else None; cfg=json.load(open_) if open_ else {}; open_ and open_.close(); print(cfg.get('model', os.getenv('AION_MODEL','gemini-2.0-flash')))" 2^>nul') do set "ACTIVE_MODEL=%%m"
+if not defined ACTIVE_MODEL set "ACTIVE_MODEL=gemini-2.0-flash"
+echo %GREEN%  │  ✓  Modell: %CYAN%%BOLD%%ACTIVE_MODEL%%RESET%
+echo [OK] Modell: %ACTIVE_MODEL% >> "%LOG%"
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
 echo.
 
-REM Alte AION-Prozesse beenden (verhindert Telegram 409 Conflict)
-echo  Beende alte AION-Instanzen (falls vorhanden)...
+REM ══════════════════════════════════════════════════════════════════════════════
+echo %BOLD%  ┌─ Schritt 5 / 6 ── Alte Instanzen beenden ─────────┐%RESET%
+echo [S5] Cleanup >> "%LOG%"
 
-REM 1) Port 7000 — Prozess der dort lauscht beenden
 set OLDPID=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7000 "') do (
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000 "') do (
     if not defined OLDPID set OLDPID=%%a
 )
 if defined OLDPID (
     taskkill /PID !OLDPID! /F >nul 2>&1
-    echo  OK: Alte Instanz auf Port 7000 beendet (PID !OLDPID!).
+    echo %YELLOW%  │  ·  Port 7000 freigegeben (PID !OLDPID!)%RESET%
+    echo [OK] Kill Port 7000 PID=!OLDPID! >> "%LOG%"
+) else (
+    echo %GREEN%  │  ✓  Port 7000 frei%RESET%
 )
 
-REM 2) Python-Prozesse mit aion_web oder aion.py beenden (via PowerShell, kein wmic)
-powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'name=''python.exe''' | Where-Object { $_.CommandLine -like '*aion_web*' -or $_.CommandLine -like '*aion.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host '  OK: AION Python-Prozess beendet.' }" 2>nul
-
-REM 3) Kurze Pause damit OS die Prozesse wirklich beendet
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'name=''python.exe''' | Where-Object { $_.CommandLine -like '*aion_web*' -or $_.CommandLine -like '*aion.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >> "%LOG%" 2>&1
+echo [OK] Python-Cleanup abgeschlossen >> "%LOG%"
 timeout /t 2 >nul
 
-REM 4) Nochmal Port 7000 pruefen
 set OLDPID2=
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":7000 "') do (
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000 "') do (
     if not defined OLDPID2 set OLDPID2=%%a
 )
 if defined OLDPID2 (
     taskkill /PID !OLDPID2! /F >nul 2>&1
-    echo  OK: Zweiter Kill-Versuch fuer Port 7000 (PID !OLDPID2!).
+    echo %YELLOW%  │  ·  Zweiter Kill (PID !OLDPID2!)%RESET%
 )
 
-REM 5) Warte auf Telegram-Disconnect (Long-Poll timeout=8s + 4s Puffer = 12s)
-echo  Warte 12s auf Telegram-Disconnect...
+echo %GRAY%  │  ·  Warte 12s auf Telegram-Disconnect...%RESET%
+echo [INFO] Warte 12s... >> "%LOG%"
 timeout /t 12 >nul
+echo %GREEN%  │  ✓  Bereit%RESET%
+echo [OK] Cleanup fertig >> "%LOG%"
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo.
 
-REM Browser nach kurzer Verzoegerung oeffnen (Python-Prozess startet zuerst)
-start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:7000"
+REM ══════════════════════════════════════════════════════════════════════════════
+echo %BOLD%  ┌─ Schritt 6 / 6 ── Start ──────────────────────────┐%RESET%
+echo [S6] Start >> "%LOG%"
 
-REM Starte aion_web.py mit voller Error-Ausgabe
-python aion_web.py
-if errorlevel 1 (
+if not exist "aion_web.py" (
+    echo %RED%  │  ✗  aion_web.py nicht gefunden!%RESET%
+    echo [FEHLER] aion_web.py fehlt >> "%LOG%"
+    echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+    echo. & pause & exit /b 1
+)
+
+echo %GREEN%  │  ✓  Alle Checks bestanden — starte Server...%RESET%
+echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo.
+
+echo %CYAN%%BOLD%  ╔══════════════════════════════════════════╗%RESET%
+echo %CYAN%%BOLD%  ║  %GREEN%✓  AION laeuft                          %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ║  %WHITE%→  http://localhost:7000              %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║  %WHITE%→  Modell: %-32s%CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ║  %GRAY%Beenden: Strg+C                        %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ╚══════════════════════════════════════════╝%RESET%
+echo.
+
+start "" /b cmd /c "timeout /t 3 >nul && start http://localhost:7000"
+echo [INFO] python aion_web.py startet >> "%LOG%"
+
+python aion_web.py >> "%LOG%" 2>&1
+set EXITCODE=%errorlevel%
+echo [INFO] aion_web.py beendet, Code=%EXITCODE% >> "%LOG%"
+
+if %EXITCODE% neq 0 (
     echo.
-    echo  FEHLER: aion_web.py konnte nicht gestartet werden!
-    echo  Siehe Fehlermeldung oben.
+    echo %RED%%BOLD%  ╔══════════════════════════════════════════╗%RESET%
+    echo %RED%%BOLD%  ║  ✗  AION beendet mit Fehlercode %EXITCODE%       ║%RESET%
+    echo %RED%%BOLD%  ╚══════════════════════════════════════════╝%RESET%
+    echo.
+    echo %YELLOW%  Letzte Log-Zeilen:%RESET%
+    echo %GRAY%  ─────────────────────────────────────────%RESET%
+    powershell -NoProfile -Command "Get-Content '%LOG%' | Select-Object -Last 25 | ForEach-Object { Write-Host '  ' $_ }"
+    echo %GRAY%  ─────────────────────────────────────────%RESET%
+    echo %GRAY%  Vollstaendiger Log: %LOG%%RESET%
     echo.
     pause
-    exit /b 1
+    exit /b %EXITCODE%
 )
 
 echo.
-echo  AION gestoppt.
+echo %GRAY%  AION gestoppt.%RESET%
 pause
 endlocal

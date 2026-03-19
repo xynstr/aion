@@ -163,8 +163,10 @@ async def get_character():
     return JSONResponse({"character": _load_character()})
 
 if __name__ == "__main__":
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("Fehler: OPENAI_API_KEY nicht gesetzt.")
+    has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip()) or \
+              bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    if not has_key:
+        print("Fehler: Kein API-Key gesetzt (OPENAI_API_KEY oder GEMINI_API_KEY fehlt).")
         sys.exit(1)
     print(f"Starte AION Web UI auf http://localhost:7000")
     print(f"Modell: {_aion_module.MODEL}")
