@@ -352,6 +352,25 @@ html, body {
 }
 .toast.show { opacity: 1; }
 
+/* ── Approval buttons ────────────────────────────────────────────── */
+.approval-row {
+  display: flex; gap: 8px; margin: 6px 0 0 4px; align-self: flex-start;
+}
+.approval-btn {
+  padding: 7px 20px; border-radius: 8px; font-size: 13px;
+  cursor: pointer; font-weight: 600; transition: all .15s;
+}
+.approval-btn.confirm {
+  background: rgba(0,230,118,.12); color: var(--green);
+  border: 1px solid rgba(0,230,118,.3);
+}
+.approval-btn.confirm:hover { background: rgba(0,230,118,.22); transform: scale(1.04); }
+.approval-btn.reject {
+  background: rgba(255,77,77,.1); color: var(--red);
+  border: 1px solid rgba(255,77,77,.25);
+}
+.approval-btn.reject:hover { background: rgba(255,77,77,.18); transform: scale(1.04); }
+
 /* ── Scrollbars ───────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -500,6 +519,7 @@ let awaitingNewBubble = false;
 let thoughtCount      = 0;
 let toolCount         = 0;
 let activeTab         = 'thoughts';
+let _pendingApproval  = false;
 
 // Store für alle Tool-Daten, damit das Modal darauf zugreifen kann
 const toolDataStore = {};
@@ -924,9 +944,17 @@ function handleEvent(ev) {
       showThinkingRow();
       break;
 
+    case 'approval':
+      _pendingApproval = true;
+      break;
+
     case 'done':
       hideThinkingRow();
       finalizeCurrentBubble();
+      if (_pendingApproval) {
+        _pendingApproval = false;
+        appendApprovalButtons();
+      }
       if (ev.response_blocks && ev.response_blocks.length > 0) {
         for (const block of ev.response_blocks) {
           if (block.type === 'image' && block.url) {
@@ -964,11 +992,31 @@ async function resetChat() {
       </div>
     </div>`;
   clearSidePanel();
-  currentBubble = null; awaitingNewBubble = false;
+  currentBubble = null; awaitingNewBubble = false; _pendingApproval = false;
 }
 
 function useChip(el) { document.getElementById('input').value = el.textContent; send(); }
 function onKey(e)    { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+
+// ── Approval buttons ──────────────────────────────────────────────────────────
+function appendApprovalButtons() {
+  const m   = document.getElementById('messages');
+  const row = document.createElement('div');
+  row.className = 'msg aion'; row.id = 'approval-btns-row';
+  row.innerHTML = `
+    <div class="approval-row">
+      <button class="approval-btn confirm" onclick="sendApproval('ja')">✓ Bestätigen</button>
+      <button class="approval-btn reject"  onclick="sendApproval('nein')">✗ Ablehnen</button>
+    </div>`;
+  m.appendChild(row); scrollChat();
+}
+
+function sendApproval(choice) {
+  const row = document.getElementById('approval-btns-row');
+  if (row) row.remove();
+  document.getElementById('input').value = choice;
+  send();
+}
 </script>
 </body>
 </html>

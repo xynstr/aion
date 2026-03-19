@@ -1621,6 +1621,7 @@ class AionSession:
                             approval_msg = result_data.get("message", "Bitte bestätige die Änderung mit 'ja'.")
                             final_text = approval_msg
                             yield {"type": "token", "content": approval_msg}
+                            yield {"type": "approval", "message": approval_msg}
                             _stop_for_approval = True
                             # Tool-Result trotzdem anhängen — sonst bleibt ein dangling tool_call
                             # in messages und das LLM ruft das Tool im nächsten Turn erneut auf!

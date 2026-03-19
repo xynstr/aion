@@ -5,6 +5,16 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ---
 
+## 2026-03-19 (2)
+
+### Neu: Bestätigungs-Buttons (Web UI + Telegram)
+- Web UI: Wenn AION eine Code-Änderung bestätigt haben möchte, erscheinen "✓ Bestätigen" und "✗ Ablehnen" Buttons direkt im Chat — kein Tippen mehr nötig
+- Telegram: Inline-Keyboard mit "✓ Ja" / "✗ Nein" Buttons wird gesendet; Button-Klick wird per `callback_query` verarbeitet
+- aion.py: Neuer SSE-Event-Typ `approval` signalisiert dem Frontend dass Buttons gezeigt werden sollen
+- Tastatureingabe ("ja"/"nein") funktioniert weiterhin als Fallback
+
+---
+
 ## 2026-03-19
 
 ### Neu: Scheduler Intervall-Modus

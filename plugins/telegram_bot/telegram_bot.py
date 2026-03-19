@@ -354,6 +354,66 @@ async def _telegram_worker(token: str):
 
                 for update in data.get("result", []):
                     offset  = update["update_id"] + 1
+
+                    # ── Callback-Query (Inline-Keyboard-Button) ───────────────
+                    cq = update.get("callback_query")
+                    if cq:
+                        cq_id      = cq.get("id", "")
+                        cq_data    = cq.get("data", "")
+                        cq_msg     = cq.get("message", {})
+                        cq_chat_id = str(cq_msg.get("chat", {}).get("id", ""))
+                        cq_msg_id  = cq_msg.get("message_id")
+                        # Acknowledge button press (removes loading spinner)
+                        try:
+                            await http.post(_api_url(token, "answerCallbackQuery"),
+                                            json={"callback_query_id": cq_id})
+                        except Exception:
+                            pass
+                        # Remove inline keyboard from the message
+                        if cq_msg_id:
+                            try:
+                                await http.post(_api_url(token, "editMessageReplyMarkup"),
+                                                json={"chat_id": cq_chat_id, "message_id": cq_msg_id,
+                                                      "reply_markup": {"inline_keyboard": []}})
+                            except Exception:
+                                pass
+                        if cq_data in ("approval_ja", "approval_nein") and cq_chat_id:
+                            approval_text = "ja" if cq_data == "approval_ja" else "nein"
+                            _save_chat_id(cq_chat_id)
+                            if cq_chat_id not in sessions:
+                                sess = AionSession(channel=f"telegram_{cq_chat_id}")
+                                await sess.load_history(num_entries=10)
+                                sessions[cq_chat_id] = sess
+                            if cq_chat_id not in busy:
+                                busy.add(cq_chat_id)
+                                cq_typing = asyncio.create_task(asyncio.sleep(0))  # dummy
+                                async def _cq_typing():
+                                    while True:
+                                        try:
+                                            await http.post(_api_url(token, "sendChatAction"),
+                                                            json={"chat_id": cq_chat_id, "action": "typing"})
+                                        except Exception:
+                                            pass
+                                        await asyncio.sleep(4)
+                                cq_typing = asyncio.create_task(_cq_typing())
+                                cq_resp = ""
+                                try:
+                                    async for event in sessions[cq_chat_id].stream(approval_text):
+                                        t2 = event.get("type")
+                                        if t2 == "done":
+                                            cq_resp = event.get("full_response", cq_resp)
+                                        elif t2 == "token":
+                                            cq_resp += event.get("content", "")
+                                        elif t2 == "error":
+                                            cq_resp = f"Fehler: {event.get('message', '?')}"
+                                except Exception as e:
+                                    cq_resp = f"Fehler: {e}"
+                                finally:
+                                    cq_typing.cancel()
+                                    busy.discard(cq_chat_id)
+                                await _send(cq_chat_id, cq_resp or "Fertig.")
+                        continue
+
                     msg     = update.get("message", {})
                     text    = (msg.get("text") or msg.get("caption") or "").strip()
                     chat_id = str(msg.get("chat", {}).get("id", ""))
@@ -459,6 +519,7 @@ async def _telegram_worker(token: str):
                     typing_task     = asyncio.create_task(_typing_keepalive())
                     response        = ""
                     response_blocks = []
+                    needs_approval  = False
                     try:
                         async for event in sessions[chat_id].stream(
                             text, images=images or None
@@ -469,6 +530,8 @@ async def _telegram_worker(token: str):
                                 response_blocks = event.get("response_blocks", [])
                             elif t == "token":
                                 response += event.get("content", "")
+                            elif t == "approval":
+                                needs_approval = True
                             elif t == "error":
                                 response = f"Fehler: {event.get('message', '?')}"
                     except Exception as e:
@@ -481,13 +544,34 @@ async def _telegram_worker(token: str):
                     if not response.strip() and not response_blocks:
                         response = "Fertig."
 
+                    # Inline-Keyboard für Bestätigungsanfragen
+                    approval_keyboard = {
+                        "inline_keyboard": [[
+                            {"text": "✓ Ja",   "callback_data": "approval_ja"},
+                            {"text": "✗ Nein", "callback_data": "approval_nein"},
+                        ]]
+                    } if needs_approval else None
+
                     # Response-Blöcke rendern: Text → sendMessage, Bild → sendPhoto
                     if response_blocks:
-                        for block in response_blocks:
+                        blocks_to_send = [b for b in response_blocks if b.get("type") in ("text", "image")]
+                        for i, block in enumerate(blocks_to_send):
+                            is_last = (i == len(blocks_to_send) - 1)
                             if block.get("type") == "text":
                                 content = block.get("content", "").strip()
                                 if content:
-                                    await _send(chat_id, content)
+                                    chunks = _split_message(content, 4000)
+                                    for j, chunk in enumerate(chunks):
+                                        markup = approval_keyboard if (is_last and j == len(chunks) - 1) else None
+                                        try:
+                                            html = _md_to_html(chunk)
+                                            payload = {"chat_id": chat_id, "text": html, "parse_mode": "HTML"}
+                                            if markup: payload["reply_markup"] = markup
+                                            await http.post(_api_url(token, "sendMessage"), json=payload)
+                                        except Exception:
+                                            payload = {"chat_id": chat_id, "text": chunk}
+                                            if markup: payload["reply_markup"] = markup
+                                            await http.post(_api_url(token, "sendMessage"), json=payload)
                             elif block.get("type") == "image":
                                 url = block.get("url", "")
                                 if url:
@@ -498,13 +582,32 @@ async def _telegram_worker(token: str):
                                         )
                                     except Exception as img_e:
                                         print(f"[Telegram] sendPhoto Fehler: {img_e}")
-                    elif is_voice_input and response.strip():
+                    elif is_voice_input and response.strip() and not needs_approval:
                         # Bei Sprachnachrichten: Voice-Reply versuchen, Text als Fallback
                         sent = await _send_voice_reply(chat_id, response)
                         if not sent:
                             await _send(chat_id, response)
                     else:
-                        await _send(chat_id, response or "…")
+                        # Text senden — letzten Chunk mit Keyboard wenn approval
+                        chunks = _split_message(response or "…", 4000)
+                        for j, chunk in enumerate(chunks):
+                            markup = approval_keyboard if (j == len(chunks) - 1 and approval_keyboard) else None
+                            try:
+                                html = _md_to_html(chunk)
+                                payload = {"chat_id": chat_id, "text": html, "parse_mode": "HTML"}
+                                if markup: payload["reply_markup"] = markup
+                                r2 = await http.post(_api_url(token, "sendMessage"), json=payload)
+                                if not r2.is_success:
+                                    payload2 = {"chat_id": chat_id, "text": chunk}
+                                    if markup: payload2["reply_markup"] = markup
+                                    await http.post(_api_url(token, "sendMessage"), json=payload2)
+                            except Exception:
+                                try:
+                                    payload2 = {"chat_id": chat_id, "text": chunk}
+                                    if markup: payload2["reply_markup"] = markup
+                                    await http.post(_api_url(token, "sendMessage"), json=payload2)
+                                except Exception:
+                                    pass
 
             except httpx.TimeoutException:
                 continue  # Normal — Long-Poll Timeout, sofort neu starten
