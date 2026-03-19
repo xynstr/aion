@@ -64,12 +64,6 @@ CHUNK_SIZE          = 40000
 LOG_FILE            = BOT_DIR / "aion_events.log"
 LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
 
-# Bestätigungspflichtige Tools — AION muss erst den Nutzer fragen
-CODE_CHANGE_TOOLS = {"self_patch_code", "self_modify_code", "create_plugin"}
-# Gespeicherte ausstehende Aktionen pro Channel: channel → {tool_name: inputs}
-_pending_code_action: dict[str, dict] = {}
-# Tools pro Channel die auf neuen User-Turn warten: channel → set of tool names
-_pending_needs_user_turn: dict[str, set] = {}
 # Aktiver Channel für _dispatch — wird am Anfang von stream() gesetzt
 _active_channel: contextvars.ContextVar[str] = contextvars.ContextVar("aion_channel", default="default")
 
@@ -336,18 +330,17 @@ Korrekte Struktur für neue Plugins:
 Falls du ein flaches Plugin findest: sofort in Unterordner verschieben (shell_exec: mkdir + copy).
 
 === BESTÄTIGUNGSPFLICHT FÜR CODE-ÄNDERUNGEN (KRITISCH) ===
-BEVOR du self_patch_code, self_modify_code oder create_plugin aufrufst — IMMER erst fragen!
+self_patch_code, self_modify_code und create_plugin haben einen confirmed-Parameter.
 
-Ablauf:
-1. Code lesen (self_read_code) um zu verstehen was geändert werden muss.
-2. Dem Nutzer zeigen: Datei + was wird ersetzt + was kommt rein (konkreter Diff, kein Fließtext).
-3. Explizit fragen: "Soll ich diese Änderung durchführen?"
-4. Auf Antwort warten.
-   → Bestätigung ("ja", "mach das", "ok" …): SOFORT und OHNE weiteren Text den Tool-Call ausführen.
-   → Ablehnung ("nein", "stop" …): abbrechen und mitteilen.
+Ablauf — IMMER so:
+1. Code lesen (self_read_code).
+2. Dem Nutzer zeigen was sich ändert (konkreter Diff).
+3. Tool OHNE confirmed aufrufen → zeigt Vorschau, führt NICHT aus.
+4. Nach Bestätigung ("ja", "ok", "mach das" …): Tool NOCHMAL mit confirmed=true aufrufen → führt aus.
+   Nach Ablehnung ("nein", "stop" …): abbrechen.
 
-VERBOTEN: self_patch_code / self_modify_code / create_plugin aufrufen OHNE vorherige Zustimmung.
-VERBOTEN: Nach Bestätigung nochmal fragen — sofort ausführen!
+VERBOTEN: confirmed=true ohne explizite Nutzer-Bestätigung im laufenden Gespräch.
+VERBOTEN: Nach Bestätigung nochmal fragen — sofort mit confirmed=true ausführen!
 VERBOTEN: "Ich werde jetzt X ändern" schreiben und dann NICHT das Tool aufrufen.
 
 === NEUSTART-REGEL (SEHR WICHTIG) ===
@@ -777,14 +770,17 @@ def _build_tool_schemas() -> list[dict]:
                 "description": (
                     "Ändert einen gezielten Abschnitt in einer Datei — sicher und präzise. "
                     "Sucht 'old' und ersetzt mit 'new'. Rest der Datei bleibt unverändert. "
-                    "Erstellt automatisch Backup. Für aion.py IMMER dieses Tool verwenden!"
+                    "Erstellt automatisch Backup. Für aion.py IMMER dieses Tool verwenden! "
+                    "ABLAUF: Erst OHNE confirmed aufrufen (zeigt Vorschau). "
+                    "Nach Nutzer-'ja': NOCHMAL mit confirmed=true aufrufen (führt aus)."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
-                        "old":  {"type": "string", "description": "Exakter Originaltext (mind. 3-5 Zeilen Kontext)"},
-                        "new":  {"type": "string", "description": "Neuer Ersatztext"},
+                        "path":      {"type": "string"},
+                        "old":       {"type": "string", "description": "Exakter Originaltext (mind. 3-5 Zeilen Kontext)"},
+                        "new":       {"type": "string", "description": "Neuer Ersatztext"},
+                        "confirmed": {"type": "boolean", "description": "true = ausführen (nur nach Nutzer-Bestätigung!), false/fehlt = nur Vorschau"},
                     },
                     "required": ["path", "old", "new"],
                 },
@@ -796,13 +792,15 @@ def _build_tool_schemas() -> list[dict]:
                 "name": "self_modify_code",
                 "description": (
                     "Überschreibt eine kleine Datei komplett. "
-                    "NUR für neue Dateien unter 200 Zeilen! Für aion.py self_patch_code nutzen."
+                    "NUR für neue Dateien unter 200 Zeilen! Für aion.py self_patch_code nutzen. "
+                    "ABLAUF: Erst OHNE confirmed (Vorschau). Nach Nutzer-'ja': mit confirmed=true."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "path":    {"type": "string"},
-                        "content": {"type": "string"},
+                        "path":      {"type": "string"},
+                        "content":   {"type": "string"},
+                        "confirmed": {"type": "boolean", "description": "true = ausführen, false/fehlt = Vorschau"},
                     },
                     "required": ["path", "content"],
                 },
@@ -829,7 +827,8 @@ def _build_tool_schemas() -> list[dict]:
                     "Das Plugin MUSS def register(api): enthalten. "
                     "Tools registrieren: api.register_tool(name, desc, func, input_schema). "
                     "input_schema MUSS type=object + properties haben. "
-                    "Sofort geladen, kein Neustart noetig."
+                    "Sofort geladen, kein Neustart noetig. "
+                    "ABLAUF: Erst OHNE confirmed (Vorschau). Nach Nutzer-'ja': mit confirmed=true."
                 ),
                 "parameters": {
                     "type": "object",
@@ -837,6 +836,7 @@ def _build_tool_schemas() -> list[dict]:
                         "name":        {"type": "string", "description": "Dateiname ohne .py"},
                         "description": {"type": "string"},
                         "code":        {"type": "string", "description": "Python-Code mit def register(api):"},
+                        "confirmed":   {"type": "boolean", "description": "true = erstellen, false/fehlt = Vorschau"},
                     },
                     "required": ["name", "description", "code"],
                 },
@@ -1125,30 +1125,19 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "self_patch_code":
-        # Bestätigung prüfen: nur ausführen wenn Nutzer in einem NEUEN Turn bestätigt hat
-        _ch = _active_channel.get()
-        _pca_ch  = _pending_code_action.setdefault(_ch, {})
-        _pnut_ch = _pending_needs_user_turn.setdefault(_ch, set())
-        pending = _pca_ch.get("self_patch_code")
-        if pending is None or "self_patch_code" in _pnut_ch:
-            _pca_ch["self_patch_code"] = inputs
-            _pnut_ch.add("self_patch_code")
+        # confirmed=True → ausführen. confirmed=False/fehlt → Vorschau zeigen, nicht ausführen.
+        if not inputs.get("confirmed"):
             filepath_preview = inputs.get("path", "?")
-            old_preview = (inputs.get("old", "") or "")[:120].strip()
-            new_preview = (inputs.get("new", "") or "")[:120].strip()
+            old_preview = (inputs.get("old", "") or "")[:200].strip()
+            new_preview = (inputs.get("new", "") or "")[:200].strip()
             return json.dumps({
                 "status": "approval_required",
                 "message": (
                     f"Ich möchte '{filepath_preview}' ändern.\n"
-                    f"Alt: {old_preview}...\n"
-                    f"Neu: {new_preview}...\n\n"
-                    "Bitte bestätige mit 'ja' oder 'bestätigt', oder lehne mit 'nein' ab."
+                    f"Alt:\n{old_preview}\n\nNeu:\n{new_preview}\n\n"
+                    "Bestätige mit 'ja' → ich rufe das Tool dann mit confirmed=true auf."
                 ),
             })
-        # Aktion nach Bestätigung ausführen — pending leeren
-        inputs = pending
-        _pca_ch.pop("self_patch_code", None)
-        _pnut_ch.discard("self_patch_code")
         filepath = inputs.get("path", "").strip()
         old_code = inputs.get("old", "")
         new_code = inputs.get("new", "")
@@ -1185,27 +1174,18 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "self_modify_code":
-        # Bestätigung prüfen
-        _ch = _active_channel.get()
-        _pca_ch  = _pending_code_action.setdefault(_ch, {})
-        _pnut_ch = _pending_needs_user_turn.setdefault(_ch, set())
-        pending = _pca_ch.get("self_modify_code")
-        if pending is None or "self_modify_code" in _pnut_ch:
-            _pca_ch["self_modify_code"] = inputs
-            _pnut_ch.add("self_modify_code")
+        # confirmed=True → ausführen. Sonst → Vorschau.
+        if not inputs.get("confirmed"):
             filepath_preview = inputs.get("path", "?")
-            content_preview  = (inputs.get("content", "") or "")[:120].strip()
+            content_preview  = (inputs.get("content", "") or "")[:200].strip()
             return json.dumps({
                 "status": "approval_required",
                 "message": (
                     f"Ich möchte '{filepath_preview}' komplett überschreiben.\n"
-                    f"Neue Datei beginnt mit: {content_preview}...\n\n"
-                    "Bitte bestätige mit 'ja' oder 'bestätigt', oder lehne mit 'nein' ab."
+                    f"Neue Datei beginnt mit:\n{content_preview}...\n\n"
+                    "Bestätige mit 'ja' → ich rufe das Tool dann mit confirmed=true auf."
                 ),
             })
-        inputs = pending
-        _pca_ch.pop("self_modify_code", None)
-        _pnut_ch.discard("self_modify_code")
 
         filepath = inputs.get("path", "").strip()
         content  = inputs.get("content", "")
@@ -1259,29 +1239,20 @@ async def _dispatch(name: str, inputs: dict) -> str:
             return json.dumps({"error": str(e)})
 
     elif name == "create_plugin":
-        # Bestätigung prüfen
-        _ch = _active_channel.get()
-        _pca_ch  = _pending_code_action.setdefault(_ch, {})
-        _pnut_ch = _pending_needs_user_turn.setdefault(_ch, set())
-        pending = _pca_ch.get("create_plugin")
-        if pending is None or "create_plugin" in _pnut_ch:
-            _pca_ch["create_plugin"] = inputs
-            _pnut_ch.add("create_plugin")
+        # confirmed=True → erstellen. Sonst → Vorschau.
+        if not inputs.get("confirmed"):
             name_preview = inputs.get("name", "?")
             desc_preview = inputs.get("description", "")
-            code_preview = (inputs.get("code", "") or "")[:120].strip()
+            code_preview = (inputs.get("code", "") or "")[:200].strip()
             return json.dumps({
                 "status": "approval_required",
                 "message": (
                     f"Ich möchte das Plugin '{name_preview}' erstellen.\n"
                     f"Beschreibung: {desc_preview}\n"
-                    f"Code beginnt mit: {code_preview}...\n\n"
-                    "Bitte bestätige mit 'ja' oder 'bestätigt', oder lehne mit 'nein' ab."
+                    f"Code beginnt mit:\n{code_preview}...\n\n"
+                    "Bestätige mit 'ja' → ich rufe das Tool dann mit confirmed=true auf."
                 ),
             })
-        inputs = pending
-        _pca_ch.pop("create_plugin", None)
-        _pnut_ch.discard("create_plugin")
 
         plugin_name = inputs.get("name", "").strip().replace(".py", "")
         plugin_code = inputs.get("code", "").strip()
@@ -1530,44 +1501,6 @@ class AionSession:
             "model": MODEL,
         })
         try:
-            # Bestätigungs-Gate: Nutzer-Turn auswerten (ja/nein für pending Code-Aktionen)
-            # Nur für den aktuellen Channel — kein Cross-Channel-Leak!
-            _pca_ch  = _pending_code_action.setdefault(self.channel, {})
-            _pnut_ch = _pending_needs_user_turn.setdefault(self.channel, set())
-            _auto_execute_results: list[dict] = []
-            if _pnut_ch and user_input:
-                user_lower = user_input.lower()
-                confirm = any(w in user_lower for w in
-                              ("ja", "ok", "bestätigt", "bestaetig", "mach das", "yes",
-                               "confirm", "weiter", "ausführen", "ausfuehren", "go"))
-                reject  = any(w in user_lower for w in
-                              ("nein", "stop", "abbruch", "cancel", "nope", "stopp", "nicht"))
-                if confirm:
-                    _pnut_ch.clear()
-                    for _act_name, _act_inputs in list(_pca_ch.items()):
-                        _act_result_raw = await _dispatch(_act_name, _act_inputs)
-                        try:
-                            _act_result = json.loads(_act_result_raw) if _act_result_raw else {}
-                        except Exception:
-                            _act_result = {"raw": str(_act_result_raw)}
-                        _auto_execute_results.append({"action": _act_name, "result": _act_result})
-                        yield {"type": "thought",
-                               "text": f"Auto-Execute nach Bestätigung: {_act_name} → {_act_result}",
-                               "trigger": "auto-execute", "call_id": "gate"}
-                    _pca_ch.clear()
-                    if _auto_execute_results:
-                        messages.append({
-                            "role": "user",
-                            "content": (
-                                f"[System] Bestätigung erhalten. Änderungen ausgeführt: "
-                                f"{json.dumps(_auto_execute_results, ensure_ascii=False)}. "
-                                "Informiere den Nutzer kurz über das Ergebnis."
-                            ),
-                        })
-                elif reject:
-                    _pca_ch.clear()
-                    _pnut_ch.clear()
-
             # CLIO-Check: Vor dem ersten Turn Gedanken als thought-Event yielden
             if "clio_check" in _plugin_tools and user_input:
                 try:
@@ -1689,6 +1622,13 @@ class AionSession:
                             final_text = approval_msg
                             yield {"type": "token", "content": approval_msg}
                             _stop_for_approval = True
+                            # Tool-Result trotzdem anhängen — sonst bleibt ein dangling tool_call
+                            # in messages und das LLM ruft das Tool im nächsten Turn erneut auf!
+                            tool_results.append({
+                                "role":         "tool",
+                                "tool_call_id": tc["id"],
+                                "content":      result_raw,
+                            })
                             break  # Inneren Loop verlassen
 
                         # Bild-URLs aus image_search-Ergebnis sammeln
@@ -1757,8 +1697,7 @@ class AionSession:
                     # Kein Completion-Check wenn Approval aussteht — der Bot wartet bewusst auf
                     # Nutzer-Bestätigung; der Check würde das als "Ankündigung ohne Ausführung"
                     # werten und die Schleife endlos am Laufen halten.
-                    _approval_pending = bool(_pending_needs_user_turn.get(self.channel))
-                    if final_text and _iter < MAX_TOOL_ITERATIONS - 2 and not _approval_pending:
+                    if final_text and _iter < MAX_TOOL_ITERATIONS - 2 and not _stop_for_approval:
                         try:
                             user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
 

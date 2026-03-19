@@ -39,6 +39,12 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 ### Fix: Telegram Doppel-Antworten nach self_reload_tools
 - Thread-Namen-Check verhindert zweiten Polling-Thread bei Plugin-Reload
 
+### Fix: Approval-Loop bei Code-Änderungen
+- Kompletten Gate-Mechanismus (`_pending_code_action`, `_pending_needs_user_turn`) entfernt
+- Neues System: `confirmed`-Parameter bei `self_patch_code`, `self_modify_code`, `create_plugin`
+- Ohne `confirmed`: zeigt Vorschau. Mit `confirmed=true`: führt aus. Stateless, Loop-proof
+- Nebeneffekt: System-Prompt-Text leckte in Ausgabe wenn Messages-History durch Loop korrupt war
+
 ### Neu: start.bat — visuelles Redesign
 - ASCII-Logo, ANSI-Farben (grün/gelb/rot), Box-Rahmen für jeden Schritt
 - 6-stufige Fortschrittsanzeige mit ✓/!/✗ Symbolen
