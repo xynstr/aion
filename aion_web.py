@@ -44,7 +44,7 @@ def _load_config() -> dict:
         try:
             return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except Exception:
-            pass
+            return {}
     return {}
 
 def _save_config(cfg: dict):
@@ -181,6 +181,39 @@ async def history():
 @app.get("/api/character")
 async def get_character():
     return JSONResponse({"character": _load_character()})
+
+# ── Prompt-Editor API ──────────────────────────────────────────────────────────
+
+_PROMPT_FILES = {
+    "rules":     AION_DIR / "prompts" / "rules.md",
+    "character": AION_DIR / "character.md",
+    "self_doc":  AION_DIR / "AION_SELF.md",
+}
+
+@app.get("/api/prompt/{name}")
+async def get_prompt(name: str):
+    path = _PROMPT_FILES.get(name)
+    if path is None:
+        return JSONResponse({"error": f"Unbekannte Prompt-Datei: {name}"}, status_code=404)
+    try:
+        content = path.read_text(encoding="utf-8") if path.is_file() else ""
+        return JSONResponse({"name": name, "content": content, "path": str(path)})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/api/prompt/{name}")
+async def save_prompt(name: str, request: Request):
+    path = _PROMPT_FILES.get(name)
+    if path is None:
+        return JSONResponse({"error": f"Unbekannte Prompt-Datei: {name}"}, status_code=404)
+    try:
+        body    = await request.json()
+        content = body.get("content", "")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        return JSONResponse({"ok": True, "name": name, "bytes": len(content)})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip()) or \

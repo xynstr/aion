@@ -210,6 +210,44 @@ html, body {
 .tab-content { display: none; flex: 1; overflow-y: auto; padding: 14px 12px; flex-direction: column; gap: 10px; }
 .tab-content.active { display: flex; }
 
+/* Prompt editor tab — eigene Scroll/Padding-Overrides */
+#tab-prompts { overflow: hidden; padding: 10px 12px 12px; gap: 8px; }
+
+.prompt-nav { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.prompt-file-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  padding: 4px 11px; border-radius: 6px; font-size: 11px; cursor: pointer;
+  transition: all .15s; letter-spacing: .5px;
+}
+.prompt-file-btn:hover { border-color: var(--border2); color: var(--text); }
+.prompt-file-btn.active { background: rgba(0,212,170,.08); border-color: var(--accent); color: var(--accent); }
+
+.prompt-editor-wrap { flex: 1; min-height: 0; display: flex; }
+.prompt-editor {
+  flex: 1; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  padding: 12px; border-radius: 8px;
+  font-size: 12px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+  resize: none; outline: none; line-height: 1.55; tab-size: 2;
+  transition: border-color .15s;
+}
+.prompt-editor:focus { border-color: var(--accent); }
+.prompt-editor.dirty { border-color: var(--yellow); }
+
+.prompt-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; padding-top: 6px;
+}
+.prompt-status { font-size: 11px; color: var(--text3); transition: color .2s; }
+.prompt-status.ok  { color: var(--green); }
+.prompt-status.err { color: var(--red); }
+.prompt-save-btn {
+  background: var(--accent); border: none; color: #000; font-size: 11px; font-weight: 700;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: all .15s;
+  letter-spacing: .5px;
+}
+.prompt-save-btn:hover { background: #00ffcc; }
+.prompt-save-btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
+
 /* Empty state */
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -442,6 +480,9 @@ html, body {
           ⚙ Tools
           <span class="tab-count" id="toolCount">0</span>
         </button>
+        <button class="tab-btn" id="tab-prompts-btn" onclick="showTab('prompts')">
+          📝 Prompts
+        </button>
       </div>
 
       <!-- Thoughts tab -->
@@ -460,6 +501,28 @@ html, body {
         </div>
         <!-- Grid-Container für die neuen Tool-Karten -->
         <div class="tools-grid" id="toolsGrid"></div>
+      </div>
+
+      <!-- Prompts tab -->
+      <div class="tab-content" id="tab-prompts">
+        <div class="prompt-nav">
+          <button class="prompt-file-btn active" id="prompt-btn-rules"
+                  onclick="switchPromptFile('rules')">⚙ Regeln</button>
+          <button class="prompt-file-btn" id="prompt-btn-character"
+                  onclick="switchPromptFile('character')">🌱 Charakter</button>
+          <button class="prompt-file-btn" id="prompt-btn-self_doc"
+                  onclick="switchPromptFile('self_doc')">📖 Selbst-Doku</button>
+        </div>
+        <div class="prompt-editor-wrap">
+          <textarea id="promptEditor" class="prompt-editor"
+                    spellcheck="false" placeholder="Laden…"
+                    oninput="onPromptEdit()"></textarea>
+        </div>
+        <div class="prompt-footer">
+          <span id="promptStatus" class="prompt-status"></span>
+          <button class="prompt-save-btn" id="promptSaveBtn"
+                  onclick="savePrompt()">💾 Speichern</button>
+        </div>
       </div>
     </div>
 
@@ -589,6 +652,89 @@ function showTab(name) {
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById(`tab-${name}-btn`).classList.add('active');
   document.getElementById(`tab-${name}`).classList.add('active');
+  if (name === 'prompts' && !_promptLoaded) loadPrompt(_currentPromptFile);
+}
+
+// ── Prompt Editor ─────────────────────────────────────────────────────────────
+let _currentPromptFile = 'rules';
+let _promptLoaded      = false;
+let _promptDirty       = false;
+
+const _PROMPT_LABELS = { rules: '⚙ Regeln', character: '🌱 Charakter', self_doc: '📖 Selbst-Doku' };
+
+function switchPromptFile(name) {
+  if (_promptDirty) {
+    if (!confirm('Ungespeicherte Änderungen verwerfen?')) return;
+  }
+  _currentPromptFile = name;
+  _promptLoaded      = false;
+  _promptDirty       = false;
+  document.querySelectorAll('.prompt-file-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`prompt-btn-${name}`).classList.add('active');
+  loadPrompt(name);
+}
+
+async function loadPrompt(name) {
+  const ta = document.getElementById('promptEditor');
+  const st = document.getElementById('promptStatus');
+  ta.value       = '';
+  ta.placeholder = 'Laden…';
+  st.textContent = '';
+  st.className   = 'prompt-status';
+  try {
+    const r    = await fetch(`/api/prompt/${name}`);
+    const data = await r.json();
+    ta.value       = data.content || '';
+    ta.placeholder = '';
+    ta.classList.remove('dirty');
+    _promptLoaded = true;
+    _promptDirty  = false;
+  } catch (e) {
+    st.textContent = '✗ Fehler beim Laden';
+    st.className   = 'prompt-status err';
+  }
+}
+
+function onPromptEdit() {
+  _promptDirty = true;
+  document.getElementById('promptEditor').classList.add('dirty');
+  const st = document.getElementById('promptStatus');
+  st.textContent = '● Nicht gespeichert';
+  st.className   = 'prompt-status';
+}
+
+async function savePrompt() {
+  const content = document.getElementById('promptEditor').value;
+  const btn     = document.getElementById('promptSaveBtn');
+  const st      = document.getElementById('promptStatus');
+  btn.disabled  = true;
+  st.textContent = 'Speichern…';
+  st.className   = 'prompt-status';
+  try {
+    const r    = await fetch(`/api/prompt/${_currentPromptFile}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      _promptDirty = false;
+      document.getElementById('promptEditor').classList.remove('dirty');
+      st.textContent = '✓ Gespeichert';
+      st.className   = 'prompt-status ok';
+      setTimeout(() => {
+        if (!_promptDirty) { st.textContent = ''; st.className = 'prompt-status'; }
+      }, 2500);
+    } else {
+      st.textContent = `✗ ${data.error || 'Fehler'}`;
+      st.className   = 'prompt-status err';
+    }
+  } catch (e) {
+    st.textContent = '✗ Netzwerkfehler';
+    st.className   = 'prompt-status err';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function updateCounts() {
