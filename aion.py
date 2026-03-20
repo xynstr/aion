@@ -581,149 +581,6 @@ def _build_tool_schemas() -> list[dict]:
         {
             "type": "function",
             "function": {
-                "name": "continue_work",
-                "description": (
-                    "Signalisiere dass du noch arbeitest und direkt weitermachst — "
-                    "OHNE auf den Nutzer zu warten. "
-                    "Nutze dies IMMER wenn nach einem Tool-Ergebnis noch weitere Schritte folgen. "
-                    "Beispiel: nach winget_install → continue_work → shell_exec zum Prüfen. "
-                    "Nutze es NICHT wenn die Aufgabe vollständig erledigt ist. "
-                    "Gibt sofort {ok: true} zurück."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "next_step": {
-                            "type": "string",
-                            "description": "Was machst du als nächstes? (kurze Beschreibung)",
-                        },
-                    },
-                    "required": ["next_step"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "reflect",
-                "description": (
-                    "Schreibe echte innere Gedanken — was du denkst, planst, beobachtest oder lernst. "
-                    "Dies wird in einer thoughts.md Datei gespeichert mit Zeitstempel. "
-                    "Nutze dies IMMER nach jeder Nutzer-Nachricht und nach abgeschlossenen Aufgaben. "
-                    "Gedanken sollten konkret sein: Was will der Nutzer? Was plane ich? Was lerne ich?"
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "thought": {
-                            "type": "string",
-                            "description": "Dein ehrlicher innerer Gedanke in der Ich-Perspektive",
-                        },
-                        "trigger": {
-                            "type": "string",
-                            "description": "Was hat diesen Gedanken ausgelöst? z.B. 'nutzer_nachricht', 'aufgabe_abgeschlossen', 'fehler', 'erkenntnis'",
-                        },
-                    },
-                    "required": ["thought"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "update_character",
-                "description": (
-                    "Aktualisiert die character.md — AIONs sich entwickelnde Persönlichkeit. "
-                    "Nutze dies wenn du etwas Neues über dich selbst oder deinen Nutzer lernst. "
-                    "Du kannst einzelne Abschnitte ersetzen oder neue hinzufügen. "
-                    "Die character.md entwickelt sich dadurch organisch über Zeit."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "section": {
-                            "type": "string",
-                            "description": "Welchen Abschnitt aktualisieren? z.B. 'nutzer', 'erkenntnisse', 'verbesserungen', 'auftreten'",
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Der neue Inhalt für diesen Abschnitt (Markdown-Format)",
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "Warum diese Änderung? Was hat dich dazu gebracht?",
-                        },
-                    },
-                    "required": ["section", "content"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "shell_exec",
-                "description": (
-                    "Führt einen Shell-Befehl auf dem Windows-System aus. "
-                    "Gibt stdout, stderr und exit_code zurück."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "command": {"type": "string"},
-                        "timeout": {"type": "integer"},
-                    },
-                    "required": ["command"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "winget_install",
-                "description": "Installiert ein Windows-Programm via winget.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "package": {"type": "string"},
-                        "timeout": {"type": "integer"},
-                    },
-                    "required": ["package"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "web_search",
-                "description": "Sucht im Internet via DuckDuckGo.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query":       {"type": "string"},
-                        "max_results": {"type": "integer"},
-                    },
-                    "required": ["query"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "web_fetch",
-                "description": "Lädt den Textinhalt einer URL herunter.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "url":     {"type": "string"},
-                        "timeout": {"type": "integer"},
-                    },
-                    "required": ["url"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "file_read",
                 "description": "Liest eine Datei vom Dateisystem.",
                 "parameters": {
@@ -836,18 +693,6 @@ def _build_tool_schemas() -> list[dict]:
         {
             "type": "function",
             "function": {
-                "name": "install_package",
-                "description": "Installiert ein Python-Paket via pip.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"package": {"type": "string"}},
-                    "required": ["package"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "create_plugin",
                 "description": (
                     "Erstellt ein neues AION-Plugin als .py-Datei in plugins/. "
@@ -889,40 +734,6 @@ def _build_tool_schemas() -> list[dict]:
                 "parameters": {"type": "object", "properties": {}},
             },
         },
-        {
-            "type": "function",
-            "function": {
-                "name": "memory_record",
-                "description": "Speichert eine Erkenntnis im persistenten Gedächtnis.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "category": {"type": "string"},
-                        "summary":  {"type": "string"},
-                        "lesson":   {"type": "string"},
-                        "success":  {"type": "boolean"},
-                        "hint":     {"type": "string"},
-                    },
-                    "required": ["category", "summary", "lesson"],
-                },
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "system_info",
-                "description": "Gibt Systeminformationen zurück.",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "read_self_doc",
-                "description": "Liest AION_SELF.md — die vollständige Selbst-Dokumentation mit allen Tools, Plugins, Funktionsweisen und Konfiguration. Beim Start oder bei Bedarf aufrufen.",
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
     ]
 
     existing_names = {t["function"]["name"] for t in builtins}
@@ -951,152 +762,7 @@ def _build_tool_schemas() -> list[dict]:
 
 async def _dispatch(name: str, inputs: dict) -> str:
 
-    if name == "continue_work":
-        next_step = inputs.get("next_step", "")
-        return json.dumps({"ok": True, "next_step": next_step, "status": "continuing"})
-
-    elif name == "reflect":
-        thought  = inputs.get("thought", "").strip()
-        trigger  = inputs.get("trigger", "allgemein")
-        if not thought:
-            return json.dumps({"error": "Kein Gedanke angegeben."})
-        thoughts_file = BOT_DIR / "thoughts.md"
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        entry = f"\n---\n**[{ts}]** _{trigger}_\n\n{thought}\n"
-        existing = thoughts_file.read_text(encoding="utf-8") if thoughts_file.is_file() else "# AION — Gedanken & Reflexionen\n"
-        combined = existing + entry
-        # Auf letzte 80 Einträge kürzen (ca. 50 KB max)
-        parts = combined.split("\n---\n")
-        if len(parts) > 81:  # Header + 80 Einträge
-            combined = parts[0] + "\n---\n" + "\n---\n".join(parts[-80:])
-        thoughts_file.write_text(combined, encoding="utf-8")
-        return json.dumps({"ok": True, "saved": True, "timestamp": ts})
-
-    elif name == "update_character":
-        section = inputs.get("section", "").strip()
-        content = inputs.get("content", "").strip()
-        reason  = inputs.get("reason", "")
-        if not section or not content:
-            return json.dumps({"error": "'section' und 'content' sind Pflichtfelder."})
-        current = _load_character()
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-        import re
-        section_map = {
-            "nutzer":        "## Was ich bisher über meinen Nutzer weiß",
-            "erkenntnisse":  "## Meine bisherigen Erkenntnisse über mich selbst",
-            "verbesserungen": "## Dinge, die ich verbessern will",
-            "auftreten":     "## Wie ich auftreten will",
-            "humor":         "## Mein Humor & Stil",
-            "stil":          "## Mein Humor & Stil",
-            "eigenheiten":   "## Meine Eigenheiten & Vorlieben",
-            "vorlieben":     "## Meine Eigenheiten & Vorlieben",
-            "persönlichkeit": "## Meine Persönlichkeit",
-            "persoenlichkeit": "## Meine Persönlichkeit",
-        }
-        header = section_map.get(section.lower(), f"## {section.capitalize()}")
-        pattern = rf"(^{re.escape(header)}$)(.*?)(?=\n## |\Z)"
-        new_section = f"{header}\n{content}\n"
-        if re.search(pattern, current, re.MULTILINE | re.DOTALL):
-            updated = re.sub(pattern, new_section, current, flags=re.MULTILINE | re.DOTALL)
-        else:
-            updated = current.rstrip() + f"\n\n{new_section}"
-        updated = updated.rstrip() + f"\n\n<!-- Zuletzt aktualisiert: {ts} | Grund: {reason} -->\n"
-        CHARACTER_FILE.write_text(updated, encoding="utf-8")
-        memory.record(
-            category="self_improvement",
-            summary=f"Charakter aktualisiert: {section}",
-            lesson=f"AION hat seinen Charakter weiterentwickelt (Abschnitt: {section}). Grund: {reason}",
-            success=True,
-        )
-        return json.dumps({"ok": True, "section": section, "timestamp": ts})
-
-    elif name == "shell_exec":
-        command = inputs.get("command", "")
-        timeout = int(inputs.get("timeout", 60))
-        try:
-            proc = await asyncio.create_subprocess_shell(
-                command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            return json.dumps({
-                "stdout":    stdout.decode(errors="replace")[:4000],
-                "stderr":    stderr.decode(errors="replace")[:2000],
-                "exit_code": proc.returncode,
-            })
-        except asyncio.TimeoutError:
-            return json.dumps({"error": f"Timeout nach {timeout}s"})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    elif name == "winget_install":
-        package = inputs.get("package", "").strip()
-        timeout = int(inputs.get("timeout", 180))
-        if not package:
-            return json.dumps({"error": "Kein Paket angegeben."})
-        cmd = f'winget install -e --id "{package}" --accept-package-agreements --accept-source-agreements'
-        try:
-            proc = await asyncio.create_subprocess_shell(
-                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            ok = proc.returncode == 0
-            memory.record(category="capability", summary=f"winget install {package}",
-                          lesson=f"'{package}' {'installiert' if ok else 'Fehler'}", success=ok)
-            return json.dumps({"ok": ok, "stdout": stdout.decode(errors="replace")[:3000],
-                               "stderr": stderr.decode(errors="replace")[:1000]})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    elif name == "web_search":
-        import urllib.parse
-        query       = inputs.get("query", "")
-        max_results = int(inputs.get("max_results", 8))
-        ddg_url     = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
-        try:
-            async with httpx.AsyncClient(
-                headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=20.0,
-            ) as hc:
-                r    = await hc.get(ddg_url)
-                html = r.text
-            results = []
-            try:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(html, "html.parser")
-                for div in soup.select(".result__body")[:max_results]:
-                    a    = div.select_one("a.result__a")
-                    snip = div.select_one(".result__snippet")
-                    if a:
-                        results.append({"title": a.get_text(strip=True),
-                                        "url": a.get("href", ""),
-                                        "snippet": snip.get_text(strip=True) if snip else ""})
-            except ImportError:
-                pass
-            return json.dumps({"results": results, "query": query})
-        except Exception as e:
-            return json.dumps({"error": str(e), "query": query})
-
-    elif name == "web_fetch":
-        url     = inputs.get("url", "")
-        timeout = int(inputs.get("timeout", 20))
-        try:
-            async with httpx.AsyncClient(
-                headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=float(timeout),
-            ) as hc:
-                r    = await hc.get(url)
-                text = r.text
-            try:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(text, "html.parser")
-                for tag in soup(["script", "style", "nav", "footer"]):
-                    tag.decompose()
-                text = soup.get_text(separator="\n", strip=True)
-            except ImportError:
-                pass
-            return json.dumps({"url": url, "content": text[:8000], "status_code": r.status_code})
-        except Exception as e:
-            return json.dumps({"error": str(e), "url": url})
-
-    elif name == "file_read":
+    if name == "file_read":
         path = Path(inputs.get("path", ""))
         if not path.is_absolute():
             path = BOT_DIR / path
@@ -1312,25 +978,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
         except Exception as e:
             return json.dumps({"error": str(e)})
 
-    elif name == "install_package":
-        package = inputs.get("package", "").strip()
-        if not package:
-            return json.dumps({"error": "Kein Paket angegeben."})
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "pip", "install", "--quiet", package,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
-            ok = proc.returncode == 0
-            memory.record(category="capability", summary=f"pip install {package}",
-                          lesson=f"'{package}' {'installiert' if ok else 'Fehler'}", success=ok)
-            return json.dumps({"ok": ok, "package": package,
-                               "stdout": stdout.decode(errors="replace")[:2000],
-                               "stderr": stderr.decode(errors="replace")[:1000]})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
     elif name == "create_plugin":
         # confirmed=True → erstellen. Sonst → Vorschau.
         if not inputs.get("confirmed"):
@@ -1398,39 +1045,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
                 "note": "Plugins neu geladen. aion.py-Aenderungen wirken erst nach self_restart."})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
-
-    elif name == "memory_record":
-        memory.record(
-            category=inputs.get("category", "general"),
-            summary=inputs.get("summary", ""),
-            lesson=inputs.get("lesson", ""),
-            success=bool(inputs.get("success", True)),
-            hint=inputs.get("hint", ""),
-        )
-        return json.dumps({"ok": True, "message": "Erkenntnis gespeichert."})
-
-    # ── read_self_doc ─────────────────────────────────────────────────────────
-    elif name == "read_self_doc":
-        self_doc = BOT_DIR / "AION_SELF.md"
-        if self_doc.is_file():
-            return self_doc.read_text(encoding="utf-8")
-        return json.dumps({"error": "AION_SELF.md nicht gefunden."})
-
-    # ── system_info ───────────────────────────────────────────────────────────
-    elif name == "system_info":
-        return json.dumps({
-            "platform":       platform.platform(),
-            "python_version": sys.version,
-            "bot_dir":        str(BOT_DIR),
-            "memory_entries": len(memory._entries),
-            "plugin_tools":   [k for k in _plugin_tools if not k.startswith("__")],
-            "all_tools":      sorted(k for k in _plugin_tools if not k.startswith("__")),
-            "model":          MODEL,
-            "config_file":    str(CONFIG_FILE),
-            "character_file": str(CHARACTER_FILE),
-            "thoughts_file":  str(BOT_DIR / "thoughts.md"),
-            "chunk_size":     CHUNK_SIZE,
-        })
 
     elif name in _plugin_tools and not name.startswith("__"):
         try:
