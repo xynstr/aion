@@ -490,8 +490,9 @@ async def _telegram_worker(token: str):
                             else:
                                 text = "[audio_pipeline-Plugin nicht verfügbar — Sprachnachrichten nicht unterstützt]"
                         except Exception as _ve:
-                            print(f"[Telegram] Voice-Fehler: {_ve}")
-                            text = "[Fehler bei Sprachnachricht-Verarbeitung]"
+                            _err_detail = f"{type(_ve).__name__}: {_ve}"
+                            print(f"[Telegram] Voice-Fehler: {_err_detail}")
+                            text = f"[Fehler bei Sprachnachricht-Verarbeitung — {_err_detail}]"
                         finally:
                             if tmp_audio_path and os.path.exists(tmp_audio_path):
                                 try:

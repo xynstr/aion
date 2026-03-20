@@ -158,6 +158,26 @@ async def set_model(request: Request):
     provider = "gemini" if model.startswith("gemini") else "openai"
     return JSONResponse({"ok": True, "model": model, "provider": provider})
 
+@app.get("/api/history")
+async def history():
+    msgs = []
+    for m in _session.messages:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        content = m.get("content", "")
+        if isinstance(content, list):
+            content = " ".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        if content:
+            msgs.append({"role": role, "content": content})
+    return JSONResponse({"messages": msgs})
+
 @app.get("/api/character")
 async def get_character():
     return JSONResponse({"character": _load_character()})
