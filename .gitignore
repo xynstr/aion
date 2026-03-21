@@ -15,9 +15,13 @@ thoughts.md
 conversation_history.jsonl
 conversation_history.json
 config.json
+aion_status.json
+aion_onboarding_complete.flag
+diagnose_log.txt
 plugins/heartbeat.log
 plugins/todo_list.json
 plugins/scheduler/tasks.json
+plugins/_backups/
 moltbook_credentials.json
 systemcheck_result.txt
 
