@@ -34,6 +34,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -75,9 +76,13 @@ def _convert_to_wav(input_path: str) -> str:
     Caller ist für das Löschen der Datei zuständig.
     """
     if not _ffmpeg_ok():
-        raise RuntimeError(
-            "ffmpeg nicht gefunden. Installiere es mit: winget install Gyan.FFmpeg"
-        )
+        if sys.platform == "win32":
+            hint = "winget install Gyan.FFmpeg"
+        elif sys.platform == "darwin":
+            hint = "brew install ffmpeg"
+        else:
+            hint = "sudo apt-get install ffmpeg"
+        raise RuntimeError(f"ffmpeg not found. Install it with: {hint}")
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
     cmd = [

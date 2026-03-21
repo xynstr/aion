@@ -1,8 +1,7 @@
 """
-shell_tools — Shell, winget, pip (shell_exec, winget_install, install_package)
+shell_tools — shell_exec, system_install, install_package
 
-War früher hardcodiert in aion.py/_dispatch().
-Als Plugin hot-reloadbar per self_reload_tools.
+Cross-platform: Windows (winget), macOS (brew), Linux (apt-get/snap).
 """
 
 import asyncio
@@ -16,7 +15,6 @@ BOT_DIR = Path(__file__).parent.parent.parent
 
 
 def _record_memory(category: str, summary: str, lesson: str, success: bool = True) -> None:
-    """Standalone-Memory-Write: liest Datei, appendiert, speichert."""
     memory_file = BOT_DIR / "aion_memory.json"
     try:
         entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
@@ -53,18 +51,24 @@ def register(api):
                 "exit_code": proc.returncode,
             }
         except asyncio.TimeoutError:
-            return {"error": f"Timeout nach {timeout}s"}
+            return {"error": f"Timeout after {timeout}s"}
         except Exception as e:
             return {"error": str(e)}
 
-    async def _winget_install(package: str = "", timeout: int = 180, **_):
+    async def _system_install(package: str = "", timeout: int = 180, **_):
+        """Install a system package using the platform's package manager."""
         package = package.strip()
         if not package:
-            return {"error": "Kein Paket angegeben."}
-        cmd = (
-            f'winget install -e --id "{package}" '
-            f'--accept-package-agreements --accept-source-agreements'
-        )
+            return {"error": "No package specified."}
+
+        if sys.platform == "win32":
+            cmd = f'winget install -e --id "{package}" --accept-package-agreements --accept-source-agreements'
+        elif sys.platform == "darwin":
+            cmd = f'brew install "{package}"'
+        else:
+            # Linux fallback: try apt-get, then snap
+            cmd = f'apt-get install -y "{package}" 2>/dev/null || snap install "{package}"'
+
         try:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
@@ -75,8 +79,8 @@ def register(api):
             ok = proc.returncode == 0
             _record_memory(
                 category="capability",
-                summary=f"winget install {package}",
-                lesson=f"'{package}' {'installiert' if ok else 'Fehler'}",
+                summary=f"system_install {package}",
+                lesson=f"'{package}' {'installed' if ok else 'failed'} via {cmd.split()[0]}",
                 success=ok,
             )
             return {
@@ -88,9 +92,10 @@ def register(api):
             return {"error": str(e)}
 
     async def _install_package(package: str = "", **_):
+        """Install a Python package via pip."""
         package = package.strip()
         if not package:
-            return {"error": "Kein Paket angegeben."}
+            return {"error": "No package specified."}
         try:
             proc = await asyncio.create_subprocess_exec(
                 sys.executable, "-m", "pip", "install", "--quiet", package,
@@ -102,41 +107,60 @@ def register(api):
             _record_memory(
                 category="capability",
                 summary=f"pip install {package}",
-                lesson=f"'{package}' {'installiert' if ok else 'Fehler bei Installation'}",
+                lesson=f"'{package}' {'installed' if ok else 'failed'}",
                 success=ok,
             )
             return {
-                "ok":     ok,
+                "ok":      ok,
                 "package": package,
-                "stdout": stdout.decode(errors="replace")[:2000],
-                "stderr": stderr.decode(errors="replace")[:1000],
+                "stdout":  stdout.decode(errors="replace")[:2000],
+                "stderr":  stderr.decode(errors="replace")[:1000],
             }
         except Exception as e:
             return {"error": str(e)}
 
-    # ── Tool-Registrierungen ──────────────────────────────────────────────────
+    # ── Tool registrations ────────────────────────────────────────────────────
 
     api.register_tool(
         name="shell_exec",
         description=(
-            "Führt einen Shell-Befehl auf dem Windows-System aus. "
-            "Gibt stdout, stderr und exit_code zurück."
+            "Execute a shell command. Returns stdout, stderr and exit_code. "
+            "Cross-platform: uses /bin/sh on Mac/Linux, cmd.exe on Windows."
         ),
         func=_shell_exec,
         input_schema={
             "type": "object",
             "properties": {
-                "command": {"type": "string"},
-                "timeout": {"type": "integer"},
+                "command": {"type": "string", "description": "Shell command to execute"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default: 60)"},
             },
             "required": ["command"],
         },
     )
 
     api.register_tool(
+        name="system_install",
+        description=(
+            "Install a system package using the platform package manager: "
+            "winget on Windows, brew on macOS, apt-get/snap on Linux. "
+            "For Python packages use install_package instead."
+        ),
+        func=_system_install,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "package": {"type": "string", "description": "Package ID (e.g. 'Gyan.FFmpeg' on Windows, 'ffmpeg' on Mac/Linux)"},
+                "timeout": {"type": "integer", "description": "Timeout in seconds (default: 180)"},
+            },
+            "required": ["package"],
+        },
+    )
+
+    # Keep winget_install as alias for backwards compatibility
+    api.register_tool(
         name="winget_install",
-        description="Installiert ein Windows-Programm via winget.",
-        func=_winget_install,
+        description="Alias for system_install. Use system_install instead.",
+        func=_system_install,
         input_schema={
             "type": "object",
             "properties": {
@@ -149,11 +173,11 @@ def register(api):
 
     api.register_tool(
         name="install_package",
-        description="Installiert ein Python-Paket via pip.",
+        description="Install a Python package via pip. Cross-platform.",
         func=_install_package,
         input_schema={
             "type": "object",
-            "properties": {"package": {"type": "string"}},
+            "properties": {"package": {"type": "string", "description": "Package name (e.g. 'requests')"}},
             "required": ["package"],
         },
     )
