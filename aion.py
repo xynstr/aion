@@ -1129,17 +1129,46 @@ class AionSession:
             _stop_for_approval = False  # Gesetzt wenn Tool approval_required zurückgibt
             _tools_called_this_turn: list[str] = []   # Alle Tools die in diesem Turn aufgerufen wurden
             _task_check_done = False  # Task-Check läuft max. einmal pro Turn
+            _fallback_list = _load_config().get("model_fallback", [])
             for _iter in range(MAX_TOOL_ITERATIONS):
                 tools  = _build_tool_schemas()
-                stream = await _client.chat.completions.create(
-                    model=MODEL,
-                    messages=[{"role": "system", "content": effective}] + messages,
-                    tools=tools,
-                    tool_choice="auto",
-                    max_tokens=4096,
-                    temperature=0.7,
-                    stream=True,
-                )
+
+                # ── Model Failover ─────────────────────────────────────────
+                _tried_fb: set = set()
+                stream = None
+                for _fb_model in ([MODEL] + [m for m in _fallback_list if m != MODEL]):
+                    if _fb_model in _tried_fb:
+                        continue
+                    _tried_fb.add(_fb_model)
+                    _fb_client = _build_client(_fb_model) if _fb_model != MODEL else _client
+                    try:
+                        stream = await _fb_client.chat.completions.create(
+                            model=_fb_model,
+                            messages=[{"role": "system", "content": effective}] + messages,
+                            tools=tools,
+                            tool_choice="auto",
+                            max_tokens=4096,
+                            temperature=0.7,
+                            stream=True,
+                        )
+                        if _fb_model != MODEL:
+                            yield {"type": "thought",
+                                   "text": f"Model '{MODEL}' nicht verfügbar — nutze Fallback '{_fb_model}'",
+                                   "trigger": "failover", "call_id": "failover"}
+                        break
+                    except Exception as _fb_err:
+                        _log_event("provider_failover", {"failed": _fb_model, "error": str(_fb_err)})
+                        yield {"type": "thought",
+                               "text": f"Model '{_fb_model}' fehlgeschlagen: {_fb_err}"
+                                       + (" — versuche nächsten Fallback" if _fallback_list else ""),
+                               "trigger": "failover", "call_id": "failover"}
+                        continue
+
+                if stream is None:
+                    yield {"type": "error",
+                           "message": "Alle Provider fehlgeschlagen. API-Keys und Netzwerk prüfen."}
+                    return
+                # ──────────────────────────────────────────────────────────
 
                 text_content:   str             = ""
                 tool_calls_acc: dict[int, dict] = {}

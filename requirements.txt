@@ -23,3 +23,11 @@ edge-tts>=6.1.0
 pypdf>=4.0.0
 python-docx>=1.1.0
 openpyxl>=3.1.0
+
+# Browser automation (playwright_browser plugin)
+# After install: playwright install chromium
+playwright>=1.40.0
+
+# Messaging channels (optional — je nach gewünschten Kanälen)
+discord.py>=2.3.0          # Discord-Bot (discord_bot plugin)
+slack-bolt>=1.18.0         # Slack-Bot (slack_bot plugin)

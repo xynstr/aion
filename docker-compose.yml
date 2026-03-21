@@ -1,0 +1,19 @@
+services:
+  aion:
+    build: .
+    ports:
+      - "7000:7000"
+    volumes:
+      # Persistente Daten (außerhalb des Containers)
+      - ./.env:/app/.env:ro
+      - ./config.json:/app/config.json
+      - ./aion_memory.json:/app/aion_memory.json
+      - ./thoughts.md:/app/thoughts.md
+      - ./character.md:/app/character.md
+      - ./rules.md:/app/rules.md
+      - ./todo.md:/app/todo.md
+      - ./plugins:/app/plugins          # Hot-Reload möglich
+      - ./aion_events.log:/app/aion_events.log
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

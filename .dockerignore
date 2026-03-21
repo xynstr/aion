@@ -1,0 +1,31 @@
+# Secrets — niemals im Image
+.env
+*.key
+*.pem
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Logs & Runtime-Daten (werden per Volume gemountet)
+aion_events.log
+aion_memory.json
+thoughts.md
+conversation_history.jsonl
+
+# Dev-Tools
+.claude/
+*.bat
+
+# Build-Artefakte
+dist/
+build/
