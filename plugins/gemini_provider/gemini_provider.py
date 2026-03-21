@@ -210,10 +210,28 @@ class _GeminyChatCompletions:
                     flush(contents, "model", parts)
                 continue
 
-            # User-Message
+            # User-Message (text + optional image_url blocks)
             if isinstance(content, list):
-                parts = [t.Part.from_text(text=c.get("text", ""))
-                         for c in content if isinstance(c, dict)]
+                parts = []
+                for c in content:
+                    if not isinstance(c, dict):
+                        continue
+                    if c.get("type") == "text":
+                        parts.append(t.Part.from_text(text=c.get("text", "")))
+                    elif c.get("type") == "image_url":
+                        url = (c.get("image_url") or {}).get("url", "")
+                        if url.startswith("data:"):
+                            # base64 data-URL: "data:<mime>;base64,<data>"
+                            try:
+                                header, b64data = url.split(",", 1)
+                                mime_type = header.split(":")[1].split(";")[0]
+                                import base64 as _b64
+                                raw = _b64.b64decode(b64data)
+                                parts.append(t.Part.from_bytes(data=raw, mime_type=mime_type))
+                            except Exception as img_err:
+                                print(f"[gemini_provider] image decode error: {img_err}")
+                        elif url:
+                            parts.append(t.Part.from_uri(file_uri=url, mime_type="image/jpeg"))
             else:
                 parts = [t.Part.from_text(text=content)] if content else []
 
