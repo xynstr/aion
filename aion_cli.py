@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """
-AION CLI — Interaktive Kommandozeilen-Schnittstelle.
-
-Start:  python aion_cli.py   |   start.bat  →  Modus [2]
+AION CLI  —  aion --cli
+Cross-platform (Windows + macOS + Linux). Requires: rich
 """
 import asyncio
 import os
 import sys
-import threading
-import time
 from pathlib import Path
 
-# UTF-8 auf Windows aktivieren
+# UTF-8 on Windows
 if sys.platform == "win32":
     os.system("chcp 65001 >nul 2>&1")
     try:
@@ -19,212 +16,103 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(Path(__file__).parent)
 
-# ── ANSI Farben ───────────────────────────────────────────────────────────────
-_TTY = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+try:
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from rich.panel import Panel
+    from rich.columns import Columns
+    from rich.text import Text
+    from rich import box as rbox
+except ImportError:
+    print("rich not installed — run: pip install rich")
+    sys.exit(1)
 
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _TTY else text
-
-C_LOGO    = "96;1"
-C_AION    = "96"
-C_TOOL    = "33"
-C_THOUGHT = "35"
-C_ERR     = "91"
-C_DIM     = "90"
-C_BOLD    = "1"
-C_WHITE   = "97"
-C_GREEN   = "92"
-
-# ── Box-Zeichner ──────────────────────────────────────────────────────────────
-_BW = 42   # sichtbare Inhaltsbreite zwischen ║  ...  ║
-
-def _row(label: str, value: str, lc: str = "90", vc: str = "97") -> str:
-    """Erzeugt ║  LABEL   VALUE   ║ (sichtbare Längen korrekt berechnet)."""
-    lbl = f"{label:<11}"
-    val = str(value)
-    used = 11 + 2 + len(val)
-    if used > _BW:
-        val = val[:_BW - 14] + "…"
-        used = _BW
-    pad = " " * (_BW - used)
-    c = f"{_c(lc, lbl)}  {_c(vc, val)}{pad}"
-    return f"  {_c(C_LOGO, '║')}  {c}  {_c(C_LOGO, '║')}"
-
-def _row_plain(text: str, tc: str = "90") -> str:
-    """Erzeugt ║  TEXT   ║ (volle Breite, zentriert od. links)."""
-    vis = len(text)
-    if vis > _BW:
-        text = text[:_BW - 1] + "…"
-        vis  = _BW
-    pad = " " * (_BW - vis)
-    return f"  {_c(C_LOGO, '║')}  {_c(tc, text)}{pad}  {_c(C_LOGO, '║')}"
-
-def _box_top(title: str) -> list[str]:
-    pad = " " * max(0, _BW - len(title))
-    return [
-        f"  {_c(C_LOGO, '╔' + '═' * (_BW + 4) + '╗')}",
-        f"  {_c(C_LOGO, '║')}  {_c('97;1', title)}{pad}  {_c(C_LOGO, '║')}",
-        f"  {_c(C_LOGO, '╠' + '═' * (_BW + 4) + '╣')}",
-    ]
-
-def _box_sep() -> str:
-    return f"  {_c(C_LOGO, '╠' + '═' * (_BW + 4) + '╣')}"
-
-def _box_empty() -> str:
-    return f"  {_c(C_LOGO, '║')}  {' ' * _BW}  {_c(C_LOGO, '║')}"
-
-def _box_bot() -> str:
-    return f"  {_c(C_LOGO, '╚' + '═' * (_BW + 4) + '╝')}"
+console = Console(highlight=False)
 
 
-# ── Stats-Box ─────────────────────────────────────────────────────────────────
-def print_stats(aion_module) -> None:
-    model       = getattr(aion_module, "MODEL", "?")
-    tools_count = len(getattr(aion_module, "_plugin_tools", {}))
+# ── helpers ───────────────────────────────────────────────────────────────────
 
-    mem_str = "?"
+def _stat_panel(label: str, value: str, color: str = "white") -> Panel:
+    return Panel(
+        Text(str(value), style=color, justify="center"),
+        title=f"[dim]{label}[/dim]",
+        border_style="bright_black",
+        padding=(0, 2),
+        expand=True,
+    )
+
+
+def print_header(aion_module) -> None:
+    model  = getattr(aion_module, "MODEL", "?")
+    n_tool = len(getattr(aion_module, "_plugin_tools", {}))
     try:
         mem = getattr(aion_module, "memory", None)
-        if mem and hasattr(mem, "_entries"):
-            mem_str = f"{len(mem._entries)} Einträge"
+        n_mem = len(mem._entries) if mem and hasattr(mem, "_entries") else 0
     except Exception:
-        pass
-
-    todo_str = "?"
+        n_mem = 0
     try:
-        from pathlib import Path
         tf = Path(__file__).parent / "todo.md"
-        if tf.exists():
-            n = sum(1 for l in tf.read_text(encoding="utf-8").splitlines()
-                    if l.strip().startswith("- [ ]"))
-            todo_str = f"{n} offen" if n else _c(C_GREEN, "alle erledigt ✓")
+        n_todo = sum(1 for l in tf.read_text(encoding="utf-8").splitlines()
+                     if l.strip().startswith("- [ ]")) if tf.exists() else 0
     except Exception:
-        pass
+        n_todo = 0
 
-    for line in _box_top("AION  ·  CLI"):
-        print(line)
-    print(_row("Modell",  model,       "90", C_AION))
-    print(_row("Tools",   tools_count, "90", C_WHITE))
-    print(_row("Memory",  mem_str,     "90", C_WHITE))
-    print(_row("Todos",   todo_str,    "90", C_WHITE))
-    print(_box_sep())
-    print(_row_plain("/help · /stats · /clear · /model · exit", "90"))
-    print(_box_bot())
-    print()
-
-
-# ── Boot-Spinner (Thread) ─────────────────────────────────────────────────────
-_boot_active = False
-_SPIN_F  = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
-_STAGES  = [
-    "Kern initialisieren  ",
-    "Plugins laden        ",
-    "Gedächtnis lesen     ",
-    "Konfiguration prüfen ",
-]
-
-def _boot_spin():
-    fi = 0
-    t0 = time.time()
-    while _boot_active:
-        elapsed = time.time() - t0
-        si   = min(int(elapsed / 1.4), len(_STAGES) - 1)
-        line = f"  {_c(C_AION, _SPIN_F[fi % len(_SPIN_F)])}  {_c(C_DIM, _STAGES[si])}"
-        sys.stdout.write(f"\r{line}")
-        sys.stdout.flush()
-        fi  += 1
-        time.sleep(0.07)
-    sys.stdout.write("\r" + " " * 55 + "\r")
-    sys.stdout.flush()
+    console.print()
+    console.print(Panel(
+        Text("AION", style="bold cyan", justify="center"),
+        subtitle="[dim]Autonomous Intelligent Operations Node[/dim]",
+        border_style="cyan",
+        padding=(0, 4),
+    ))
+    console.print(Columns([
+        _stat_panel("Model",  model,         "cyan"),
+        _stat_panel("Tools",  n_tool,        "white"),
+        _stat_panel("Memory", n_mem,         "white"),
+        _stat_panel("Todos",  n_todo or "✓", "green" if not n_todo else "white"),
+    ], equal=True, expand=True))
+    console.print()
+    console.print(
+        "  [dim]/help[/dim]  [dim]/stats[/dim]  "
+        "[dim]/clear[/dim]  [dim]/model[/dim]  "
+        "[dim]exit[/dim]"
+    )
+    console.print()
 
 
-# ── Thinking-Spinner (Asyncio-Task) ──────────────────────────────────────────
-async def _think_spin():
-    fi = 0
-    try:
-        while True:
-            f = _SPIN_F[fi % len(_SPIN_F)]
-            sys.stdout.write(f"\r  {_c(C_DIM, f)}  {_c(C_DIM, 'denkt...')}")
-            sys.stdout.flush()
-            fi += 1
-            await asyncio.sleep(0.07)
-    except asyncio.CancelledError:
-        sys.stdout.write("\r" + " " * 25 + "\r")
-        sys.stdout.flush()
+# ── main loop ─────────────────────────────────────────────────────────────────
 
+async def main() -> None:
+    console.print()
 
-async def _cancel_spinner(task) -> None:
-    """Spinner-Task sauber beenden und auf Abschluss warten."""
-    if task and not task.done():
-        task.cancel()
+    # ── load AION ─────────────────────────────────────────────────────────────
+    with console.status("[cyan]Loading AION…[/cyan]", spinner="dots"):
         try:
-            await task
-        except asyncio.CancelledError:
-            pass
+            import aion as _aion
+        except ImportError as e:
+            console.print(f"[red]Import error:[/red] {e}")
+            console.print("[dim]Run from the AION directory.[/dim]")
+            return
 
+    console.print("[green]✓[/green] [dim]AION ready[/dim]")
 
-# ── Haupt-Loop ────────────────────────────────────────────────────────────────
-async def main():
-    global _boot_active
+    print_header(_aion)
 
-    # ── Onboarding (einmalig) ──────────────────────────────────────────────
-    _flag = Path(__file__).parent / "aion_onboarding_complete.flag"
-    if not _flag.exists():
-        import subprocess as _sp
-        _ob = Path(__file__).parent / "onboarding.py"
-        if _ob.exists():
-            result = _sp.run([sys.executable, str(_ob)])
-            if result.returncode != 0:
-                print(_c(C_ERR, "  Onboarding abgebrochen."))
-                return
-        print()
-
-    # ── Banner ────────────────────────────────────────────────────────────────
-    print()
-    print(f"  {_c(C_LOGO, '╔' + '═' * (_BW + 4) + '╗')}")
-    print(f"  {_c(C_LOGO, '║')}  {_c('97;1', 'AION')}{_c(C_DIM, '  ·  CLI-Modus')}{' ' * 21}  {_c(C_LOGO, '║')}")
-    print(f"  {_c(C_LOGO, '╚' + '═' * (_BW + 4) + '╝')}")
-    print()
-
-    # ── AION laden (mit Spinner) ──────────────────────────────────────────────
-    _boot_active = True
-    spin = threading.Thread(target=_boot_spin, daemon=True)
-    spin.start()
-
-    try:
-        import aion as _aion
-    except ImportError as e:
-        _boot_active = False
-        spin.join(0.4)
-        print(_c(C_ERR, f"  ✗  Import-Fehler: {e}"))
-        print(_c(C_DIM, "  Starte aus dem AION-Verzeichnis."))
-        return
-
-    _boot_active = False
-    spin.join(0.3)
-    print(f"  {_c(C_GREEN, '✓')}  {_c(C_DIM, 'AION bereit')}")
-    print()
-
-    # ── Stats-Box ─────────────────────────────────────────────────────────────
-    print_stats(_aion)
-
-    # ── Session ───────────────────────────────────────────────────────────────
     session = _aion.AionSession(channel="cli")
     try:
         await session.load_history(num_entries=20)
     except Exception:
         pass
 
-    # ── Interaktions-Schleife ─────────────────────────────────────────────────
+    # ── repl ──────────────────────────────────────────────────────────────────
     while True:
-        print(_c(C_DIM, "  " + "─" * (_BW + 2)))
+        console.print("[dim]" + "─" * console.width + "[/dim]")
 
         try:
-            user_input = input(f"  {_c('97;1', 'Du')} {_c(C_DIM, '›')} ").strip()
+            user_input = input("  You › ").strip()
         except (EOFError, KeyboardInterrupt):
-            print(f"\n\n  {_c(C_DIM, 'Sitzung beendet. 👋')}")
+            console.print("\n[dim]  Session ended.[/dim]")
             break
 
         if not user_input:
@@ -232,126 +120,120 @@ async def main():
 
         cmd = user_input.lower()
 
-        # Integrierte Befehle
-        if cmd in ("exit", "quit", "beenden", "bye", "/exit"):
-            print(f"\n  {_c(C_DIM, 'Sitzung beendet. 👋')}")
+        if cmd in ("exit", "quit", "bye", "/exit"):
+            console.print("[dim]  Session ended.[/dim]")
             break
 
         if cmd in ("/help", "help", "?"):
-            print()
-            helps = [
-                ("exit / quit",   "Sitzung beenden"),
-                ("/help",         "Diese Hilfe"),
-                ("/clear",        "Terminal leeren"),
-                ("/model",        "Aktives Modell"),
-                ("/stats",        "Statistiken"),
-            ]
-            for k, v in helps:
-                print(f"  {_c(C_DIM, f'{k:<18}')}{_c('90', v)}")
-            print()
+            console.print(Panel(
+                "\n".join([
+                    "[cyan]exit[/cyan] / [cyan]quit[/cyan]   End session",
+                    "[cyan]/help[/cyan]           This help",
+                    "[cyan]/clear[/cyan]          Clear terminal",
+                    "[cyan]/model[/cyan]          Show active model",
+                    "[cyan]/stats[/cyan]          Show statistics",
+                ]),
+                title="Commands", border_style="bright_black", padding=(0, 2),
+            ))
             continue
 
         if cmd == "/clear":
-            os.system("cls" if os.name == "nt" else "clear")
-            print_stats(_aion)
+            console.clear()
+            print_header(_aion)
             continue
 
         if cmd == "/model":
-            model = getattr(_aion, "MODEL", "?")
-            print(f"\n  {_c(C_DIM, 'Modell:')}  {_c(C_AION, model)}\n")
+            console.print(f"\n  [dim]Model:[/dim]  [cyan]{getattr(_aion, 'MODEL', '?')}[/cyan]\n")
             continue
 
         if cmd == "/stats":
-            print()
-            print_stats(_aion)
+            console.print()
+            print_header(_aion)
             continue
 
-        # ── Antwort streamen ──────────────────────────────────────────────────
-        print()
-        aion_text_started = False
-        spin_task         = None
+        # ── stream response ───────────────────────────────────────────────────
+        console.print()
+        response_buffer = []
+        tool_lines      = []
+        in_response     = False
 
-        if _TTY:
-            spin_task = asyncio.create_task(_think_spin())
+        with console.status("[dim]Thinking…[/dim]", spinner="dots") as status:
+            try:
+                async for event in session.stream(user_input):
+                    etype = event.get("type")
 
-        try:
-            async for event in session.stream(user_input):
-                etype = event.get("type")
+                    if etype == "thought":
+                        text    = (event.get("text") or "").replace("\n", " ").strip()
+                        trigger = event.get("trigger", "")
+                        trig    = f" [dim italic][{trigger}][/dim italic]" if trigger else ""
+                        status.update(f"[magenta]💭  {text[:80]}[/magenta]{trig}")
 
-                # Spinner beim ersten Event stoppen
-                if spin_task:
-                    await _cancel_spinner(spin_task)
-                    spin_task = None
+                    elif etype == "tool_call":
+                        name     = event.get("tool", "")
+                        args     = event.get("args", {})
+                        args_str = str(args)
+                        if len(args_str) > 60:
+                            args_str = args_str[:60] + "…"
+                        tool_lines.append((name, args_str, None))
+                        status.update(f"[yellow]⚙  {name}[/yellow]")
 
-                if etype == "thought":
-                    text    = event.get("text", "")
-                    trigger = event.get("trigger", "")
-                    preview = text.replace("\n", " ").strip()
-                    if len(preview) > _BW - 2:
-                        preview = preview[:_BW - 5] + "…"
-                    trig = f"  {_c(C_DIM, '[' + trigger + ']')}" if trigger else ""
-                    print(f"  {_c(C_THOUGHT, '💭')}  {_c(C_THOUGHT, preview)}{trig}")
+                    elif etype == "tool_result":
+                        ok     = event.get("ok", True)
+                        result = str(event.get("result", {}))
+                        if len(result) > 80:
+                            result = result[:80] + "…"
+                        if tool_lines:
+                            last = tool_lines[-1]
+                            tool_lines[-1] = (last[0], last[1], (ok, result))
 
-                elif etype == "token":
-                    if not aion_text_started:
-                        print(f"  {_c('96;1', 'AION')} {_c(C_DIM, '›')} ", end="", flush=True)
-                        aion_text_started = True
-                    sys.stdout.write(_c(C_AION, event.get("content", "")))
-                    sys.stdout.flush()
+                    elif etype == "token":
+                        token = event.get("content", "")
+                        if token:
+                            response_buffer.append(token)
 
-                elif etype == "tool_call":
-                    name     = event.get("tool", "")
-                    args     = event.get("args", {})
-                    args_str = str(args)
-                    if len(args_str) > 55:
-                        args_str = args_str[:55] + "…"
-                    print(f"  {_c(C_TOOL, '⚙')}  "
-                          f"{_c(C_TOOL, name)}"
-                          f"{_c(C_DIM, f'({args_str})')}",
-                          end="  ", flush=True)
+                    elif etype in ("done", "error"):
+                        break
 
-                elif etype == "tool_result":
-                    ok     = event.get("ok", True)
-                    result = event.get("result", {})
-                    r_str  = str(result)
-                    if len(r_str) > 80:
-                        r_str = r_str[:80] + "…"
-                    sym = _c(C_GREEN, "✓") if ok else _c(C_ERR, "✗")
-                    col = C_DIM if ok else C_ERR
-                    print(f"{sym}  {_c(col, r_str)}")
+            except KeyboardInterrupt:
+                console.print("\n[dim]  (Interrupted)[/dim]")
+                console.print()
+                continue
 
-                elif etype == "done":
-                    if aion_text_started:
-                        print()
-                    break
+            except Exception as e:
+                console.print(f"\n[red]  ✗  {e}[/red]")
+                console.print()
+                continue
 
-                elif etype == "error":
-                    if aion_text_started:
-                        print()
-                    print(f"  {_c(C_ERR, '✗')}  {_c(C_ERR, event.get('message', '?'))}")
-                    break
+        # ── print tool calls ──────────────────────────────────────────────────
+        for name, args_str, outcome in tool_lines:
+            line = Text()
+            line.append("  ⚙  ", style="yellow")
+            line.append(name, style="bold yellow")
+            line.append(f"({args_str})", style="dim")
+            if outcome is not None:
+                ok, res = outcome
+                line.append("  →  ", style="dim")
+                line.append(("✓" if ok else "✗"), style="green" if ok else "red")
+                line.append(f"  {res}", style="dim")
+            console.print(line)
 
-        except KeyboardInterrupt:
-            await _cancel_spinner(spin_task)
-            if aion_text_started:
-                print()
-            print(_c(C_DIM, "  (Unterbrochen)"))
+        if tool_lines:
+            console.print()
 
-        except Exception as e:
-            await _cancel_spinner(spin_task)
-            if aion_text_started:
-                print()
-            print(f"  {_c(C_ERR, '✗')}  {_c(C_ERR, str(e))}")
+        # ── print response ────────────────────────────────────────────────────
+        if response_buffer:
+            full = "".join(response_buffer)
+            console.print(Text("  AION › ", style="bold cyan"), end="")
+            try:
+                console.print(Markdown(full))
+            except Exception:
+                console.print(full)
 
-        finally:
-            if spin_task and not spin_task.done():
-                spin_task.cancel()
-
-        print()
+        console.print()
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print(_c(C_DIM, "\n  Sitzung beendet."))
+        console.print("[dim]\n  Session ended.[/dim]")
