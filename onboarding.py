@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-AION Onboarding — Einmaliger Setup-Wizard.
-Wird automatisch beim ersten Start aufgerufen.
+AION Onboarding — First-run Setup Wizard.
+Automatically called on first start.
 """
 import os
 import sys
 import json
 import re
 
-# UTF-8 auf Windows
+# UTF-8 on Windows
 if sys.platform == "win32":
     os.system("chcp 65001 >nul 2>&1")
     try:
@@ -23,7 +23,7 @@ from pathlib import Path
 
 BOT_DIR = Path(__file__).parent
 
-# ── ANSI Farben ───────────────────────────────────────────────────────────────
+# ── ANSI Colors ───────────────────────────────────────────────────────────────
 _TTY = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 def _c(code: str, text: str) -> str:
@@ -38,7 +38,7 @@ C_DIM    = "90"
 C_WHITE  = "97"
 C_LOGO   = "96;1"
 
-# ── Hilfs-Funktionen ──────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def ok(msg: str) -> None:
     print(f"  {_c(C_GREEN, '[OK]')}  {msg}")
@@ -53,7 +53,6 @@ def info(msg: str) -> None:
     print(f"  {_c(C_DIM, '...')}  {msg}")
 
 def ask(prompt: str, default: str = "") -> str:
-    """Zeigt Prompt, liest Eingabe, gibt Default zurück wenn leer."""
     hint = f" [{_c(C_DIM, default)}]" if default else ""
     try:
         val = input(f"  {_c(C_CYAN, prompt)}{hint}: ").strip()
@@ -62,7 +61,6 @@ def ask(prompt: str, default: str = "") -> str:
     return val if val else default
 
 def ask_hidden(prompt: str) -> str:
-    """Versteckte Eingabe für API-Keys."""
     try:
         import getpass
         val = getpass.getpass(f"  {_c(C_CYAN, prompt)}: ")
@@ -77,24 +75,103 @@ def section(title: str, step: str) -> None:
     print(f"  {_c(C_LOGO, '====================================================')} ")
     print()
 
-# ── Modell-Tabelle ────────────────────────────────────────────────────────────
-MODELS = {
-    "gemini": [
-        ("gemini-2.5-pro",        "Beste Qualitaet  · tiefes Reasoning  · langsam"),
-        ("gemini-2.5-flash",      "Schnell & guenstig  (empfohlen)"),
-        ("gemini-2.0-flash",      "Stabil & zuverlaessig"),
-        ("gemini-2.0-flash-lite", "Ultra-schnell  · minimale Kosten"),
-    ],
-    "openai": [
-        ("gpt-4.1",     "OpenAI Flagship  · beste Qualitaet"),
-        ("gpt-4o",      "Multimodal  · Bilder & Audio"),
-        ("o3",          "Deep Reasoning  · langsam & teuer"),
-        ("o4-mini",     "Schnelles Reasoning  · guenstig  (empfohlen)"),
-        ("gpt-4o-mini", "Ultra-schnell  · minimal"),
-    ],
-}
+# ── Provider & Model Registry ─────────────────────────────────────────────────
 
-DEFAULT_MODELS = {"gemini": "gemini-2.5-flash", "openai": "o4-mini"}
+PROVIDERS = {
+    "gemini": {
+        "label":    "Google Gemini",
+        "note":     "Free tier available · fast · recommended",
+        "key_env":  "GEMINI_API_KEY",
+        "key_url":  "https://aistudio.google.com/app/apikey",
+        "key_fmt":  "AIza",
+        "key_hint": "Format: AIza...",
+        "models": [
+            ("gemini-2.5-pro",           "Best quality  · deep reasoning  · slow"),
+            ("gemini-2.5-flash",         "Fast & affordable  (recommended)"),
+            ("gemini-2.5-flash-lite",    "Ultra-fast  · minimal cost"),
+            ("gemini-2.0-flash",         "Stable & reliable"),
+        ],
+        "default_model": "gemini-2.5-flash",
+    },
+    "openai": {
+        "label":    "OpenAI",
+        "note":     "GPT-4.1, o3, o4-mini ...",
+        "key_env":  "OPENAI_API_KEY",
+        "key_url":  "https://platform.openai.com/api-keys",
+        "key_fmt":  "sk-",
+        "key_hint": "Format: sk-...",
+        "models": [
+            ("gpt-4.1",      "OpenAI flagship  · best quality"),
+            ("gpt-4.1-mini", "Faster GPT-4.1  · affordable"),
+            ("gpt-4o",       "Multimodal  · images & audio"),
+            ("o3",           "Deep reasoning  · slow & expensive"),
+            ("o4-mini",      "Fast reasoning  · affordable  (recommended)"),
+            ("gpt-4o-mini",  "Ultra-fast  · minimal cost"),
+        ],
+        "default_model": "o4-mini",
+    },
+    "deepseek": {
+        "label":    "DeepSeek",
+        "note":     "Very fast · very cheap · strong reasoning",
+        "key_env":  "DEEPSEEK_API_KEY",
+        "key_url":  "https://platform.deepseek.com",
+        "key_fmt":  "sk-",
+        "key_hint": "Format: sk-...",
+        "models": [
+            ("deepseek-chat",     "DeepSeek V3 · best for general tasks"),
+            ("deepseek-reasoner", "DeepSeek R1 · math / code / reasoning"),
+        ],
+        "default_model": "deepseek-chat",
+    },
+    "anthropic": {
+        "label":    "Anthropic (Claude)",
+        "note":     "Claude Sonnet/Opus/Haiku · strong coding",
+        "key_env":  "ANTHROPIC_API_KEY",
+        "key_url":  "https://console.anthropic.com/settings/keys",
+        "key_fmt":  "sk-ant-",
+        "key_hint": "Format: sk-ant-...",
+        "models": [
+            ("claude-opus-4-6",           "Most capable  · slow · expensive"),
+            ("claude-sonnet-4-6",         "Best balance  · fast  (recommended)"),
+            ("claude-haiku-4-5-20251001", "Fastest  · cheapest"),
+            ("claude-3-5-sonnet-20241022","Claude 3.5 Sonnet (stable)"),
+        ],
+        "default_model": "claude-sonnet-4-6",
+    },
+    "grok": {
+        "label":    "xAI Grok",
+        "note":     "Grok 3 · real-time knowledge",
+        "key_env":  "XAI_API_KEY",
+        "key_url":  "https://console.x.ai",
+        "key_fmt":  "xai-",
+        "key_hint": "Format: xai-...",
+        "models": [
+            ("grok-3",      "Grok 3 flagship"),
+            ("grok-3-mini", "Grok 3 Mini · fast & cheap"),
+            ("grok-2",      "Grok 2 (previous gen)"),
+        ],
+        "default_model": "grok-3",
+    },
+    "ollama": {
+        "label":    "Ollama (local)",
+        "note":     "100% offline · no API key · any model",
+        "key_env":  None,
+        "key_url":  "https://ollama.com/download",
+        "key_fmt":  None,
+        "key_hint": "No API key needed",
+        "models": [
+            ("ollama/llama3.2",       "Meta Llama 3.2 · 3B · fast"),
+            ("ollama/llama3.1:8b",    "Meta Llama 3.1 · 8B · good quality"),
+            ("ollama/qwen2.5",        "Alibaba Qwen 2.5 · strong multilingual"),
+            ("ollama/deepseek-r1:8b", "DeepSeek R1 distilled · reasoning"),
+            ("ollama/mistral",        "Mistral 7B"),
+            ("ollama/phi4",           "Microsoft Phi-4"),
+            ("ollama/gemma3",         "Google Gemma 3"),
+            ("ollama/codellama",      "Meta Code Llama · coding"),
+        ],
+        "default_model": "ollama/llama3.2",
+    },
+}
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 
@@ -102,298 +179,326 @@ def banner() -> None:
     print()
     print(_c(C_LOGO, "  ===================================================="))
     print(_c(C_LOGO, "  =                                                  ="))
-    print(_c(C_LOGO, "  =   AION  --  Erster Start: Einrichtung            ="))
+    print(_c(C_LOGO, "  =   AION  --  First Start: Setup                   ="))
     print(_c(C_LOGO, "  =                                                  ="))
     print(_c(C_LOGO, "  ===================================================="))
     print()
-    print(f"  {_c(C_WHITE, 'Willkommen! Dieser Assistent wird AION einmalig einrichten.')}")
-    print(f"  {_c(C_DIM, 'Alle Einstellungen koennen spaeter in .env und config.json geaendert werden.')}")
+    print(f"  {_c(C_WHITE, 'Welcome! This wizard sets up AION once.')}")
+    print(f"  {_c(C_DIM, 'All settings can be changed later in .env and config.json.')}")
     print()
 
-# ── Schritt 1: Provider ───────────────────────────────────────────────────────
+# ── Step 1: Primary Provider ──────────────────────────────────────────────────
 
 def step1_provider() -> str:
-    section("KI-Provider waehlen", "Schritt 1/6:")
-    print(f"  {_c(C_DIM, 'Waehle deinen bevorzugten KI-Anbieter:')}")
-    print()
-    print(f"    {_c(C_WHITE, '1')}  {_c(C_CYAN, 'Google Gemini')}   {_c(C_DIM, '(empfohlen · guenstiger · schneller)')}")
-    print(f"    {_c(C_WHITE, '2')}  {_c(C_CYAN, 'OpenAI')}          {_c(C_DIM, '(GPT-4.1, o3, o4-mini ...)')}")
+    section("Choose your primary AI provider", "Step 1/7:")
+    print(f"  {_c(C_DIM, 'This will be the default model. You can add more providers in step 2.')}")
     print()
 
-    while True:
-        choice = ask("Eingabe (1/2)", "1")
-        if choice == "1":
-            return "gemini"
-        elif choice == "2":
-            return "openai"
-        else:
-            warn("Bitte 1 oder 2 eingeben.")
+    provider_list = list(PROVIDERS.keys())
+    for i, pid in enumerate(provider_list, 1):
+        p = PROVIDERS[pid]
+        num   = _c(C_WHITE, str(i))
+        label = _c(C_CYAN, f"{p['label']:<26}")
+        note  = _c(C_DIM, p["note"])
+        key_note = _c(C_DIM, "(no key needed)") if not p["key_env"] else ""
+        print(f"    {num}  {label}  {note}  {key_note}")
 
-# ── Schritt 2: API-Key ────────────────────────────────────────────────────────
-
-def step2_apikey(provider: str) -> str:
-    section("API-Key eingeben", "Schritt 2/6:")
-
-    if provider == "gemini":
-        print(f"  {_c(C_DIM, 'Kostenlos erstellen unter:')}")
-        print(f"  {_c(C_CYAN, 'https://aistudio.google.com/app/apikey')}")
-        print(f"  {_c(C_DIM, 'Format: AIza...')}")
-    else:
-        print(f"  {_c(C_DIM, 'Key erstellen unter:')}")
-        print(f"  {_c(C_CYAN, 'https://platform.openai.com/api-keys')}")
-        print(f"  {_c(C_DIM, 'Format: sk-...')}")
     print()
 
     while True:
-        api_key = ask_hidden("API-Key eingeben")
+        choice = ask(f"Choice (1-{len(provider_list)})", "1")
+        if choice.isdigit() and 1 <= int(choice) <= len(provider_list):
+            return provider_list[int(choice) - 1]
+        warn(f"Please enter a number between 1 and {len(provider_list)}.")
+
+# ── Step 2: Primary API Key ───────────────────────────────────────────────────
+
+def _ask_api_key(provider_id: str) -> str:
+    p = PROVIDERS[provider_id]
+    if not p["key_env"]:
+        # Ollama: no key needed
+        info(f"Ollama uses local models — no API key required.")
+        info(f"Install from: {p['key_url']}")
+        info(f"Then run: ollama pull llama3.2")
+        return "ollama"
+
+    print(f"  {_c(C_DIM, 'Create key at:')}")
+    print(f"  {_c(C_CYAN, p['key_url'])}")
+    print(f"  {_c(C_DIM, p['key_hint'])}")
+    print()
+
+    while True:
+        api_key = ask_hidden(f"API key for {p['label']}")
         if not api_key:
-            warn("API-Key darf nicht leer sein.")
+            warn("API key cannot be empty.")
             continue
-
-        # Format-Validierung (soft warning)
-        if provider == "gemini" and not api_key.startswith("AIza"):
-            warn("Key beginnt nicht mit 'AIza' -- bist du sicher? (weiter mit Enter, neu eingeben mit n)")
-            confirm = ask("Trotzdem verwenden? (j/n)", "j")
+        if p["key_fmt"] and not api_key.startswith(p["key_fmt"]):
+            warn(f"Key does not start with '{p['key_fmt']}' — are you sure?")
+            confirm = ask("Use anyway? (y/n)", "y")
             if confirm.lower() == "n":
                 continue
-        elif provider == "openai" and not api_key.startswith("sk-"):
-            warn("Key beginnt nicht mit 'sk-' -- bist du sicher? (weiter mit Enter, neu eingeben mit n)")
-            confirm = ask("Trotzdem verwenden? (j/n)", "j")
-            if confirm.lower() == "n":
-                continue
-
         return api_key
 
-# ── Schritt 3: Modell ─────────────────────────────────────────────────────────
+def step2_apikey(provider: str) -> str:
+    section(f"API key for {PROVIDERS[provider]['label']}", "Step 2/7:")
+    return _ask_api_key(provider)
+
+# ── Step 3: Model ─────────────────────────────────────────────────────────────
 
 def step3_model(provider: str) -> str:
-    section("Modell waehlen", "Schritt 3/6:")
+    section("Choose a model", "Step 3/7:")
+    p = PROVIDERS[provider]
+    model_list    = p["models"]
+    default_model = p["default_model"]
 
-    model_list = MODELS[provider]
-    default_model = DEFAULT_MODELS[provider]
-
-    print(f"  {_c(C_DIM, 'Verfuegbare Modelle fuer')} {_c(C_CYAN, provider)}:")
+    print(f"  {_c(C_DIM, 'Available models for')} {_c(C_CYAN, p['label'])}:")
     print()
 
     for i, (name, desc) in enumerate(model_list, 1):
         is_default = name == default_model
         marker = _c(C_GREEN, " *") if is_default else "  "
-        num = _c(C_WHITE, str(i))
-        model_name = _c(C_CYAN, f"{name:<26}")
-        description = _c(C_DIM, desc)
-        print(f"    {marker} {num}  {model_name}  {description}")
+        num    = _c(C_WHITE, str(i))
+        mname  = _c(C_CYAN, f"{name:<36}")
+        mdesc  = _c(C_DIM, desc)
+        print(f"    {marker} {num}  {mname}  {mdesc}")
 
     print()
-    print(f"  {_c(C_DIM, '* = Standard  |  Zahl eingeben oder Modellnamen direkt tippen')}")
+    print(f"  {_c(C_DIM, '* = default  |  Enter number or model name directly')}")
     print()
 
     default_idx = next(
-        (str(i) for i, (n, _) in enumerate(model_list, 1) if n == default_model),
-        "1"
+        (str(i) for i, (n, _) in enumerate(model_list, 1) if n == default_model), "1"
     )
 
     while True:
-        choice = ask(f"Modell (1-{len(model_list)})", default_idx)
-
-        # Nummer eingegeben
+        choice = ask(f"Model (1-{len(model_list)})", default_idx)
         if choice.isdigit():
             idx = int(choice)
             if 1 <= idx <= len(model_list):
                 return model_list[idx - 1][0]
-            else:
-                warn(f"Bitte eine Zahl zwischen 1 und {len(model_list)} eingeben.")
-                continue
-
-        # Modellname direkt eingegeben
-        known_names = [n for n, _ in model_list]
-        if choice in known_names:
+            warn(f"Please enter a number between 1 and {len(model_list)}.")
+            continue
+        known = [n for n, _ in model_list]
+        if choice in known:
             return choice
-
-        # Freier Name (evtl. zukuenftiges Modell)
         if choice:
-            warn(f"Unbekanntes Modell '{choice}'. Trotzdem verwenden?")
-            confirm = ask("Bestaetigen? (j/n)", "j")
-            if confirm.lower() != "n":
+            warn(f"Unknown model '{choice}'. Use anyway?")
+            if ask("Confirm? (y/n)", "y").lower() != "n":
                 return choice
 
-# ── Schritt 4: Telegram ───────────────────────────────────────────────────────
+# ── Step 4: Additional Providers ─────────────────────────────────────────────
 
-def step4_telegram() -> dict:
-    section("Telegram (optional)", "Schritt 4/6:")
-    print(f"  {_c(C_DIM, 'AION kann Nachrichten via Telegram senden und empfangen.')}")
+def step4_additional_providers(primary: str) -> dict:
+    section("Additional providers (optional)", "Step 4/7:")
+    print(f"  {_c(C_DIM, 'Add more providers so AION can switch models on demand.')}")
+    print(f"  {_c(C_DIM, 'Each provider is only active when its key is present in .env.')}")
     print()
 
-    use_tg = ask("Telegram einrichten? (j/n)", "n")
-    if use_tg.lower() != "j":
-        info("Telegram uebersprungen.")
+    extra_keys: dict = {}
+    remaining = [pid for pid in PROVIDERS if pid != primary]
+
+    for pid in remaining:
+        p = PROVIDERS[pid]
+        label    = _c(C_CYAN, p["label"])
+        note     = _c(C_DIM, p["note"])
+        key_note = _c(C_DIM, "(no key needed)") if not p["key_env"] else ""
+        ans = ask(f"Set up {label}  {note}  {key_note}? (y/n)", "n")
+        if ans.lower() == "y":
+            if not p["key_env"]:
+                # Ollama
+                info(f"Install: {p['key_url']}")
+                info("Then run: ollama pull llama3.2")
+                ok(f"{p['label']} enabled (no key needed)")
+            else:
+                print()
+                key = _ask_api_key(pid)
+                if key:
+                    extra_keys[p["key_env"]] = key
+                    ok(f"{p['label']} key saved.")
+        print()
+
+    return extra_keys
+
+# ── Step 5: Telegram ──────────────────────────────────────────────────────────
+
+def step5_telegram() -> dict:
+    section("Telegram (optional)", "Step 5/7:")
+    print(f"  {_c(C_DIM, 'AION can send and receive messages via Telegram.')}")
+    print()
+
+    use_tg = ask("Set up Telegram? (y/n)", "n")
+    if use_tg.lower() != "y":
+        info("Telegram skipped.")
         return {}
 
     print()
-    print(f"  {_c(C_DIM, 'Bot erstellen: @BotFather auf Telegram')}")
-    print(f"  {_c(C_DIM, 'Chat-ID: Schreibe dem Bot und oeffne https://api.telegram.org/bot<TOKEN>/getUpdates')}")
+    print(f"  {_c(C_DIM, 'Create a bot: @BotFather on Telegram')}")
+    print(f"  {_c(C_DIM, 'Chat ID: Message the bot, then open https://api.telegram.org/bot<TOKEN>/getUpdates')}")
     print()
 
-    token = ask("Bot-Token (z.B. 123456:ABC-...)")
-    chat_id = ask("Chat-ID (z.B. 123456789)")
+    token   = ask("Bot token (e.g. 123456:ABC-...)")
+    chat_id = ask("Chat ID (e.g. 123456789)")
 
     if not token or not chat_id:
-        warn("Token oder Chat-ID fehlt -- Telegram nicht konfiguriert.")
+        warn("Token or chat ID missing — Telegram not configured.")
         return {}
 
-    ok("Telegram-Daten gespeichert.")
+    ok("Telegram credentials saved.")
     return {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat_id}
 
-# ── Schritt 5: Profil ─────────────────────────────────────────────────────────
+# ── Step 6: Profile ───────────────────────────────────────────────────────────
 
-def step5_profile() -> dict:
-    section("Dein Profil", "Schritt 5/6:")
-    print(f"  {_c(C_DIM, 'Damit AION sich besser auf dich einstellen kann.')}")
+def step6_profile() -> dict:
+    section("Your profile", "Step 6/7:")
+    print(f"  {_c(C_DIM, 'Helps AION adapt to you from day one.')}")
     print()
 
-    name = ask("Dein Name", "")
+    name = ask("Your name", "")
 
     print()
-    print(f"  {_c(C_DIM, 'Anrede:')}")
-    print(f"    {_c(C_WHITE, '1')}  du    {_c(C_DIM, '(locker)')}")
-    print(f"    {_c(C_WHITE, '2')}  Sie   {_c(C_DIM, '(formell)')}")
-    anrede_choice = ask("Anrede (1/2)", "1")
-    anrede = "du" if anrede_choice != "2" else "Sie"
+    print(f"  {_c(C_DIM, 'Address:')}")
+    print(f"    {_c(C_WHITE, '1')}  informal (you)")
+    print(f"    {_c(C_WHITE, '2')}  formal (Sir/Ma'am)")
+    anrede = "informal" if ask("Address (1/2)", "1") != "2" else "formal"
 
     print()
-    print(f"  {_c(C_DIM, 'Sprache:')}")
-    print(f"    {_c(C_WHITE, '1')}  Deutsch")
-    print(f"    {_c(C_WHITE, '2')}  Englisch")
-    print(f"    {_c(C_WHITE, '3')}  gemischt")
-    lang_choice = ask("Sprache (1/2/3)", "1")
-    lang_map = {"1": "Deutsch", "2": "Englisch", "3": "gemischt"}
-    lang = lang_map.get(lang_choice, "Deutsch")
+    print(f"  {_c(C_DIM, 'Primary language:')}")
+    print(f"    {_c(C_WHITE, '1')}  German")
+    print(f"    {_c(C_WHITE, '2')}  English")
+    print(f"    {_c(C_WHITE, '3')}  mixed")
+    lang_map = {"1": "German", "2": "English", "3": "mixed"}
+    lang = lang_map.get(ask("Language (1/2/3)", "1"), "German")
 
     print()
-    print(f"  {_c(C_DIM, 'Hauptnutzung (Mehrfachauswahl mit Komma, z.B. \"1,3\"):')}")
+    print(f"  {_c(C_DIM, 'Primary use (comma-separated, e.g. \"1,3\"):')}")
     print(f"    {_c(C_WHITE, '1')}  Coding")
-    print(f"    {_c(C_WHITE, '2')}  Recherche")
-    print(f"    {_c(C_WHITE, '3')}  Produktivitaet")
-    print(f"    {_c(C_WHITE, '4')}  Kreatives Schreiben")
-    print(f"    {_c(C_WHITE, '5')}  Allgemein")
-    use_map = {"1": "Coding", "2": "Recherche", "3": "Produktivitaet",
-               "4": "Kreatives Schreiben", "5": "Allgemein"}
-    use_input = ask("Auswahl", "5")
-    uses = []
-    for part in use_input.split(","):
-        part = part.strip()
-        if part in use_map:
-            uses.append(use_map[part])
-    if not uses:
-        uses = ["Allgemein"]
+    print(f"    {_c(C_WHITE, '2')}  Research")
+    print(f"    {_c(C_WHITE, '3')}  Productivity")
+    print(f"    {_c(C_WHITE, '4')}  Creative writing")
+    print(f"    {_c(C_WHITE, '5')}  General")
+    use_map = {"1": "Coding", "2": "Research", "3": "Productivity",
+               "4": "Creative writing", "5": "General"}
+    use_input = ask("Selection", "5")
+    uses = [use_map[p.strip()] for p in use_input.split(",") if p.strip() in use_map] or ["General"]
 
     print()
-    print(f"  {_c(C_DIM, 'Antwort-Stil:')}")
-    print(f"    {_c(C_WHITE, '1')}  Kurz & knapp")
+    print(f"  {_c(C_DIM, 'Response style:')}")
+    print(f"    {_c(C_WHITE, '1')}  Short & concise")
     print(f"    {_c(C_WHITE, '2')}  Normal")
-    print(f"    {_c(C_WHITE, '3')}  Ausfuehrlich")
-    style_choice = ask("Stil (1/2/3)", "2")
-    style_map = {"1": "Kurz & knapp", "2": "Normal", "3": "Ausfuehrlich"}
-    style = style_map.get(style_choice, "Normal")
+    print(f"    {_c(C_WHITE, '3')}  Detailed")
+    style_map = {"1": "Short & concise", "2": "Normal", "3": "Detailed"}
+    style = style_map.get(ask("Style (1/2/3)", "2"), "Normal")
 
     print()
-    extra = ask("Gibt es etwas, das AION von Anfang an wissen soll? (optional, Enter = ueberspringen)", "")
+    extra = ask("Anything AION should know from the start? (optional, Enter = skip)", "")
 
-    return {
-        "name": name,
-        "anrede": anrede,
-        "lang": lang,
-        "uses": uses,
-        "style": style,
-        "extra": extra,
-    }
+    return {"name": name, "anrede": anrede, "lang": lang,
+            "uses": uses, "style": style, "extra": extra}
 
-# ── Schritt 6: System-Check ───────────────────────────────────────────────────
+# ── Step 7: System Check ──────────────────────────────────────────────────────
 
-def step6_systemcheck(provider: str, api_key: str, model: str) -> bool:
-    section("System-Check", "Schritt 6/6:")
+def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
+    section("System check", "Step 7/7:")
 
     all_ok = True
 
-    # 1. Dateisystem
-    info("Dateisystem ...")
+    # 1. Filesystem
+    info("Filesystem ...")
     try:
         test_file = BOT_DIR / "_onboarding_test.tmp"
         test_file.write_text("test", encoding="utf-8")
         test_file.unlink()
-        ok("Dateisystem beschreibbar")
+        ok("Filesystem writable")
     except Exception as e:
-        err(f"Dateisystem-Fehler: {e}")
+        err(f"Filesystem error: {e}")
         all_ok = False
 
-    # 2. Internetverbindung
-    info("Internetverbindung ...")
+    # 2. Internet
+    info("Internet connection ...")
     try:
         import urllib.request
         urllib.request.urlopen("https://www.google.com", timeout=5)
-        ok("Internetverbindung vorhanden")
+        ok("Internet connection available")
     except Exception as e:
-        warn(f"Kein Internet oder Google nicht erreichbar: {e}")
+        warn(f"No internet or Google unreachable: {e}")
 
-    # 3. API-Test
-    info(f"API-Test ({provider}) ...")
-    try:
-        if provider == "gemini":
-            try:
-                import google.genai as genai
-                client = genai.Client(api_key=api_key)
-                resp = client.models.generate_content(
-                    model=model,
-                    contents="Reply with exactly: OK"
-                )
-                reply = ""
-                if hasattr(resp, "text"):
-                    reply = resp.text
-                elif hasattr(resp, "candidates"):
-                    reply = resp.candidates[0].content.parts[0].text
-                if reply.strip():
-                    ok(f"Gemini API antwortet: {reply.strip()[:40]}")
-                else:
-                    warn("Gemini API antwortet, aber leer")
-            except ImportError:
-                warn("google-genai nicht installiert -- API-Test uebersprungen")
-        else:
-            try:
-                import openai
-                client = openai.OpenAI(api_key=api_key)
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": "Reply with exactly: OK"}],
-                    max_tokens=5
-                )
-                reply = resp.choices[0].message.content or ""
-                ok(f"OpenAI API antwortet: {reply.strip()[:40]}")
-            except ImportError:
-                warn("openai nicht installiert -- API-Test uebersprungen")
-    except Exception as e:
-        err(f"API-Test fehlgeschlagen: {e}")
-        all_ok = False
+    # 3. API test
+    if provider != "ollama":
+        info(f"API test ({PROVIDERS[provider]['label']}) ...")
+        try:
+            if provider == "gemini":
+                try:
+                    import google.genai as genai
+                    client = genai.Client(api_key=api_key)
+                    resp = client.models.generate_content(
+                        model=model,
+                        contents="Reply with exactly: OK"
+                    )
+                    reply = getattr(resp, "text", "") or ""
+                    if not reply and hasattr(resp, "candidates"):
+                        reply = resp.candidates[0].content.parts[0].text
+                    ok(f"Gemini API responded: {reply.strip()[:40]}")
+                except ImportError:
+                    warn("google-genai not installed — API test skipped")
+            else:
+                try:
+                    import openai
+                    p = PROVIDERS[provider]
+                    kwargs = {"api_key": api_key}
+                    if provider != "openai":
+                        kwargs["base_url"] = {
+                            "deepseek":  "https://api.deepseek.com",
+                            "anthropic": "https://api.anthropic.com/v1",
+                            "grok":      "https://api.x.ai/v1",
+                        }.get(provider, "")
+                    client = openai.OpenAI(**kwargs)
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": "Reply with exactly: OK"}],
+                        max_tokens=5
+                    )
+                    reply = resp.choices[0].message.content or ""
+                    ok(f"{p['label']} API responded: {reply.strip()[:40]}")
+                except ImportError:
+                    warn("openai not installed — API test skipped")
+        except Exception as e:
+            err(f"API test failed: {e}")
+            all_ok = False
+    else:
+        info("Ollama: checking local server ...")
+        try:
+            import urllib.request
+            urllib.request.urlopen("http://localhost:11434", timeout=3)
+            ok("Ollama server is running")
+        except Exception:
+            warn("Ollama server not running — start with: ollama serve")
 
-    # 4. Plugin-Verzeichnis
+    # 4. Plugins
     info("Plugins ...")
     plugins_dir = BOT_DIR / "plugins"
     if plugins_dir.exists():
         count = sum(1 for p in plugins_dir.iterdir() if p.is_dir())
-        ok(f"Plugin-Verzeichnis gefunden: {count} Plugin(s)")
+        ok(f"Plugin directory found: {count} plugin(s)")
     else:
-        warn("Plugin-Verzeichnis nicht gefunden")
+        warn("Plugin directory not found")
 
     return all_ok
 
-# ── Ausgabe schreiben ─────────────────────────────────────────────────────────
+# ── Write Output ──────────────────────────────────────────────────────────────
 
-def write_env(provider: str, api_key: str, model: str, telegram: dict) -> None:
+def write_env(primary_provider: str, primary_key: str, model: str,
+              extra_keys: dict, telegram: dict) -> None:
     env_path = BOT_DIR / ".env"
-    lines = ["# AION Konfiguration - generiert von onboarding.py"]
+    lines = ["# AION Configuration — generated by onboarding.py"]
 
-    if provider == "gemini":
-        lines.append(f"GEMINI_API_KEY={api_key}")
-    else:
-        lines.append(f"OPENAI_API_KEY={api_key}")
+    # Primary provider key
+    if primary_provider != "ollama":
+        env_key = PROVIDERS[primary_provider]["key_env"]
+        lines.append(f"{env_key}={primary_key}")
+
+    # Additional provider keys
+    for env_var, api_key in extra_keys.items():
+        lines.append(f"{env_var}={api_key}")
 
     lines.append(f"AION_MODEL={model}")
     lines.append("AION_PORT=7000")
@@ -404,7 +509,7 @@ def write_env(provider: str, api_key: str, model: str, telegram: dict) -> None:
         lines.append(f"TELEGRAM_CHAT_ID={telegram['TELEGRAM_CHAT_ID']}")
 
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    ok(f".env geschrieben ({env_path})")
+    ok(f".env written ({env_path})")
 
 
 def write_config(model: str) -> None:
@@ -417,98 +522,101 @@ def write_config(model: str) -> None:
             cfg = {}
     cfg["model"] = model
     config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
-    ok(f"config.json geschrieben ({config_path})")
+    ok(f"config.json written ({config_path})")
 
 
 def update_character_md(profile: dict) -> None:
     char_path = BOT_DIR / "character.md"
-    content = ""
-    if char_path.exists():
-        content = char_path.read_text(encoding="utf-8")
+    content   = char_path.read_text(encoding="utf-8") if char_path.exists() else ""
 
-    # Bestehenden Nutzer-Profil-Abschnitt entfernen
+    # Remove existing onboarding section
+    content = re.sub(
+        r"\n## User Profile \(Onboarding\).*",
+        "", content, flags=re.DOTALL
+    )
     content = re.sub(
         r"\n## Nutzer-Profil \(Onboarding\).*",
-        "",
-        content,
-        flags=re.DOTALL
+        "", content, flags=re.DOTALL
     )
     content = content.rstrip()
 
-    # Neuen Abschnitt anhaengen
     name   = profile.get("name", "")
-    anrede = profile.get("anrede", "du")
-    lang   = profile.get("lang", "Deutsch")
-    uses   = ", ".join(profile.get("uses", ["Allgemein"]))
+    anrede = profile.get("anrede", "informal")
+    lang   = profile.get("lang", "English")
+    uses   = ", ".join(profile.get("uses", ["General"]))
     style  = profile.get("style", "Normal")
     extra  = profile.get("extra", "")
 
     section_lines = [
-        "",
-        "",
-        "## Nutzer-Profil (Onboarding)",
-        f"- Name: {name}" if name else "- Name: (nicht angegeben)",
-        f"- Anrede: {anrede}",
-        f"- Sprache: {lang}",
-        f"- Hauptnutzung: {uses}",
-        f"- Antwort-Stil: {style}",
+        "", "",
+        "## User Profile (Onboarding)",
+        f"- Name: {name}" if name else "- Name: (not provided)",
+        f"- Address style: {anrede}",
+        f"- Primary language: {lang}",
+        f"- Primary use: {uses}",
+        f"- Response style: {style}",
     ]
     if extra:
-        section_lines.append(f"- Notiz: {extra}")
+        section_lines.append(f"- Note: {extra}")
 
     content += "\n".join(section_lines) + "\n"
     char_path.write_text(content, encoding="utf-8")
-    ok(f"character.md aktualisiert ({char_path})")
+    ok(f"character.md updated ({char_path})")
 
 
 def write_flag() -> None:
     flag_path = BOT_DIR / "aion_onboarding_complete.flag"
-    flag_path.write_text("Onboarding abgeschlossen.\n", encoding="utf-8")
-    ok(f"Flag-Datei erstellt ({flag_path})")
+    flag_path.write_text("Onboarding complete.\n", encoding="utf-8")
+    ok(f"Flag file created ({flag_path})")
 
 
-def abschluss_banner(model: str, name: str) -> None:
+def completion_banner(model: str, name: str, extra_count: int) -> None:
     print()
-    greeting = f"Hallo, {name}! AION ist bereit." if name else "AION ist bereit."
+    greeting = f"Hello, {name}! AION is ready." if name else "AION is ready."
     print(_c(C_GREEN, "  ===================================================="))
-    print(_c(C_GREEN, "  Einrichtung abgeschlossen!"))
-    print(f"  {_c(C_DIM, 'Modell: ')}{_c(C_CYAN, model)}")
+    print(_c(C_GREEN, "  Setup complete!"))
+    print(f"  {_c(C_DIM, 'Model:     ')}{_c(C_CYAN, model)}")
+    if extra_count:
+        print(f"  {_c(C_DIM, 'Providers: ')}{_c(C_CYAN, str(extra_count + 1))} configured")
     print(f"  {_c(C_WHITE, greeting)}")
     print(_c(C_GREEN, "  ===================================================="))
     print()
+    print(f"  {_c(C_DIM, 'To switch models later: tell AION or use the System tab in the Web UI.')}")
+    print(f"  {_c(C_DIM, 'To add providers later: add API keys to .env and restart AION.')}")
+    print()
 
-# ── Haupt-Funktion ────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def run_onboarding() -> None:
     try:
         banner()
 
-        provider  = step1_provider()
-        api_key   = step2_apikey(provider)
-        model     = step3_model(provider)
-        telegram  = step4_telegram()
-        profile   = step5_profile()
-        _ok       = step6_systemcheck(provider, api_key, model)
+        provider     = step1_provider()
+        api_key      = step2_apikey(provider)
+        model        = step3_model(provider)
+        extra_keys   = step4_additional_providers(provider)
+        telegram     = step5_telegram()
+        profile      = step6_profile()
+        _ok          = step7_systemcheck(provider, api_key, model)
 
-        # Ausgabe schreiben
+        # Write output
         print()
-        section("Konfiguration speichern", "Speichern:")
+        section("Save configuration", "Saving:")
 
-        write_env(provider, api_key, model, telegram)
+        write_env(provider, api_key, model, extra_keys, telegram)
         write_config(model)
         update_character_md(profile)
         write_flag()
 
-        abschluss_banner(model, profile.get("name", ""))
+        completion_banner(model, profile.get("name", ""), len(extra_keys))
 
     except KeyboardInterrupt:
         print()
-        print()
-        warn("Onboarding abgebrochen (Strg+C).")
+        warn("Onboarding cancelled (Ctrl+C).")
         sys.exit(1)
     except Exception as e:
         print()
-        err(f"Unerwarteter Fehler: {e}")
+        err(f"Unexpected error: {e}")
         sys.exit(1)
 
 

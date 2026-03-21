@@ -14,24 +14,57 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ## Latest Improvements (2026-03-21)
 
-### 1. Task-Completion Enforcer (aion.py)
+### 1. Universal Provider Plugin Architecture
+**What:** AION now supports any LLM provider via a plugin-based registry. Each provider plugin calls `register_provider(prefix, build_fn, label, models)` at load time. `_build_client(model)` dispatches to the matching provider by prefix; OpenAI is the implicit fallback.
+**New provider plugins:**
+- `ollama_provider` — local Ollama server (`ollama/modelname`), no API key needed
+- `deepseek_provider` — DeepSeek API (`deepseek-chat`, `deepseek-reasoner`)
+- `grok_provider` — xAI Grok API (`grok-3`, `grok-3-mini`, `grok-2`)
+- `anthropic_provider` — Anthropic Claude via OpenAI-compat SDK (`claude-opus-4-6`, `claude-sonnet-4-6`, etc.)
+**Benefit:** Users are not limited to one endpoint. Any OpenAI-compatible API works. Adding a new provider = one plugin file.
+
+### 2. Unsupported File Message Utility (aion.py)
+**What:** `unsupported_file_message(label: str) -> str` in `aion.py` — single source of truth for response text when a file type cannot be processed.
+**Benefit:** Platform-agnostic. Telegram, Web UI, and all future platforms use the same message.
+**Behavior:** When AION receives a video, document, sticker, etc. via Telegram, it now replies with a helpful message offering to create a plugin for that file type (instead of silent ignore).
+
+### 3. Expanded Onboarding (onboarding.py)
+**What:** Onboarding now has 7 steps and asks about all 6 providers. Users select their preferred model from a numbered list for each provider. All provider API keys are written to `.env`.
+**Providers covered:** Gemini, OpenAI, DeepSeek, Anthropic (Claude), Grok, Ollama
+**Latest models included** in each provider's selection list.
+
+### 4. edge-tts Activated
+**What:** `config.json` now sets `"tts_engine": "edge"` and `"tts_voice": "de-DE-KatjaNeural"`. Microsoft Neural TTS — free, online, no API key required.
+**Benefit:** High-quality German voice in Telegram voice replies.
+
+### 5. Memory Pagination (aion_web.py + static/index.html)
+**What:** `/api/memory` now returns `has_more: bool` alongside entries. The Web UI shows a "Mehr laden" button and accumulates entries across pages via `_memOffset` state.
+
+### 6. Bug Fixes
+- **aion.py**: `check_raw is None` no longer raises — treated as NO (prevents "Completion-Check Fehler" accordion on Gemini)
+- **aion_web.py**: `(_load_character() or "")[:500]` — no crash when `character.md` is missing
+- **todo_tools**: removed substring-match bug in `todo_done` (partial task names no longer match)
+- **memory_plugin**: channel filter now uses `ch == filter or ch.startswith(filter + "_")` (was too loose)
+- **heartbeat**: `threading.Lock` prevents race condition in `_todo_worker_running` check+set
+
+### 7. Task-Completion Enforcer (aion.py)
 **What:** After tool calls, a second LLM check runs automatically (after the completion check).
 **Benefit:** Prevents incomplete tasks. When AION says "done" but steps are still missing (e.g., "plugin created" but not reloaded), the system forces continuation via a system message.
 **Behavior:** Fires at most once per turn, only when tools were called.
 
-### 2. Channel-Aware History (memory_plugin.py, aion.py, telegram_bot.py)
+### 8. Channel-Aware History (memory_plugin.py, aion.py, telegram_bot.py)
 **What:** Conversation history now stores the channel (web, telegram_CHATID, heartbeat, etc.). Filtering is available on load.
 **Benefit:**
 - Telegram sessions only load `telegram_CHATID` history → no web UI context bleed
 - New tool `memory_read_web_history` → load web history on user request ("What did we do in the web UI?")
 - Enables seamless transitions between channels without context mixing
 
-### 3. Plugin Subdirectory Enforcement (aion.py, create_plugin tool)
+### 9. Plugin Subdirectory Enforcement (aion.py, create_plugin tool)
 **What:** `create_plugin` automatically enforces the correct structure `plugins/name/name.py`.
 **Benefit:** Prevents errors from incorrect paths. Auto-generated README.md in every plugin.
 **Behavior:** Regardless of what path is passed, the correct structure is created.
 
-### 4. Voice Message Fix (telegram_bot.py)
+### 10. Voice Message Fix (telegram_bot.py)
 **What:** Unicode arrow (`→`) in a print statement was incompatible with Windows stdout → UnicodeEncodeError.
 **Benefit:** Voice messages now work reliably.
 **Behavior:** Print output now uses ASCII-compatible characters (`->`).
@@ -64,7 +97,11 @@ AION/
 │   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
 │   │   └── tasks.json           # scheduled tasks (auto-generated)
 │   ├── telegram_bot/            # Telegram bidirectional (text + images + voice messages)
-│   ├── gemini_provider/         # Google Gemini provider + switch_model
+│   ├── gemini_provider/         # Google Gemini provider (registers prefix "gemini")
+│   ├── anthropic_provider/      # Anthropic Claude (registers prefix "claude")
+│   ├── deepseek_provider/       # DeepSeek API (registers prefix "deepseek")
+│   ├── grok_provider/           # xAI Grok (registers prefix "grok")
+│   ├── ollama_provider/         # Local Ollama server (registers prefix "ollama/")
 │   ├── memory_plugin/           # Conversation history (JSONL)
 │   ├── clio_reflection/         # DISABLED (_clio_reflection.py — had fake random values)
 │   ├── todo_tools/              # Task management
@@ -140,10 +177,30 @@ AION/
 | `schedule_remove` | `id: str` or `name: str` | Delete a task. |
 | `schedule_toggle` | `id: str`, `enabled: bool` | Enable/disable a task. |
 
-### Gemini Provider (`gemini_provider.py`)
+### Provider Plugins
+
+AION uses a registry-based provider system. Each plugin registers its prefix via `register_provider()`. `_build_client(model)` dispatches to the matching provider; OpenAI is the implicit fallback.
+
+| Plugin | Prefix | Models | Key Required |
+|--------|--------|--------|--------------|
+| `gemini_provider` | `gemini` | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash` | `GEMINI_API_KEY` |
+| `anthropic_provider` | `claude` | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` |
+| `deepseek_provider` | `deepseek` | `deepseek-chat`, `deepseek-reasoner` | `DEEPSEEK_API_KEY` |
+| `grok_provider` | `grok` | `grok-3`, `grok-3-mini`, `grok-2` | `XAI_API_KEY` |
+| `ollama_provider` | `ollama/` | any local model (`ollama/llama3.2`, etc.) | none (local) |
+| _(fallback)_ | _(any)_ | `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `o3`, `o4-mini` | `OPENAI_API_KEY` |
+
+**Tools added by `gemini_provider`:**
+
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `switch_model` | `model: str` | Switch the active AI model. Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`, etc. OpenAI: `gpt-4.1`, `o3`, etc. |
+| `switch_model` | `model: str` | Switch the active AI model (any provider prefix works). |
+
+**Tools added by `ollama_provider`:**
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `ollama_list_models` | — | List locally available Ollama models. |
 
 ### Telegram (`telegram_bot.py`)
 | Tool | Parameters | Description |
@@ -219,8 +276,9 @@ AION/
 | POST | `/api/prompt/{name}` | Save a prompt file |
 | GET | `/api/plugins` | List all plugins (with tools + load status) |
 | POST | `/api/plugins/reload` | Reload plugins (hot-reload) |
-| GET | `/api/memory` | Memory entries (with `?search=` and `?limit=`) |
+| GET | `/api/memory` | Memory entries (`?search=`, `?limit=`, `?offset=`) — returns `has_more` for pagination |
 | DELETE | `/api/memory` | Clear memory |
+| GET | `/api/providers` | All registered LLM providers with their models and active model |
 | GET | `/api/config` | Configuration: model, paths, statistics |
 | POST | `/api/config/reset_exchanges` | Reset conversation counter |
 
@@ -472,4 +530,4 @@ plugins/my_plugin.py             ❌ WRONG
 
 ---
 
-*Last updated: 2026-03-21 — All plugins documented (core_tools, shell_tools, web_tools, pid_tool, restart_tool, reflection, character_manager); Web API endpoints complete; management sidebar in Web UI; emojis allowed; character.md obligation reinforced*
+*Last updated: 2026-03-21 — Provider registry system + 5 new provider plugins (Anthropic, DeepSeek, Grok, Ollama, updated Gemini); unsupported_file_message utility; edge-tts activated; memory pagination; expanded onboarding (7 steps, all providers); multiple bug fixes (todo_tools, memory_plugin, heartbeat, aion.py, aion_web.py); /api/providers endpoint; Web UI model picker rebuilt from provider registry*

@@ -18,11 +18,14 @@ An autonomous AI agent for Windows. Runs as a Python process, communicates via t
   - `memory_read_web_history` tool: load Web UI history on request and carry over context
 - **Memory** — persistent JSON memory + conversation history (JSONL) with channel filtering
 - **Personality** — `character.md` evolves through conversations; LLM analysis with pattern recognition every 5 conversations
-- **Multi-provider** — Google Gemini (2.5-pro, 2.5-flash …) and OpenAI (GPT-4.1, o3 …) switchable
+- **Multi-provider** — Universal provider plugin architecture: Gemini, OpenAI, Anthropic Claude, DeepSeek, Grok, Ollama (local) — any OpenAI-compatible API works via a simple plugin
+  - New providers = one plugin file, no core changes needed
+  - `/api/providers` endpoint returns all registered providers with their models
 - **Plugin system** — `plugins/<name>/<name>.py` is loaded automatically; READMEs are injected as plugin overviews
   - **create_plugin tool** enforces correct subdirectory structure (even when AION passes incorrect paths)
   - Auto-generated README.md in every new plugin
-- **Audio pipeline** — any audio format → transcription (ffmpeg + Vosk, offline) + TTS (pyttsx3/SAPI5, offline)
+- **Audio pipeline** — any audio format → transcription (ffmpeg + Vosk, offline) + TTS (edge-tts neural / pyttsx3/SAPI5, offline)
+  - edge-tts: Microsoft Neural TTS, free, online, no API key (`de-DE-KatjaNeural` default)
 - **Moltbook** — social presence: read feed, create posts, comment
 
 ---
@@ -31,7 +34,7 @@ An autonomous AI agent for Windows. Runs as a Python process, communicates via t
 
 - Python 3.10+
 - Windows (for `shell_exec`, `winget_install`)
-- Google Gemini API key (recommended) and/or OpenAI API key
+- At least one API key: Gemini, OpenAI, Anthropic, DeepSeek, or Grok — or a local Ollama server
 
 ---
 
@@ -48,15 +51,21 @@ pip install -r requirements.txt
 Create a `.env` file in the project directory:
 
 ```env
-GEMINI_API_KEY=AIza...           # recommended
-OPENAI_API_KEY=sk-...            # optional
-TELEGRAM_BOT_TOKEN=1234...:AAE...  # optional
-TELEGRAM_CHAT_ID=123456789         # optional
-AION_MODEL=gemini-2.5-flash        # optional, default: gpt-4.1
-AION_PORT=7000                     # optional, default: 7000
+GEMINI_API_KEY=AIza...              # Google Gemini
+OPENAI_API_KEY=sk-...               # OpenAI (default fallback)
+ANTHROPIC_API_KEY=sk-ant-...        # Anthropic Claude
+DEEPSEEK_API_KEY=sk-...             # DeepSeek
+XAI_API_KEY=xai-...                 # xAI Grok
+# Ollama: no key needed — local server at localhost:11434
+TELEGRAM_BOT_TOKEN=1234...:AAE...   # optional
+TELEGRAM_CHAT_ID=123456789          # optional
+AION_MODEL=gemini-2.5-flash         # optional, default: gpt-4.1
+AION_PORT=7000                      # optional, default: 7000
 ```
 
 The active model is stored in `config.json` and restored on the next start.
+
+**Tip:** Run `python onboarding.py` for a guided setup that asks about all providers and their models.
 
 ---
 
@@ -221,8 +230,9 @@ AION can also create plugins at runtime via the `create_plugin` tool.
 | POST | `/api/model` | Switch model |
 | GET | `/api/plugins` | All plugins with tools + load status |
 | POST | `/api/plugins/reload` | Hot-reload plugins |
-| GET | `/api/memory` | Memory entries (`?search=`, `?limit=`) |
+| GET | `/api/memory` | Memory entries (`?search=`, `?limit=`, `?offset=`) — paginated |
 | DELETE | `/api/memory` | Clear memory |
+| GET | `/api/providers` | All registered LLM providers + active model |
 | GET | `/api/config` | Configuration + statistics |
 | GET | `/api/prompt/{name}` | Read prompt (`rules`, `character`, `self`) |
 | POST | `/api/prompt/{name}` | Save prompt |
@@ -251,7 +261,11 @@ AION/
 │   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
 │   ├── moltbook/                # Social platform moltbook.com (feed, posts, comments)
 │   ├── telegram_bot/            # Telegram: text + images + voice messages
-│   ├── gemini_provider/         # Google Gemini + switch_model
+│   ├── gemini_provider/         # Google Gemini (prefix "gemini")
+│   ├── anthropic_provider/      # Anthropic Claude (prefix "claude")
+│   ├── deepseek_provider/       # DeepSeek (prefix "deepseek")
+│   ├── grok_provider/           # xAI Grok (prefix "grok")
+│   ├── ollama_provider/         # Local Ollama (prefix "ollama/")
 │   ├── memory_plugin/           # Conversation history (JSONL)
 │   ├── todo_tools/              # Task management
 │   ├── smart_patch/             # Fuzzy code patching
@@ -275,17 +289,47 @@ AION/
 
 ## Available Models
 
-| Provider | Model | Recommendation |
-|----------|-------|----------------|
+| Provider | Model | Notes |
+|----------|-------|-------|
 | Google Gemini | `gemini-2.5-pro` | ★ Best quality |
 | Google Gemini | `gemini-2.5-flash` | Fast & affordable |
+| Google Gemini | `gemini-2.5-flash-lite` | Lightweight |
 | Google Gemini | `gemini-2.0-flash` | Stable |
 | OpenAI | `gpt-4.1` | OpenAI flagship |
+| OpenAI | `gpt-4.1-mini` | Affordable |
 | OpenAI | `gpt-4o` | Multimodal |
 | OpenAI | `o3` | Reasoning |
-| OpenAI | `o4-mini` | Fast |
+| OpenAI | `o4-mini` | Fast reasoning |
+| Anthropic | `claude-opus-4-6` | ★ Most capable Claude |
+| Anthropic | `claude-sonnet-4-6` | Balanced |
+| Anthropic | `claude-haiku-4-5-20251001` | Fastest Claude |
+| DeepSeek | `deepseek-chat` | Efficient & affordable |
+| DeepSeek | `deepseek-reasoner` | Reasoning |
+| Grok (xAI) | `grok-3` | xAI flagship |
+| Grok (xAI) | `grok-3-mini` | Fast |
+| Ollama (local) | `ollama/llama3.2` | No internet needed |
+| Ollama (local) | `ollama/qwen2.5` | Multilingual |
+| Ollama (local) | `ollama/deepseek-r1:8b` | Local reasoning |
 
-Switch via Web UI (dropdown or Sidebar → System) or by voice: `"Switch to gemini-2.5-pro"`
+Switch via Web UI (System tab → model dropdown) or by voice: `"Switch to claude-sonnet-4-6"`
+
+---
+
+## Provider Plugins
+
+AION uses a registry-based provider system. Each provider is a plugin in `plugins/<name>/`.
+Add any provider by creating a plugin that calls `register_provider(prefix, build_fn, label, models)`.
+
+| Plugin | `.env` Key | Prefix |
+|--------|------------|--------|
+| `gemini_provider` | `GEMINI_API_KEY` | `gemini` |
+| `anthropic_provider` | `ANTHROPIC_API_KEY` | `claude` |
+| `deepseek_provider` | `DEEPSEEK_API_KEY` | `deepseek` |
+| `grok_provider` | `XAI_API_KEY` | `grok` |
+| `ollama_provider` | _(none)_ | `ollama/` |
+| _(fallback)_ | `OPENAI_API_KEY` | _(any)_ |
+
+Providers with missing API keys are skipped silently at startup.
 
 ---
 
