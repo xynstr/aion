@@ -454,6 +454,101 @@ async def save_keys(request: Request):
     env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
     return JSONResponse({"ok": True, "updated": list(body.keys())})
 
+# ── File Processing API ──────────────────────────────────────────────────────────
+
+@app.post("/api/process_file")
+async def process_file(request: Request):
+    """Receive an uploaded file and return extracted text/transcript."""
+    import tempfile
+    from fastapi import UploadFile
+    try:
+        form     = await request.form()
+        upload   = form.get("file")
+        if upload is None:
+            return JSONResponse({"ok": False, "error": "No file in request"}, status_code=400)
+        filename = upload.filename or "unknown"
+        content  = await upload.read()
+        ext      = Path(filename).suffix.lower()
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Upload error: {e}"}, status_code=400)
+
+    # ── PDF ──────────────────────────────────────────────────────────────────────
+    if ext == ".pdf":
+        try:
+            import io
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(content))
+            pages  = [p.extract_text() or "" for p in reader.pages]
+            text   = "\n\n".join(p for p in pages if p.strip())
+            return JSONResponse({"ok": True, "type": "pdf", "name": filename,
+                                 "text": text[:60000], "pages": len(pages)})
+        except ImportError:
+            return JSONResponse({"ok": False, "error": "pypdf not installed — run: pip install pypdf"})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)})
+
+    # ── Word ─────────────────────────────────────────────────────────────────────
+    if ext in (".docx", ".doc"):
+        try:
+            import io, docx as _docx
+            doc  = _docx.Document(io.BytesIO(content))
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            return JSONResponse({"ok": True, "type": "docx", "name": filename, "text": text[:60000]})
+        except ImportError:
+            return JSONResponse({"ok": False, "error": "python-docx not installed — run: pip install python-docx"})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)})
+
+    # ── Excel ────────────────────────────────────────────────────────────────────
+    if ext in (".xlsx", ".xls"):
+        try:
+            import io, openpyxl
+            wb   = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+            rows = []
+            for sheet in wb.worksheets:
+                rows.append(f"[Sheet: {sheet.title}]")
+                for row in sheet.iter_rows(values_only=True):
+                    rows.append("\t".join("" if c is None else str(c) for c in row))
+            text = "\n".join(rows)
+            return JSONResponse({"ok": True, "type": "xlsx", "name": filename, "text": text[:60000]})
+        except ImportError:
+            return JSONResponse({"ok": False, "error": "openpyxl not installed — run: pip install openpyxl"})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)})
+
+    # ── Audio ────────────────────────────────────────────────────────────────────
+    if ext in (".ogg", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".opus", ".weba"):
+        transcribe_fn = (_aion_module._plugin_tools.get("audio_transcribe_any") or {}).get("func")
+        if not transcribe_fn:
+            return JSONResponse({"ok": False, "error": "audio_pipeline plugin not loaded",
+                                 "hint": "Load the audio_pipeline plugin to enable audio transcription"})
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            result     = transcribe_fn(file_path=tmp_path)
+            transcript = result.get("text") or result.get("transcript") or ""
+            if not transcript:
+                return JSONResponse({"ok": False, "error": "Transcription returned empty result"})
+            return JSONResponse({"ok": True, "type": "audio", "name": filename,
+                                 "text": f"[Transkription: {filename}]\n{transcript}"})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)})
+        finally:
+            if tmp_path:
+                Path(tmp_path).unlink(missing_ok=True)
+
+    # ── CSV / plain text ─────────────────────────────────────────────────────────
+    if ext in (".csv", ".tsv"):
+        try:
+            text = content.decode("utf-8", errors="replace")
+            return JSONResponse({"ok": True, "type": "csv", "name": filename, "text": text[:60000]})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)})
+
+    return JSONResponse({"ok": False, "error": f"No processor for {ext}"})
+
 # ── Config API ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/providers")

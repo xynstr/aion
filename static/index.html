@@ -463,7 +463,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </div>
         <div id="attachPreview" class="attach-preview"></div>
         <div class="input-row">
-          <input type="file" id="fileInput" multiple accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv" style="display:none" onchange="onFileSelected(event)">
+          <input type="file" id="fileInput" multiple accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv,.pdf,.docx,.doc,.xlsx,.xls,.ogg,.mp3,.wav,.m4a,.flac,.aac,.opus" style="display:none" onchange="onFileSelected(event)">
           <button class="attach-btn" title="Datei anhängen" onclick="document.getElementById('fileInput').click()">📎</button>
           <textarea id="input"
             placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)"
@@ -1285,34 +1285,75 @@ function setThinking(active) {
 let pendingImages = [];   // base64 data-URLs
 let pendingTextFiles = []; // {name, content}
 
-const UNSUPPORTED_MIME_PREFIXES = ['video/', 'audio/'];
-const UNSUPPORTED_EXTENSIONS    = ['.mp4','.mov','.avi','.mkv','.webm','.mp3','.wav','.ogg','.flac','.aac','.zip','.rar','.7z','.exe','.dmg'];
+// File types processed server-side (text extracted, then included as context)
+const SERVER_PROCESSABLE = ['.pdf','.docx','.doc','.xlsx','.xls',
+                             '.ogg','.mp3','.wav','.m4a','.flac','.aac','.opus','.weba'];
+// File types that no one can process yet → tell AION, let it suggest a solution
+const TRULY_UNSUPPORTED  = ['.mp4','.mov','.avi','.mkv','.webm','.zip','.rar','.7z','.exe','.dmg','.iso'];
 
-function _isUnsupportedFile(f) {
-  if (UNSUPPORTED_MIME_PREFIXES.some(p => f.type.startsWith(p))) return true;
-  const ext = '.' + f.name.split('.').pop().toLowerCase();
-  return UNSUPPORTED_EXTENSIONS.includes(ext);
-}
+function _fileExt(f) { return '.' + f.name.split('.').pop().toLowerCase(); }
 
 function onFileSelected(e) {
   const files = Array.from(e.target.files);
   e.target.value = '';
   files.forEach(f => {
-    if (_isUnsupportedFile(f)) {
+    const ext = _fileExt(f);
+
+    if (TRULY_UNSUPPORTED.includes(ext)) {
+      // Tell AION about the file so it can suggest a processing strategy
       const sizeMb = (f.size / 1_048_576).toFixed(1);
-      showToast(`📥 ${f.name} (${sizeMb} MB) — unsupported format. Tell AION to learn it!`);
+      const msg = `[Datei-Upload] Ich habe die Datei "${f.name}" (${sizeMb} MB, Format: ${ext}) erhalten, kann sie aber noch nicht verarbeiten. Überlege, wie du diesen Dateityp unterstützen könntest – erstelle ggf. ein Plugin dafür.`;
+      document.getElementById('input').value = msg;
+      showToast(`📥 ${f.name} — AION wird nach einer Lösung gefragt`);
       return;
     }
-    const isImg = f.type.startsWith('image/');
-    const reader = new FileReader();
-    if (isImg) {
+
+    if (f.type.startsWith('image/')) {
+      const reader = new FileReader();
       reader.onload = ev => { pendingImages.push(ev.target.result); renderAttachPreview(); };
       reader.readAsDataURL(f);
-    } else {
-      reader.onload = ev => { pendingTextFiles.push({name: f.name, content: ev.target.result}); renderAttachPreview(); };
-      reader.readAsText(f);
+      return;
     }
+
+    if (SERVER_PROCESSABLE.includes(ext)) {
+      _processFileOnServer(f);
+      return;
+    }
+
+    // Plain text / code files → read directly
+    const reader = new FileReader();
+    reader.onload = ev => { pendingTextFiles.push({name: f.name, content: ev.target.result}); renderAttachPreview(); };
+    reader.readAsText(f);
   });
+}
+
+async function _processFileOnServer(f) {
+  const placeholder = {name: f.name, content: `[Verarbeite ${f.name}…]`};
+  pendingTextFiles.push(placeholder);
+  renderAttachPreview();
+  try {
+    const fd = new FormData();
+    fd.append('file', f);
+    const r = await fetch('/api/process_file', {method: 'POST', body: fd});
+    const d = await r.json();
+    const idx = pendingTextFiles.indexOf(placeholder);
+    if (d.ok) {
+      pendingTextFiles[idx] = {name: f.name, content: d.text};
+      showToast(`✓ ${f.name} verarbeitet`);
+    } else {
+      pendingTextFiles.splice(idx, 1);
+      // Tell AION about the failure so it can suggest a fix
+      const hint = d.hint || d.error || 'unbekannter Fehler';
+      const msg  = `[Datei-Upload] Ich habe versucht "${f.name}" zu verarbeiten, bin aber gescheitert: ${hint}. Was kann ich tun?`;
+      document.getElementById('input').value = msg;
+      showToast(`⚠ ${f.name}: ${d.error}`, true);
+    }
+    renderAttachPreview();
+  } catch(err) {
+    showToast(`Fehler beim Verarbeiten: ${err}`, true);
+    pendingTextFiles.splice(pendingTextFiles.indexOf(placeholder), 1);
+    renderAttachPreview();
+  }
 }
 
 function onPaste(e) {
