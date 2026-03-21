@@ -563,24 +563,22 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="settings-label">KI-Modell</div>
             <div class="settings-row">
               <select class="settings-select" id="settingsModel">
-                <optgroup label="── OpenAI ──">
-                  <option value="gpt-4.1">gpt-4.1</option>
-                  <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                  <option value="gpt-4o">gpt-4o</option>
-                  <option value="gpt-4o-mini">gpt-4o-mini</option>
-                  <option value="o3">o3</option>
-                  <option value="o4-mini">o4-mini</option>
-                </optgroup>
-                <optgroup label="── Google Gemini ──">
-                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                  <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
-                  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                  <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-                  <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-                </optgroup>
+                <option value="">Lade Modelle…</option>
               </select>
               <button class="action-btn primary" onclick="saveModelFromSettings()">Speichern</button>
+            </div>
+            <div style="margin-top:6px;font-size:11px;color:var(--text3)">
+              Oder: Modellname direkt eingeben und auf Speichern klicken.
+              <input type="text" id="settingsModelCustom" placeholder="z.B. ollama/llama3.2 oder claude-sonnet-4-6"
+                style="margin-top:5px;width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px"
+                oninput="if(this.value)document.getElementById('settingsModel').value=''">
+            </div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
+            <div class="settings-label">Aktive Provider</div>
+            <div id="providerList" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+              <span style="font-size:11px;color:var(--text3)">Lade…</span>
             </div>
           </div>
           <div class="settings-divider"></div>
@@ -895,22 +893,76 @@ async function clearMemory() {
 async function loadSettings() {
   try {
     const data = await (await fetch('/api/config')).json();
-    document.getElementById('settingsBotDir').textContent    = data.bot_dir || '–';
-    document.getElementById('statMemory').textContent        = data.memory_entries ?? '–';
-    document.getElementById('statExchanges').textContent     = data.exchange_count ?? '–';
-    syncModelSelects(data.model, document.getElementById('settingsModel'), document.getElementById('modelSelect'));
+    document.getElementById('settingsBotDir').textContent = data.bot_dir || '–';
+    document.getElementById('statMemory').textContent     = data.memory_entries ?? '–';
+    document.getElementById('statExchanges').textContent  = data.exchange_count ?? '–';
+    syncModelSelects(data.model, document.getElementById('modelSelect'));
     try {
       const pd = await (await fetch('/api/plugins')).json();
       document.getElementById('statPlugins').textContent = (pd.plugins || []).filter(p => p.loaded).length;
       document.getElementById('statTools').textContent   = pd.total_loaded ?? '–';
     } catch {}
   } catch {}
+  // Load providers + build dynamic model dropdown
+  try {
+    const pv = await (await fetch('/api/providers')).json();
+    _renderProviders(pv);
+    _buildModelDropdown(pv);
+  } catch {}
+}
+
+function _renderProviders(pv) {
+  const el = document.getElementById('providerList');
+  if (!el) return;
+  const rows = (pv.providers || []).map(p => {
+    const badge = p.default
+      ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">default</span>'
+      : '<span style="font-size:10px;color:var(--green);margin-left:6px">✓ active</span>';
+    const modelCount = p.models?.length ? `<span style="font-size:10px;color:var(--text3);margin-left:4px">${p.models.length} models</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text)">
+      <span>⚡</span><span>${esc(p.label)}</span>${modelCount}${badge}
+    </div>`;
+  });
+  el.innerHTML = rows.join('') || '<span style="font-size:11px;color:var(--text3)">No providers registered</span>';
+}
+
+function _buildModelDropdown(pv) {
+  const sel = document.getElementById('settingsModel');
+  if (!sel) return;
+  const active = pv.active_model || '';
+  sel.innerHTML = '';
+  for (const p of (pv.providers || [])) {
+    if (!p.models?.length) continue;
+    const grp = document.createElement('optgroup');
+    grp.label = `── ${p.label} ──`;
+    for (const m of p.models) {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      if (m === active) opt.selected = true;
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  // If active model not in list, add it
+  let found = false;
+  for (const opt of sel.options) { if (opt.value === active) { found = true; break; } }
+  if (!found && active) {
+    const opt = document.createElement('option');
+    opt.value = active; opt.textContent = active; opt.selected = true;
+    sel.prepend(opt);
+  }
+  syncModelSelects(active, document.getElementById('modelSelect'));
 }
 
 async function saveModelFromSettings() {
-  const model = document.getElementById('settingsModel').value;
+  const custom = (document.getElementById('settingsModelCustom')?.value || '').trim();
+  const model  = custom || document.getElementById('settingsModel').value;
+  if (!model) return;
+  if (custom) document.getElementById('settingsModelCustom').value = '';
   await applyModel(model);
   syncModelSelects(model, document.getElementById('modelSelect'));
+  // Refresh providers to update active model display
+  try { const pv = await (await fetch('/api/providers')).json(); _buildModelDropdown(pv); } catch {}
 }
 
 async function saveModel() {
@@ -1138,10 +1190,24 @@ function setThinking(active) {
 let pendingImages = [];   // base64 data-URLs
 let pendingTextFiles = []; // {name, content}
 
+const UNSUPPORTED_MIME_PREFIXES = ['video/', 'audio/'];
+const UNSUPPORTED_EXTENSIONS    = ['.mp4','.mov','.avi','.mkv','.webm','.mp3','.wav','.ogg','.flac','.aac','.zip','.rar','.7z','.exe','.dmg'];
+
+function _isUnsupportedFile(f) {
+  if (UNSUPPORTED_MIME_PREFIXES.some(p => f.type.startsWith(p))) return true;
+  const ext = '.' + f.name.split('.').pop().toLowerCase();
+  return UNSUPPORTED_EXTENSIONS.includes(ext);
+}
+
 function onFileSelected(e) {
   const files = Array.from(e.target.files);
   e.target.value = '';
   files.forEach(f => {
+    if (_isUnsupportedFile(f)) {
+      const sizeMb = (f.size / 1_048_576).toFixed(1);
+      showToast(`📥 ${f.name} (${sizeMb} MB) — unsupported format. Tell AION to learn it!`);
+      return;
+    }
     const isImg = f.type.startsWith('image/');
     const reader = new FileReader();
     if (isImg) {

@@ -118,6 +118,55 @@ MODEL = _cfg.get("model") or os.environ.get("AION_MODEL", "gpt-4.1")
 
 client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
+# ── Provider-Registry ─────────────────────────────────────────────────────────
+# Each entry: {"prefix": str, "build_fn": callable, "label": str, "models": list}
+# Plugins call register_provider() in their register() function.
+_provider_registry: list[dict] = []
+
+
+def register_provider(prefix: str, build_fn, label: str = "", models: list | None = None):
+    """Register an LLM provider. Called by provider plugins.
+
+    prefix  — model-name prefix that routes to this provider (e.g. "ollama/", "claude-")
+    build_fn — callable(model: str) → OpenAI-compatible client
+    label   — human-readable name shown in Web UI / System tab
+    models  — optional list of known model names for switch_model hints
+    """
+    _provider_registry.append({
+        "prefix":  prefix,
+        "build_fn": build_fn,
+        "label":   label or prefix,
+        "models":  models or [],
+    })
+
+
+def _build_client(model: str):
+    """Build an LLM client for model. Checks provider registry first, falls back to OpenAI."""
+    for entry in _provider_registry:
+        if model.startswith(entry["prefix"]):
+            try:
+                return entry["build_fn"](model)
+            except Exception as e:
+                print(f"[AION] Provider '{entry['label']}' failed for '{model}': {e}")
+    # Default: OpenAI
+    return AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+
+# ── Unsupported File Utility ───────────────────────────────────────────────────
+
+def unsupported_file_message(label: str) -> str:
+    """Standard response when a platform receives a file type AION cannot process yet.
+
+    Platforms (Telegram, Web UI, Discord, …) call this with a human-readable label
+    describing the file, e.g. 'Video «clip.mp4» (30s, 8.2 MB)'.
+    """
+    return (
+        f"📥 Received: {label}\n\n"
+        "I can't process this file format yet. "
+        "Want me to learn? Just say so and I'll create a plugin for it."
+    )
+
+
 # ── Character-System ──────────────────────────────────────────────────────────
 
 DEFAULT_CHARACTER = """# AION — Charakter & Persönlichkeit

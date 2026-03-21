@@ -460,12 +460,17 @@ async def _telegram_worker(token: str):
                         _unsupported_label = f"Standort ({lat}, {lon})"
 
                     if _unsupported_label:
-                        await _send(chat_id,
-                            f"📥 Ich habe empfangen: {_unsupported_label}\n\n"
-                            "Dieses Format kann ich noch nicht verarbeiten. "
-                            "Soll ich mir beibringen, damit umzugehen? "
-                            "Ich kann dafür ein neues Plugin erstellen."
+                        import aion as _aion_core
+                        msg_text = (
+                            _aion_core.unsupported_file_message(_unsupported_label)
+                            if hasattr(_aion_core, "unsupported_file_message")
+                            else (
+                                f"📥 Received: {_unsupported_label}\n\n"
+                                "I can't process this file format yet. "
+                                "Want me to learn? Just say so and I'll create a plugin for it."
+                            )
                         )
+                        await _send(chat_id, msg_text)
                         continue
 
                     if not text and not photos and not voice:

@@ -289,27 +289,45 @@ class _GeminiAdapter:
 
 
 def _detect_provider(model: str) -> str:
-    return "gemini" if _is_gemini(model) else "openai"
+    if _is_gemini(model):
+        return "gemini"
+    for entry in getattr(_aion_module, "_provider_registry", []):
+        if model.startswith(entry["prefix"]):
+            return entry["label"]
+    return "openai"
 
 
 def _build_client(model: str):
-    if _is_gemini(model):
-        return _GeminiAdapter(model)
-    from openai import AsyncOpenAI
-    return AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    return _GeminiAdapter(model)
 
 
 def _switch_model(params: dict) -> dict:
     model = params.get("model", "").strip()
     if not model:
-        return {"error": "Kein Modell angegeben."}
+        return {"error": "No model specified."}
     _aion_module.MODEL = model
-    _aion_module.client = _build_client(model)
-    return {"ok": True, "model": model, "provider": _detect_provider(model)}
+    # Use registry-aware _build_client from aion module if available
+    if hasattr(_aion_module, "_build_client"):
+        _aion_module.client = _aion_module._build_client(model)
+    else:
+        _aion_module.client = _build_client(model)
+    provider = _detect_provider(model)
+    return {"ok": True, "model": model, "provider": provider}
 
 
 def register(api):
-    _aion_module._build_client    = _build_client
+    # Register via provider registry (replaces direct _build_client patch)
+    if hasattr(_aion_module, "register_provider"):
+        _aion_module.register_provider(
+            prefix="gemini",
+            build_fn=_build_client,
+            label="Google Gemini",
+            models=GEMINI_MODELS,
+        )
+    else:
+        # Fallback for older aion.py without registry
+        _aion_module._build_client = _build_client
+
     _aion_module._detect_provider = _detect_provider
 
     current_model = _aion_module.MODEL
@@ -319,18 +337,19 @@ def register(api):
     api.register_tool(
         name="switch_model",
         description=(
-            "Wechselt das aktive KI-Modell. "
+            "Switch the active AI model. "
             "OpenAI: gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini, o3, o4-mini. "
             "Gemini: gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite, "
-            "gemini-2.0-flash, gemini-2.0-flash-lite, gemini-1.5-pro."
+            "gemini-2.0-flash, gemini-2.0-flash-lite, gemini-1.5-pro. "
+            "Other providers: use their registered prefix (e.g. ollama/llama3, claude-sonnet-4-6)."
         ),
         func=_switch_model,
         input_schema={
             "type": "object",
             "properties": {
-                "model": {"type": "string", "description": "Modellname"}
+                "model": {"type": "string", "description": "Model name"}
             },
             "required": ["model"],
         },
     )
-    print(f"[Plugin] gemini_provider geladen (Function Calling aktiv) — {len(GEMINI_MODELS)} Modelle")
+    print(f"[Plugin] gemini_provider loaded — {len(GEMINI_MODELS)} models registered")

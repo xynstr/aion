@@ -348,6 +348,31 @@ async def clear_memory():
 
 # ── Config API ──────────────────────────────────────────────────────────────────
 
+@app.get("/api/providers")
+async def list_providers():
+    """Returns all registered LLM providers and their known models."""
+    registry = getattr(_aion_module, "_provider_registry", [])
+    providers = []
+    for entry in registry:
+        providers.append({
+            "label":  entry.get("label", entry.get("prefix", "?")),
+            "prefix": entry.get("prefix", ""),
+            "models": entry.get("models", []),
+        })
+    # Always include OpenAI as the default fallback
+    providers.append({
+        "label":  "OpenAI",
+        "prefix": "",
+        "models": ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
+        "default": True,
+    })
+    return JSONResponse({
+        "providers":      providers,
+        "active_model":   _aion_module.MODEL,
+        "total_providers": len(providers),
+    })
+
+
 @app.get("/api/config")
 async def get_config():
     cfg = _load_config()
