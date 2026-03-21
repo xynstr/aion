@@ -141,8 +141,8 @@ echo %CYAN%  ====================================================%RESET%
 echo %CYAN%  =   Wie soll AION gestartet werden?               =%RESET%
 echo %CYAN%  ====================================================%RESET%
 echo.
-echo %WHITE%%BOLD%  [1]%RESET%  Web UI  ->  Browser + localhost:7000
-echo %WHITE%%BOLD%  [2]%RESET%  CLI     ->  Terminal-Chat
+echo   [1]  Web UI  --  Browser + localhost:7000
+echo   [2]  CLI     --  Terminal-Chat
 echo.
 set "CHOICE="
 set /p "CHOICE=%CYAN%%BOLD%  Eingabe (1/2, Standard: 1): %RESET%"
