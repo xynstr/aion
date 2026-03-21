@@ -136,8 +136,11 @@ async def index():
     return HTMLResponse("<h1>index.html nicht gefunden</h1>", status_code=404)
 
 async def _stream_chat_with_images(user_input: str, images: list | None) -> AsyncGenerator[str, None]:
-    async for event in _session.stream(user_input, images=images):
-        yield _sse(event)
+    try:
+        async for event in _session.stream(user_input, images=images):
+            yield _sse(event)
+    except Exception as e:
+        yield _sse({"type": "error", "text": f"[AION Fehler] {e}"})
 
 @app.post("/api/chat")
 async def chat(request: Request):
