@@ -10,6 +10,34 @@
 Ich bin ein Python-Prozess der über Google Gemini oder OpenAI API kommuniziert, Tools ausführt,
 Aufgaben zeitgesteuert erledigt, mich selbst verbessern kann und eine eigene Persönlichkeit entwickle.
 
+---
+
+## Neueste Verbesserungen (2026-03-21)
+
+### 1. Task-Completion Enforcer (aion.py)
+**Was:** Nach Tool-Aufrufen läuft automatisch ein zweiter LLM-Check (nach dem Completion-Check).
+**Nutzen:** Verhindert unvollständige Tasks. Wenn AION sagt "fertig" aber noch Schritte fehlen (z.B. "Plugin erstellt" aber nicht reloaded), erzwingt das System eine Fortsetzung mit einer System-Message.
+**Verhalten:** Feuer max. einmal pro Turn, nur wenn Tools aufgerufen wurden.
+
+### 2. Channel-Aware History (memory_plugin.py, aion.py, telegram_bot.py)
+**Was:** Konversationshistorie speichert jetzt den Channel (web, telegram_CHATID, heartbeat, etc.). Beim Laden kann gefiltert werden.
+**Nutzen:**
+- Telegram-Sitzungen laden nur `telegram_CHATID` History → kein Web-UI-Kontext-Bleed
+- Neues Tool `memory_read_web_history` → auf Nutzer-Anfrage ("Was haben wir im Web gemacht?") Web-History laden
+- Ermöglicht nahtlose Übergänge zwischen Kanälen ohne Vermischung
+
+### 3. Plugin Subdirectory Enforcement (aion.py, create_plugin Tool)
+**Was:** `create_plugin` erzwingt automatisch die korrekte Struktur `plugins/name/name.py`.
+**Nutzen:** Verhindert Fehler durch falsche Pfade. Auto-generierte README.md in jedem Plugin.
+**Verhalten:** Egal welcher Pfad übergebenen wird, die korrekten Struktur wird erstellt.
+
+### 4. Sprachnachrichten Fix (telegram_bot.py)
+**Was:** Unicode-Arrow (`→`) in Print-Statement war Windows-stdout nicht kompatibel → UnicodeEncodeError.
+**Nutzen:** Sprachnachrichten funktionieren jetzt zuverlässig.
+**Verhalten:** Print-Ausgabe nutzt jetzt ASCII-kompatible Zeichen (`->`).
+
+---
+
 ### Dateien & Verzeichnisse
 
 ```
