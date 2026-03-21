@@ -200,8 +200,8 @@ if not exist "aion_web.py" (
 echo %CYAN%%BOLD%  ====================================================%RESET%
 echo %CYAN%%BOLD%  =   AION Web UI startet                           =%RESET%
 echo %CYAN%%BOLD%  =                                                  =%RESET%
-echo %CYAN%%BOLD%  =   ->  http://localhost:7000                     =%RESET%
-echo %CYAN%%BOLD%  =   ->  Modell: !ACTIVE_MODEL!                           =%RESET%
+echo %CYAN%%BOLD%  =   URL:    http://localhost:7000               =%RESET%
+echo %CYAN%%BOLD%  =   Modell: !ACTIVE_MODEL!%RESET%
 echo %CYAN%%BOLD%  =                                                  =%RESET%
 echo %CYAN%%BOLD%  =   Beenden: Strg+C                               =%RESET%
 echo %CYAN%%BOLD%  ====================================================%RESET%
