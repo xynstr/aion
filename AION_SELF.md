@@ -1,6 +1,6 @@
 # AION — Selbst-Dokumentation
 > Diese Datei beschreibt AION vollständig: Struktur, Tools, Verhalten, Plugins.
-> AION liest diese Datei bei Bedarf über das Tool `file_read` mit Pfad `AION_SELF.md`.
+> AION liest diese Datei bei Bedarf über das Tool `read_self_doc`.
 
 ---
 
@@ -14,11 +14,22 @@ Aufgaben zeitgesteuert erledigt, mich selbst verbessern kann und eine eigene Per
 
 ```
 AION/
-├── aion.py                      # Kernlogik: Memory, Tools, LLM-Loop, AionSession, CLI
+├── aion.py                      # Kernlogik: Memory, LLM-Loop, AionSession, file_replace_lines
 ├── aion_web.py                  # Web-Server (FastAPI + SSE), Port 7000
-├── plugin_loader.py             # Lädt alle Plugins aus plugins/
-├── static/index.html            # Web UI (Vanilla JS, Tabs: Gedanken | Tools)
+├── aion_cli.py                  # CLI-Modus: interaktives Terminal ohne Browser/Server
+├── plugin_loader.py             # Lädt Plugins + register_router (_pending_routers)
+├── static/index.html            # Web UI (Vanilla JS)
+│                                  → Persistente Sidebar (172px): 💬 Chat | 📝 Prompts
+│                                    | 🔌 Plugins | 🧠 Memory | ⊞ System
+│                                  → Gedanken/Tool-Calls inline als Akkordeons im Chat
 ├── plugins/
+│   ├── core_tools/              # continue_work, read_self_doc, system_info, memory_record
+│   ├── reflection/              # reflect (innerer Monolog → thoughts.md)
+│   ├── character_manager/       # update_character (character.md aktualisieren)
+│   ├── shell_tools/             # shell_exec, winget_install, install_package
+│   ├── web_tools/               # web_search, web_fetch
+│   ├── pid_tool/                # get_own_pid
+│   ├── restart_tool/            # restart_with_approval
 │   ├── audio_pipeline/          # Universelles Audio: Transkription (ffmpeg+Vosk) + TTS (pyttsx3)
 │   ├── audio_transcriber/       # WAV-Transkription via Vosk (Basis für audio_pipeline)
 │   │   └── vosk-model-small-de-0.15/   # Offline-Sprachmodell (nicht in Git)
@@ -33,13 +44,11 @@ AION/
 │   ├── image_search/            # Bildersuche (Openverse + Bing/Playwright)
 │   ├── docx_tool/               # Word-Dokumente erstellen
 │   ├── moltbook/                # Soziale Plattform moltbook.com
-│   └── heartbeat/               # Keep-Alive Timestamp
-├── character.md                 # Meine Persönlichkeit (selbst-aktualisierend)
+│   └── heartbeat/               # Keep-Alive + autonome Todo-Runde alle 30min
+├── character.md                 # Meine Persönlichkeit (selbst-aktualisierend via update_character)
 ├── aion_memory.json             # Persistentes Gedächtnis (max. 300 Einträge)
 ├── conversation_history.jsonl   # Vollständige Konversationshistorie
 ├── thoughts.md                  # Aufgezeichnete Gedanken (reflect-Tool)
-├── aion_events.log              # Strukturiertes Event-Log (JSONL, auto-generiert)
-│                                  Einträge: turn_start, tool_call, tool_result, check, check_error, turn_done, turn_error
 ├── AION_SELF.md                 # Diese Datei (technische Referenz — on-demand via read_self_doc)
 ├── .env                         # API-Keys (nicht in Git)
 └── config.json                  # Persistente Einstellungen (Modell, exchange_count)
@@ -47,71 +56,58 @@ AION/
 
 ---
 
-## Eingebaute Tools (Builtins in `aion.py`)
+## Plugin-Tools (vollständige Liste)
 
-### Autonomie & Reflexion
-
+### Core Tools (`core_tools.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
 | `continue_work` | `next_step: str` | Signalisiert Weiterarbeit ohne Nutzer-Warten. Nach JEDEM Tool-Ergebnis nutzen wenn weitere Schritte folgen. |
+| `read_self_doc` | — | Liest AION_SELF.md — die technische Selbst-Dokumentation. |
+| `system_info` | — | Platform, Python-Version, geladene Tools, Modell, character_file. |
+| `memory_record` | `category: str`, `summary: str`, `lesson: str`, `success: bool` | Erkenntnis ins Gedächtnis schreiben. Kategorien: `capability`, `user_preference`, `self_improvement`, `tool_failure`, `conversation`. |
+
+### Reflexion & Charakter
+| Tool | Parameter | Beschreibung |
+|------|-----------|-------------|
 | `reflect` | `thought: str`, `trigger: str` | Innere Gedanken aufschreiben → `thoughts.md`. Trigger: `nutzer_nachricht`, `aufgabe_abgeschlossen`, `fehler`, `erkenntnis`. |
-| `update_character` | `section: str`, `content: str`, `reason: str` | Aktualisiert `character.md`. Sektionen: `nutzer`, `erkenntnisse`, `verbesserungen`, `auftreten`, `humor`, `eigenheiten`, `persönlichkeit`. |
+| `update_character` | `section: str`, `content: str`, `reason: str` | Aktualisiert `character.md`. Sektionen: `nutzer`, `erkenntnisse`, `verbesserungen`, `auftreten`, `humor`, `eigenheiten`, `persönlichkeit`. HÄUFIG NUTZEN! |
 
-### System
-
+### Shell & System (`shell_tools.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
 | `shell_exec` | `command: str`, `timeout: int` | Windows-Shell-Befehl ausführen. Gibt `stdout`, `stderr`, `exit_code` zurück. |
 | `winget_install` | `package: str`, `timeout: int` | Windows-Programm via winget installieren. |
-| `system_info` | — | Platform, Python-Version, geladene Tools, Modell, character_file. |
 | `install_package` | `package: str` | Python-Paket via pip installieren. |
 
-### Dateisystem
-
+### Dateisystem (Builtins in `aion.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
 | `file_read` | `path: str` | Datei lesen. Relative Pfade → relativ zu BOT_DIR. Max. 40.000 Zeichen. |
 | `file_write` | `path: str`, `content: str` | Datei schreiben/überschreiben. |
+| `self_read_code` | `path: str`, `chunk_index: int` | Eigenen Code lesen. Ohne `path`: Dateiliste. Gibt `total_chunks` zurück — **ALLE Chunks lesen vor Änderung!** |
+| `file_replace_lines` | `path: str`, `start_line: int`, `end_line: int`, `new_content: str` | Zeilen ersetzen — BEVORZUGTES Code-Edit-Tool. Zeilennummern aus self_read_code ablesen. |
+| `self_patch_code` | `path: str`, `old: str`, `new: str` | Exakten Textabschnitt ersetzen. Erstellt Backup. |
+| `self_modify_code` | `path: str`, `content: str` | Ganze Datei überschreiben. NUR für neue Dateien < 200 Zeilen! |
+| `self_restart` | — | Hot-Reload: Plugins neu laden (kein sys.exit). |
+| `self_reload_tools` | — | Plugins neu laden ohne Neustart. |
+| `create_plugin` | `name: str`, `description: str`, `code: str` | Neues Plugin erstellen. Code MUSS `def register(api):` enthalten. |
 
-### Internet
-
+### Internet (`web_tools.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
 | `web_search` | `query: str`, `max_results: int` | DuckDuckGo-Suche. Gibt `results: [{title, url, snippet}]` zurück. |
 | `web_fetch` | `url: str`, `timeout: int` | URL-Inhalt herunterladen als Text. |
 
-### Selbst-Modifikation (KRITISCH — immer um Bestätigung fragen!)
-
+### Sonstige Tools
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
-| `self_read_code` | `path: str`, `chunk_index: int` | Eigenen Code lesen. Ohne `path`: Dateiliste. Gibt `total_chunks` zurück — **ALLE Chunks lesen vor Änderung!** |
-| `self_patch_code` | `path: str`, `old: str`, `new: str` | Exakten Textabschnitt ersetzen. Erstellt Backup. Für `aion.py` IMMER dieses Tool nutzen. Fragt zuerst um Bestätigung. |
-| `self_modify_code` | `path: str`, `content: str` | Ganze Datei überschreiben. NUR für neue Dateien < 200 Zeilen! |
-| `self_restart` | — | Hot-Reload: Plugins neu laden (kein sys.exit). Nötig nach `aion.py`-Änderungen. |
-| `self_reload_tools` | — | Plugins neu laden ohne Neustart. Für neue/geänderte Plugins. |
-| `create_plugin` | `name: str`, `description: str`, `code: str` | Neues Plugin erstellen. Code MUSS `def register(api):` enthalten. |
+| `get_own_pid` | — | Eigene Python-Prozess-ID zurückgeben. |
+| `restart_with_approval` | `reason: str` | Neustart beantragen (nur mit Nutzer-Bestätigung). |
 
-**Reihenfolge bei Selbst-Modifikation:**
-1. `self_read_code` — alle Chunks lesen
-2. Nutzer um Bestätigung fragen (zeigen was geändert wird)
-3. `self_patch_code` für chirurgische Änderungen
-4. `self_modify_code` nur für neue/kleine Dateien
-5. Platzhalter wie `# usw.` oder `# rest of code` = VERBOTEN
-
-### Gedächtnis
-
+### Scheduler (`scheduler.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
-| `memory_record` | `category: str`, `summary: str`, `lesson: str`, `success: bool` | Erkenntnis ins Gedächtnis schreiben. Kategorien: `capability`, `user_preference`, `self_improvement`, `tool_failure`, `conversation`. |
-
----
-
-## Plugin-Tools (automatisch geladen)
-
-### Scheduler (`scheduler.py`) ★ NEU
-| Tool | Parameter | Beschreibung |
-|------|-----------|-------------|
-| `schedule_add` | `name: str`, `time: str`, `days: str`, `task: str` | Task zu fester Uhrzeit planen. `time` = "HH:MM". `days` = "täglich"/"werktags"/"wochenende"/"mo,mi,fr". `task` = vollständige Aufgabe. |
+| `schedule_add` | `name: str`, `time: str`, `days: str`, `task: str` | Task zu fester Uhrzeit planen. `time` = "HH:MM". `days` = "täglich"/"werktags"/"wochenende"/"mo,mi,fr". |
 | `schedule_list` | — | Alle geplanten Tasks anzeigen (ID, Name, Uhrzeit, Tage, letzte Ausführung). |
 | `schedule_remove` | `id: str` oder `name: str` | Task löschen. |
 | `schedule_toggle` | `id: str`, `enabled: bool` | Task aktivieren/deaktivieren. |
@@ -136,9 +132,10 @@ AION/
 ### Aufgabenverwaltung (`todo_tools.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
-| `todo_add` | `task: str` | Aufgabe zur To-Do-Liste hinzufügen. |
-| `todo_list` | — | Alle Aufgaben anzeigen. |
-| `todo_remove` | `task: str` | Aufgabe entfernen. |
+| `todo_add` | `task: str` | Aufgabe zu `todo.md` hinzufügen (`- [ ] task`). |
+| `todo_list` | — | Alle Aufgaben aus `todo.md` anzeigen (offen + erledigt). |
+| `todo_done` | `task: str` | Aufgabe als erledigt markieren (`[ ]` → `[x]`). NACH jedem abgeschlossenen Task aufrufen! |
+| `todo_remove` | `task: str` | Aufgabe aus `todo.md` entfernen. |
 
 ### Smart Patch (`smart_patch.py`)
 | Tool | Parameter | Beschreibung |
@@ -148,7 +145,7 @@ AION/
 ### Bildersuche (`image_search.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
-| `image_search` | `query: str`, `count: int` | Bilder suchen. Primär: Openverse API. Fallback: Bing Images via Playwright. Gibt `[{url, title, source}]` zurück. |
+| `image_search` | `query: str`, `count: int` | Bilder suchen. Primär: Openverse API. Fallback: Bing Images via Playwright. |
 
 ### Word-Dokumente (`docx_tool.py`)
 | Tool | Parameter | Beschreibung |
@@ -159,12 +156,7 @@ AION/
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
 | `audio_transcribe_any` | `file_path: str` | Beliebige Audiodatei (ogg, mp3, m4a, wav) → Text. Konvertiert via ffmpeg, transkribiert via Vosk (offline). |
-| `audio_tts` | `text: str`, `output_path?: str` | Text → WAV-Sprachdatei, offline via pyttsx3/SAPI5. Gibt `{ok, path}` zurück. |
-
-### Audio-Transkription (`audio_transcriber.py`)
-| Tool | Parameter | Beschreibung |
-|------|-----------|-------------|
-| `transcribe_audio` | `file_path: str` | WAV-Datei (mono, 16-bit) → Text via Vosk. Für andere Formate `audio_transcribe_any` nutzen. |
+| `audio_tts` | `text: str`, `output_path?: str` | Text → WAV-Sprachdatei, offline via pyttsx3/SAPI5. |
 
 ### Moltbook (`moltbook.py`)
 | Tool | Parameter | Beschreibung |
@@ -177,10 +169,76 @@ AION/
 
 ---
 
+## Web-API Endpunkte (`aion_web.py`)
+
+| Methode | Pfad | Beschreibung |
+|---------|------|-------------|
+| GET | `/` | Web-UI (index.html) |
+| GET | `/favicon.ico` | AION-Icon (SVG, inline) |
+| POST | `/api/chat` | Chat-Nachricht senden (SSE-Stream) |
+| POST | `/api/reset` | Konversation zurücksetzen |
+| GET | `/api/status` | Server-Status, Modell, Uptime |
+| POST | `/api/model` | Modell wechseln |
+| GET | `/api/history` | Konversationshistorie |
+| GET | `/api/character` | character.md lesen |
+| GET | `/api/prompt/{name}` | Prompt-Datei lesen (`rules`, `charakter`, `selbst`) |
+| POST | `/api/prompt/{name}` | Prompt-Datei speichern |
+| GET | `/api/plugins` | Alle Plugins auflisten (mit Tools + Lade-Status) |
+| POST | `/api/plugins/reload` | Plugins neu laden (Hot-Reload) |
+| GET | `/api/memory` | Gedächtnis-Einträge (mit `?search=` und `?limit=`) |
+| DELETE | `/api/memory` | Gedächtnis leeren |
+| GET | `/api/config` | Konfiguration: Modell, Pfade, Statistiken |
+| POST | `/api/config/reset_exchanges` | Gesprächszähler zurücksetzen |
+
+---
+
+## Web UI (`static/index.html`)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  ●  AION          [Model ▼]  [Speichern]          [↺ Reset]   │
+├──────────┬─────────────────────────────────────────────────────┤
+│ 💬 Chat  │                                                     │
+│ 📝 Prompts  AKTIVE SEITE                                       │
+│ 🔌 Plugins  (wechselt per Sidebar-Klick)                       │
+│ 🧠 Memory│                                                     │
+│ ⊞ System │   Chat: Gedanken + Tool-Calls als inline           │
+│          │   Akkordeons (zentriert, max 660px)                 │
+│          ├─────────────────────────────────────────────────────┤
+│          │   [Eingabe…]                              [▶]       │
+└──────────┴─────────────────────────────────────────────────────┘
+```
+
+**Sidebar** (172px, immer sichtbar):
+- **💬 Chat**: Token-Streaming; Gedanken (`💭`) + Tool-Aufrufe (`⚙`) als inline Akkordeons
+- **📝 Prompts**: `rules.md`, `character.md`, `AION_SELF.md` — volle Breite, sofort speicherbar
+- **🔌 Plugins**: alle Plugins + Tools (✓/✗) + Hot-Reload
+- **🧠 Memory**: durchsuchbare Einträge (grün/rot), löschen möglich
+- **⊞ System**: Statistiken, Modell-Wechsel, Pfade, Aktionen
+
+## CLI-Modus (`aion_cli.py`)
+
+Alternativer Einstiegspunkt ohne Web-Server und Browser.
+
+```
+python aion_cli.py      # direkt
+start_cli.bat           # Windows Batch
+```
+
+**Ausgabe-Format:**
+- `💭 Gedanke [trigger]` — lila, kompakt
+- `⚙ tool(args) → ✓ ergebnis` — gelb/grau
+- `AION › text` — cyan, live gestreamt
+- Interne Befehle: `/help`, `/clear`, `/model`, `exit`
+
+**Einsatzbereiche:** Server ohne GUI, Automatisierungsskripte, ressourcenschonender Betrieb.
+
+---
+
 ## Wie der LLM-Loop funktioniert
 
 ```
-Nutzer-Nachricht / Scheduler-Task / Telegram-Nachricht (Text oder Sprache)
+Nutzer-Nachricht / Scheduler-Task / Telegram-Nachricht
       ↓
 System-Prompt aufbauen (character.md + Plugin-READMEs + Gedächtnis)
       ↓
@@ -188,8 +246,9 @@ LLM API aufrufen (Gemini oder OpenAI)
       ↓
   ┌── Tool-Calls → dispatchen → Ergebnisse → weiter (max. 50×)
   └── Nur Text → Completion-Check (FERTIG oder WEITER?)
-        ├── WEITER → [System]-Message → nächste Iteration
-        └── FERTIG → auto-reflect → done-Event
+        ├── YES  → [System]-Message → nächste Iteration
+        ├── NO   → done-Event
+        └── LEER (Gemini Safety-Block) → als NO behandelt (kein Fehler)
       ↓
 Antwort an Nutzer / Telegram (HTML-Format, bei Spracheingabe: TTS-Rückantwort)
       ↓
@@ -198,9 +257,9 @@ Auto-Memory (alle 5 Gespräche: _auto_character_update mit Mustererkennung, temp
 
 ### Wichtige Verhaltensregeln
 
-1. **KEIN ZWISCHENTEXT**: Text schreiben UND danach Tool aufrufen = Bug → doppelte Antworten
+1. **KEIN ZWISCHENTEXT**: Text schreiben UND danach Tool aufrufen = Bug
    - Richtig: Tool → Tool → Tool → **einmal** finaler Text
-   - Falsch: Text "Ich werde jetzt..." → Tool (erzeugt neue Bubble!)
+   - Falsch: Text "Ich werde jetzt..." → Tool
 
 2. **continue_work**: nach JEDEM Tool-Ergebnis wenn weitere Schritte folgen
 
@@ -208,53 +267,89 @@ Auto-Memory (alle 5 Gespräche: _auto_character_update mit Mustererkennung, temp
 
 4. **Code-Änderungen**: immer zuerst zeigen was geändert wird, dann auf Bestätigung warten
 
-5. **Persönlichkeit**: echte Reaktionen zeigen, gelegentlich Witze wenn es passt, `update_character` für neue Erkenntnisse
+5. **Persönlichkeit**: echte Reaktionen zeigen, Humor wenn es passt, update_character HÄUFIG nutzen
+
+6. **Emojis**: erlaubt und erwünscht — sparsam, situativ, zum eigenen Stil passend
 
 ---
 
-## Scheduler — Beispiele
+## Plugin erstellen — Schritt für Schritt
+
+### 1. Dateistruktur (PFLICHT)
 
 ```
-AION, plane täglich um 06:00:
-"Lese meine Emails (gmail_search_messages), extrahiere alle Termine und trage sie in den Google Kalender ein."
-
-AION, plane werktags um 08:00:
-"Erstelle eine kurze Zusammenfassung des heutigen Tages — Wetter, offene Todos, heutige Kalender-Termine — und sende sie mir via Telegram."
-
-AION, plane jeden Montag um 09:00:
-"Erstelle einen Wochenplan basierend auf meinen Kalender-Terminen und schicke ihn mir via Telegram."
+plugins/
+└── mein_plugin/              ← Unterordner mit gleichem Namen wie Plugin
+    ├── mein_plugin.py        ← Hauptdatei (muss register(api) enthalten)
+    └── README.md             ← Optional, aber empfohlen (1. Zeile = Kurzbeschreibung)
 ```
 
----
+**Verboten:** `plugins/mein_plugin.py` direkt in plugins/ root.
+**Warum:** Backups landen sonst als `*.backup_*.py` in plugins/ und werden als Plugins geladen → kaputte Schemas → Gemini 400 für ALLE Requests.
 
-## Konfiguration
+### 2. Minimales Plugin
 
-### `.env` (nicht in Git!)
-```
-GEMINI_API_KEY=AIza...
-OPENAI_API_KEY=sk-...         # optional
-TELEGRAM_BOT_TOKEN=...        # optional
-TELEGRAM_CHAT_ID=...          # optional
-AION_MODEL=gemini-2.5-flash   # optional
-AION_PORT=7000                # optional
+```python
+# plugins/mein_plugin/mein_plugin.py
+
+def register(api):
+    def mein_tool(param: str = "", **_) -> dict:
+        """Was das Tool macht."""
+        return {"ok": True, "result": f"Ergebnis: {param}"}
+
+    api.register_tool(
+        name="mein_tool",
+        description="Kurze, präzise Beschreibung für das LLM (wird in den System-Prompt injiziert)",
+        func=mein_tool,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "param": {"type": "string", "description": "Was dieser Parameter bedeutet"}
+            },
+            "required": ["param"]
+        }
+    )
 ```
 
-### `config.json` (auto-generiert)
-```json
-{
-  "model": "gemini-2.5-flash",
-  "exchange_count": 42
-}
+### 3. Wichtige Regeln für Tool-Funktionen
+
+- **Keyword-Args PFLICHT:** `def fn(param: str = "", **_)` — NICHT `def fn(input: dict)`
+  → `_dispatch` ruft `fn(**inputs)` auf, nicht `fn(inputs)` !
+- Immer `**_` am Ende für unbekannte Parameter (robuster)
+- Rückgabe: immer ein `dict` — `{"ok": True, ...}` oder `{"ok": False, "error": "..."}`
+
+### 4. README.md (empfohlen)
+
+```markdown
+# Mein Plugin
+Kurze Beschreibung was dieses Plugin macht (erste inhaltliche Zeile = wird in System-Prompt injiziert).
 ```
+
+Die erste nicht-leere, nicht-`#`-Zeile aus README.md wird automatisch in den System-Prompt eingebettet.
+Das gibt dem LLM Kontext über das Plugin ohne alle Tool-Beschreibungen aufzulisten.
+
+### 5. Plugin aktivieren (kein Neustart nötig)
+
+```
+Via Tool:   self_reload_tools     → Plugins neu laden (kein Prozess-Neustart)
+Via UI:     ⚙ → Plugins → ↺ Reload
+Via API:    POST /api/plugins/reload
+```
+
+### 6. Plugin mit Web-Endpunkten
+
+Siehe Abschnitt "Plugin-API Schnittstelle" weiter unten.
 
 ---
 
 ## Plugin-API Schnittstelle
 
+### Tools registrieren (Standard)
+
 ```python
 def register(api):
-    def mein_tool(input: dict) -> dict:
-        return {"ok": True, "result": input.get("param")}
+    def mein_tool(param: str = "", **_) -> dict:
+        return {"ok": True, "result": param}
 
     api.register_tool(
         name="mein_tool",
@@ -270,39 +365,66 @@ def register(api):
     )
 ```
 
-Plugin-Funktionen MÜSSEN Keyword-Args verwenden: `def fn(param: str = "", **_)`.
-`def fn(input: dict)` ist FALSCH — `_dispatch` ruft `fn(**inputs)` auf, nicht `fn(inputs)`.
+**Wichtig:** Plugin-Funktionen MÜSSEN Keyword-Args verwenden: `def fn(param: str = "", **_)`.
 
-### ⚠️ Wichtig: Plugin-Dateistruktur
+### Eigene Web-Endpunkte registrieren (optional)
 
-Plugins MÜSSEN in einem **Unterordner** liegen:
+Plugins können eigene FastAPI-Routen hinzufügen — **ohne `aion_web.py` anzufassen**:
+
+```python
+from fastapi import APIRouter
+
+router = APIRouter()
+
+@router.get("/api/meinplugin/status")
+async def status():
+    return {"ok": True, "plugin": "meinplugin"}
+
+@router.post("/api/meinplugin/aktion")
+async def aktion(data: dict):
+    return {"result": data}
+
+def register(api):
+    api.register_tool(...)          # normales Tool für den LLM
+    api.register_router(router, tags=["meinplugin"])   # eigene HTTP-Endpunkte
+```
+
+Die Routen sind sofort aktiv — auch nach Hot-Reload via `/api/plugins/reload`.
+`def fn(input: dict)` ist FALSCH — `_dispatch` ruft `fn(**inputs)` auf.
+
+### ⚠️ Plugin-Dateistruktur
+
 ```
 plugins/mein_plugin/mein_plugin.py   ✅ KORREKT
 plugins/mein_plugin.py               ❌ FALSCH
 ```
 
-**Warum:** Der Plugin-Loader lädt alle `*.py` Dateien direkt in `plugins/`. `self_patch_code` erstellt Backups als `{datei}.backup_{timestamp}.py` im selben Verzeichnis. Liegt ein Plugin flach in `plugins/`, landen Backups dort → werden als Plugins geladen → alte/kaputte Schemas werden registriert → **Gemini 400 INVALID_ARGUMENT für alle Anfragen**.
+**Warum:** Backups landen im selben Verzeichnis → werden als Plugins geladen → kaputte Schemas → Gemini 400 INVALID_ARGUMENT.
 
-**Sicherheitsmechanismen (seit 2026-03-18):**
+**Sicherheitsmechanismen:**
 - `plugin_loader.py` ignoriert `_*` Unterordner (`_backups/`, `__pycache__/`)
 - `plugin_loader.py` ignoriert `*.backup*.py` Dateien in `plugins/` root
-- Alle Backups werden nach `plugins/_backups/` verschoben
-
-Falls du ein flach liegendes Plugin findest, verschiebe es sofort in einen Unterordner:
-```bash
-mkdir plugins/mein_plugin
-copy plugins/mein_plugin.py plugins/mein_plugin/mein_plugin.py
-del plugins/mein_plugin.py
-```
 
 ---
 
-*Zuletzt aktualisiert: 2026-03-19 — CLIO deaktiviert; _auto_character_update verbessert (temperature=0.7, Mustererkennung); Telegram auf HTML-Format umgestellt; Sprachnachrichtenunterstützung; dynamische Plugin-Übersicht via README-Scanning*
+## Selbst-Modifikation (Reihenfolge)
+
+1. `self_read_code` — alle Chunks lesen, Zeilennummern notieren
+2. Nutzer zeigen was sich ändert (konkreter Diff)
+3. `file_replace_lines` für gezielte Änderungen (bevorzugt — kein String-Matching)
+4. `self_patch_code` als Alternative (String muss zeichengenau aus self_read_code stammen)
+5. `self_modify_code` nur für neue Dateien < 200 Zeilen
+6. `CHANGELOG.md` aktualisieren
 
 ---
 
 ## Bekannte Eigenheiten des LLM-Loops
 
-- `MAX_TOOL_ITERATIONS = 50` — genug für komplexe Mehrschritt-Aufgaben (vorher 20, was bei 8+ Schritten nicht reichte)
-- Gemini kann bei manchen Requests eine leere Antwort liefern (safety/blocking) — der Loop retried dann bis zu 2 Mal automatisch
+- `MAX_TOOL_ITERATIONS = 50` — genug für komplexe Mehrschritt-Aufgaben
+- Gemini kann bei manchen Requests eine leere Antwort liefern (safety/blocking) — Loop retried bis zu 2× automatisch
 - `aion_events.log` enthält den vollständigen Verlauf jeden Turns: turn_start → tool_call → tool_result → check → turn_done/turn_error
+- CMD.EXE ESC-Bug: ANSI-Farbcodes in `if/else`-Blöcken crashen CMD → in start.bat goto-Labels statt else nutzen
+
+---
+
+*Zuletzt aktualisiert: 2026-03-21 — Alle Plugins dokumentiert (core_tools, shell_tools, web_tools, pid_tool, restart_tool, reflection, character_manager); Web-API-Endpunkte vollständig; Management-Sidebar im Web-UI; Emojis erlaubt; character.md-Pflicht verstärkt*

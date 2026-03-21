@@ -1231,10 +1231,16 @@ class AionSession:
                                         check_answer += delta.content
                                 check_answer = check_answer.strip().upper()
 
-                            # Leere Check-Antwort = Gemini hat den Check-Request auch geblockt
-                            # Behandle das wie einen Check-Fehler (streak erhöhen, retry)
+                            # Leere Check-Antwort = Gemini hat den Check-Request geblockt (Safety/leer).
+                            # Treat as NO — AION's response is accepted as-is.
+                            # Raising an error here causes the "Completion-Check Fehler" accordion
+                            # to appear after every message when using Gemini.
                             if not check_answer:
-                                raise ValueError("Completion-Check: leere Antwort vom Modell")
+                                _log_event("check_empty", {
+                                    "note": "empty check response → treated as NO",
+                                    "iter": _iter, "channel": self.channel,
+                                })
+                                break  # Accept response, exit loop
 
                             announced_without_action = check_answer.startswith("YES")
                             _check_fail_streak = 0  # Erfolgreicher Check → Streak zurücksetzen

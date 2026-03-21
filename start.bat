@@ -172,34 +172,37 @@ REM ═════════════════════════�
 echo %BOLD%  ┌─ Schritt 5 / 6 ── Alte Instanzen beenden ─────────┐%RESET%
 echo [S5] Cleanup >> "%LOG%"
 
+REM -- Port 7000 freigeben (kein if/else wegen CMD-ESC-Bug mit ANSI-Codes) -----
 set OLDPID=
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000 "') do (
     if not defined OLDPID set OLDPID=%%a
 )
-if defined OLDPID (
+if not defined OLDPID goto :port_free
     taskkill /PID !OLDPID! /F >nul 2>&1
     echo %YELLOW%  │  ·  Port 7000 freigegeben (PID !OLDPID!)%RESET%
     echo [OK] Kill Port 7000 PID=!OLDPID! >> "%LOG%"
-) else (
+    goto :after_port_kill
+:port_free
     echo %GREEN%  │  ✓  Port 7000 frei%RESET%
-)
+    echo [OK] Port 7000 frei >> "%LOG%"
+:after_port_kill
 
-powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'name=''python.exe''' | Where-Object { $_.CommandLine -like '*aion_web*' -or $_.CommandLine -like '*aion.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >> "%LOG%" 2>&1
+REM -- Alle python.exe-Prozesse beenden ----------------------------------------
+taskkill /F /IM python.exe >nul 2>&1
 echo [OK] Python-Cleanup abgeschlossen >> "%LOG%"
 timeout /t 2 >nul
 
+REM -- Zweite Port-Prüfung nach dem Kill ----------------------------------------
 set OLDPID2=
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000 "') do (
     if not defined OLDPID2 set OLDPID2=%%a
 )
-if defined OLDPID2 (
+if not defined OLDPID2 goto :port2_free
     taskkill /PID !OLDPID2! /F >nul 2>&1
     echo %YELLOW%  │  ·  Zweiter Kill (PID !OLDPID2!)%RESET%
-)
+:port2_free
 
-echo %GRAY%  │  ·  Warte 12s auf Telegram-Disconnect...%RESET%
-echo [INFO] Warte 12s... >> "%LOG%"
-timeout /t 12 >nul
+timeout /t 3 >nul
 echo %GREEN%  │  ✓  Bereit%RESET%
 echo [OK] Cleanup fertig >> "%LOG%"
 echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%

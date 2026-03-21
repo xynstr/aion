@@ -3,6 +3,10 @@ from pathlib import Path
 
 PLUGINS_DIR = Path(__file__).parent / "plugins"
 
+# Sammelt FastAPI-Router die Plugins während load_plugins() anmelden.
+# aion_web.py liest diese Liste nach load_plugins() und bindet sie ein.
+_pending_routers: list = []   # Liste von (router, prefix, tags)
+
 
 class PluginAPI:
     def __init__(self, tool_registry):
@@ -14,6 +18,23 @@ class PluginAPI:
             "func": func,
             "input_schema": input_schema or {"type": "object", "properties": {}},
         }
+
+    def register_router(self, router, prefix: str = "", tags: list = None):
+        """Registriert einen FastAPI-APIRouter für Plugin-eigene Web-Endpunkte.
+
+        Beispiel im Plugin:
+            from fastapi import APIRouter
+            router = APIRouter()
+
+            @router.get("/api/meinplugin/status")
+            async def status():
+                return {"ok": True}
+
+            def register(api):
+                api.register_tool(...)
+                api.register_router(router, prefix="", tags=["meinplugin"])
+        """
+        _pending_routers.append((router, prefix, tags or []))
 
 
 def _read_readme_summary(plugin_dir: Path) -> str:
@@ -50,6 +71,9 @@ def _load_file(file: Path, tool_registry: dict):
 
 
 def load_plugins(tool_registry: dict):
+    global _pending_routers
+    _pending_routers = []   # bei jedem Laden neu aufbauen
+
     if not PLUGINS_DIR.exists():
         PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
         return

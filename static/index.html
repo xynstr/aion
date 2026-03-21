@@ -24,391 +24,344 @@
   --purple:  #c792ea;
   --purple2: #9b6ddb;
   --radius:  10px;
+  --sidebar: 172px;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 14px;
-  overflow: hidden;
-}
-
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; overflow: hidden; }
 .app { display: flex; flex-direction: column; height: 100vh; }
 
-/* ── Header ──────────────────────────────────────────────────────── */
+/* ── Header ─────────────────────────────────────────────────────────────── */
 .header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px; height: 52px;
+  padding: 0 16px; height: 52px;
   background: var(--bg2); border-bottom: 1px solid var(--border);
-  flex-shrink: 0; z-index: 10;
+  flex-shrink: 0; z-index: 20;
 }
-.header-left  { display: flex; align-items: center; gap: 14px; }
-.logo         { font-size: 14px; font-weight: 800; letter-spacing: 4px; color: var(--accent); }
-
-.status-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--green); box-shadow: 0 0 7px var(--green);
-  transition: all 0.3s; flex-shrink: 0;
-}
-.status-dot.thinking {
-  background: var(--accent); box-shadow: 0 0 10px var(--accent);
-  animation: dotPulse 1s ease-in-out infinite;
-}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.logo { font-size: 14px; font-weight: 800; letter-spacing: 4px; color: var(--accent); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); transition: all 0.3s; flex-shrink: 0; }
+.status-dot.thinking { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: dotPulse 1s ease-in-out infinite; }
 @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
-
 .model-selector { display: flex; align-items: center; gap: 6px; }
-.model-select {
-  background: var(--bg4); border: 1px solid var(--border); color: var(--text);
-  padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; outline: none;
-}
+.model-select { background: var(--bg4); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; outline: none; }
 .model-select:focus { border-color: var(--accent); }
+.hbtn { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all .15s; white-space: nowrap; }
+.hbtn:hover { border-color: var(--accent); color: var(--accent); }
+.hbtn.danger:hover { border-color: var(--red); color: var(--red); }
 
-.btn {
-  background: transparent; border: 1px solid var(--border); color: var(--text2);
-  padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 11px;
-  transition: all .15s; white-space: nowrap;
-}
-.btn:hover        { border-color: var(--accent); color: var(--accent); }
-.btn.danger:hover { border-color: var(--red); color: var(--red); }
-
-/* ── Main layout ──────────────────────────────────────────────────── */
-/* Flexbox für den Resizer statt Grid */
+/* ── Main layout ─────────────────────────────────────────────────────────── */
 .main { display: flex; flex: 1; overflow: hidden; }
 
-/* ── Chat panel ───────────────────────────────────────────────────── */
-.chat-panel { flex: 1; min-width: 300px; display: flex; flex-direction: column; overflow: hidden; }
+/* ══════════════════════════════════════════════════════════════════════════
+   PERSISTENT SIDEBAR
+══════════════════════════════════════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar); min-width: var(--sidebar);
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  flex-shrink: 0; z-index: 10; overflow: hidden;
+}
+.sidebar-top {
+  height: 40px; display: flex; align-items: center; padding: 0 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sidebar-label { font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text3); font-weight: 700; }
+.sidebar-nav { display: flex; flex-direction: column; padding: 8px 6px; gap: 2px; flex: 1; }
 
+.snav-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 7px; width: 100%;
+  border: none; background: transparent; color: var(--text2);
+  font-size: 12.5px; cursor: pointer; transition: all .15s; text-align: left;
+  white-space: nowrap; position: relative;
+}
+.snav-btn:hover { background: var(--bg3); color: var(--text); }
+.snav-btn.active {
+  background: rgba(0,212,170,.09); color: var(--accent);
+  border-left: 2px solid var(--accent); padding-left: 8px;
+}
+.snav-icon { font-size: 15px; flex-shrink: 0; }
+.snav-label { flex: 1; }
+.snav-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; opacity: 0; transition: opacity .15s; }
+.snav-dot.visible { opacity: 1; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONTENT AREA — full-width pages
+══════════════════════════════════════════════════════════════════════════ */
+.content-area { flex: 1; min-width: 0; display: flex; overflow: hidden; position: relative; }
+
+.section { position: absolute; inset: 0; display: none; flex-direction: column; overflow: hidden; }
+.section.active { display: flex; }
+
+/* ─────────────────────────────────────────────────────────────────
+   SECTION: CHAT
+───────────────────────────────────────────────────────────────── */
 .messages {
-  flex: 1; overflow-y: auto; padding: 28px 24px 16px;
-  display: flex; flex-direction: column; gap: 22px;
-  scroll-behavior: smooth;
+  flex: 1; overflow-y: auto; padding: 28px 40px 16px;
+  display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth;
 }
-
-/* Welcome screen */
-.welcome {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  flex: 1; gap: 18px; padding: 40px; text-align: center;
-}
+.welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 18px; padding: 40px; text-align: center; }
 .welcome-icon { font-size: 42px; opacity: .12; line-height: 1; }
-.welcome h2 {
-  font-size: 30px; font-weight: 800; letter-spacing: 6px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
+.welcome h2 { font-size: 30px; font-weight: 800; letter-spacing: 6px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .welcome p { color: var(--text2); max-width: 360px; line-height: 1.75; font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
-.chip {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  padding: 7px 15px; border-radius: 20px; font-size: 12px; cursor: pointer;
-  transition: all .15s; user-select: none;
-}
+.chip { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 7px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all .15s; user-select: none; }
 .chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,170,.06); }
 
-/* Message bubbles */
-.msg { display: flex; flex-direction: column; max-width: 84%; animation: msgIn .18s ease; }
+/* Messages */
+.msg { display: flex; flex-direction: column; max-width: min(78%, 740px); animation: msgIn .18s ease; margin-bottom: 10px; min-width: 0; }
 @keyframes msgIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
 .msg.user  { align-self: flex-end;  align-items: flex-end; }
 .msg.aion  { align-self: flex-start; align-items: flex-start; }
 .msg-label { font-size: 10px; color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; padding: 0 4px; }
 .msg-bubble {
-  padding: 12px 16px; border-radius: var(--radius); line-height: 1.7;
-  font-size: 14px; word-break: break-word;
+  padding: 12px 16px; border-radius: var(--radius); line-height: 1.7; font-size: 14px;
+  word-break: break-word; overflow-wrap: break-word; min-width: 0;
+  max-width: 100%; overflow: hidden;
 }
-.msg.user .msg-bubble {
-  background: linear-gradient(135deg, #0c2e20, #092419);
-  border: 1px solid #1a4530; color: #aadec0;
-  border-radius: var(--radius) var(--radius) 4px var(--radius);
-}
-.msg.aion .msg-bubble {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) var(--radius) 4px;
-}
-.msg.aion .msg-bubble.streaming::after {
-  content: '▋'; color: var(--accent);
-  animation: cursorBlink .8s step-end infinite; font-size: 13px; margin-left: 1px;
-}
+.msg.user .msg-bubble { background: linear-gradient(135deg, #0c2e20, #092419); border: 1px solid #1a4530; color: #aadec0; border-radius: var(--radius) var(--radius) 4px var(--radius); }
+.msg.aion .msg-bubble { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius) var(--radius) var(--radius) 4px; }
+.msg.aion .msg-bubble.streaming::after { content: '▋'; color: var(--accent); animation: cursorBlink .8s step-end infinite; font-size: 13px; margin-left: 1px; }
 @keyframes cursorBlink { 50%{opacity:0} }
-
-/* Markdown inside bubbles */
-.msg-bubble code {
-  background: rgba(255,255,255,.07); padding: 1px 6px; border-radius: 4px;
-  font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 12.5px; color: #b8d8ff;
-}
-.msg-bubble pre {
-  background: rgba(0,0,0,.5); border: 1px solid var(--border2); border-radius: 7px;
-  padding: 12px 14px; margin: 8px 0; overflow-x: auto;
-}
-.msg-bubble pre code { background: none; padding: 0; font-size: 12px; color: #cce0ff; }
+.msg-bubble code { background: rgba(255,255,255,.07); padding: 1px 6px; border-radius: 4px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 12.5px; color: #b8d8ff; }
+.msg-bubble pre { background: rgba(0,0,0,.5); border: 1px solid var(--border2); border-radius: 7px; padding: 12px 14px; margin: 8px 0; overflow-x: auto; max-width: 100%; }
+.msg-bubble pre code { background: none; padding: 0; font-size: 12px; color: #cce0ff; white-space: pre; }
 .msg-bubble strong { color: #fff; }
-.msg-bubble em     { color: var(--text2); font-style: italic; }
+.msg-bubble em { color: var(--text2); font-style: italic; }
 .msg-bubble h1,.msg-bubble h2,.msg-bubble h3 { color: #fff; margin: 10px 0 4px; }
 .msg-bubble ul,.msg-bubble ol { margin: 6px 0 6px 20px; }
-.msg-bubble li  { margin: 3px 0; }
-.msg-bubble p   { margin: 4px 0; }
-.msg-bubble a   { color: var(--accent); }
+.msg-bubble li { margin: 3px 0; }
+.msg-bubble p  { margin: 4px 0; }
+.msg-bubble a  { color: var(--accent); word-break: break-all; }
+
+/* Copy button */
+.msg-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; margin-top: 5px; padding: 0 4px; }
+.msg:hover .msg-actions { opacity: 1; }
+.copy-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text3); padding: 3px 9px; border-radius: 5px; font-size: 10px; cursor: pointer; transition: all .15s; letter-spacing: .3px; }
+.copy-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,170,.06); }
+
+/* ── Inline Accordions (Thoughts + Tools) ─────────────────────────────── */
+.inline-acc {
+  align-self: center;
+  width: 100%; max-width: 660px;
+  border-radius: 7px; border: 1px solid var(--border);
+  overflow: hidden; animation: msgIn .15s ease; flex-shrink: 0; margin: 1px 0;
+}
+.thought-acc { background: rgba(155,109,219,.05); border-left: 2px solid rgba(155,109,219,.4); }
+.tool-acc { background: var(--bg2); border-left: 2px solid var(--border2); }
+.tool-acc.running { border-left-color: var(--accent); }
+.tool-acc.ok  { border-left-color: var(--green); }
+.tool-acc.err { border-left-color: var(--red); }
+
+.inline-acc-hdr {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px 6px 8px; cursor: pointer; user-select: none;
+  font-size: 11.5px; color: var(--text2); min-height: 32px;
+}
+.inline-acc-hdr:hover { background: rgba(255,255,255,.025); }
+.iacc-icon { font-size: 12px; flex-shrink: 0; }
+.iacc-name { font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 11px; font-weight: 600; color: var(--accent); flex-shrink: 0; }
+.iacc-badge { font-size: 9px; color: var(--purple2); background: rgba(155,109,219,.15); padding: 1px 6px; border-radius: 7px; border: 1px solid rgba(155,109,219,.2); flex-shrink: 0; letter-spacing: .3px; }
+.iacc-preview { flex: 1; font-size: 11px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iacc-status { flex-shrink: 0; font-size: 11px; display: flex; align-items: center; }
+.iacc-status.ok  { color: var(--green); }
+.iacc-status.err { color: var(--red); }
+.iacc-status.running { color: var(--text3); }
+.iacc-detail-btn { background: none; border: 1px solid var(--border); color: var(--text3); border-radius: 4px; font-size: 10px; padding: 1px 6px; cursor: pointer; flex-shrink: 0; transition: all .15s; }
+.iacc-detail-btn:hover { border-color: var(--text3); color: var(--text2); }
+.iacc-toggle { font-size: 9px; color: var(--text3); transition: transform .2s; flex-shrink: 0; margin-left: 2px; }
+.inline-acc.open .iacc-toggle { transform: rotate(90deg); }
+
+.inline-acc-body { display: none; border-top: 1px solid var(--border); }
+.inline-acc.open .inline-acc-body { display: block; }
+.thought-acc .inline-acc-body { padding: 10px 12px; }
+.thought-body-text { font-size: 12.5px; color: #d0c0f0; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+.tool-acc .inline-acc-body { padding: 8px 10px 10px; }
+.iacc-section-label { font-size: 9px; color: var(--text3); letter-spacing: 1.2px; text-transform: uppercase; margin: 6px 0 3px; }
+.iacc-code { background: rgba(0,0,0,.4); border-radius: 5px; padding: 7px 9px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 11px; color: #a0c8e8; white-space: pre-wrap; word-break: break-all; max-height: 180px; overflow-y: auto; line-height: 1.5; }
+.iacc-code.result { color: #b8d8b8; }
+
+/* Thinking indicator */
+.inline-thinking {
+  align-self: center; display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; color: var(--text3); font-size: 12px;
+  animation: fadeIn .2s ease;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.spinner { width: 12px; height: 12px; border: 1.5px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+.mini-spinner { width: 10px; height: 10px; border: 1.5px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
 
 /* Input row */
-.input-row {
-  padding: 14px 20px; background: var(--bg2); border-top: 1px solid var(--border);
-  display: flex; gap: 10px; align-items: flex-end;
-}
-.input-row textarea {
-  flex: 1; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  padding: 10px 14px; border-radius: 8px; font-size: 14px; font-family: inherit;
-  resize: none; min-height: 44px; max-height: 130px; outline: none; line-height: 1.55;
-  transition: border-color .15s;
-}
-.input-row textarea:focus       { border-color: var(--accent); }
+.input-row { padding: 14px 20px; background: var(--bg2); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; }
+.input-row textarea { flex: 1; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; font-family: inherit; resize: none; min-height: 44px; max-height: 130px; outline: none; line-height: 1.55; transition: border-color .15s; }
+.input-row textarea:focus { border-color: var(--accent); }
 .input-row textarea::placeholder { color: var(--text3); }
-.input-row textarea:disabled    { opacity: .4; cursor: not-allowed; }
-.send-btn {
-  width: 44px; height: 44px; border-radius: 8px; background: var(--accent); border: none;
-  color: #000; font-size: 16px; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; flex-shrink: 0; transition: all .15s; font-weight: bold;
-}
+.input-row textarea:disabled { opacity: .4; cursor: not-allowed; }
+.send-btn { width: 44px; height: 44px; border-radius: 8px; background: var(--accent); border: none; color: #000; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; font-weight: bold; }
 .send-btn:hover:not(:disabled) { background: #00ffcc; transform: scale(1.06); }
 .send-btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
 
-/* ── Resizer (Handle) ─────────────────────────────────────────────── */
-.resizer {
-  width: 6px; background: var(--bg); border-left: 1px solid var(--border); border-right: 1px solid var(--border);
-  cursor: col-resize; z-index: 5; transition: background 0.2s;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+/* ─────────────────────────────────────────────────────────────────
+   PAGE HEADER (shared)
+───────────────────────────────────────────────────────────────── */
+.page-hdr {
+  padding: 14px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; background: var(--bg2);
 }
-.resizer:hover, .resizer.dragging { background: var(--border2); }
-.resizer::after { content: '⋮'; color: var(--text3); font-size: 16px; }
+.page-hdr-left { display: flex; flex-direction: column; gap: 2px; }
+.page-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.page-subtitle { font-size: 11px; color: var(--text3); }
+.page-hdr-actions { display: flex; align-items: center; gap: 8px; }
 
-/* ── Side panel ───────────────────────────────────────────────────── */
-.side-panel {
-  width: 420px; min-width: 250px; max-width: 60%;
-  display: flex; flex-direction: column; background: var(--bg); overflow: hidden; flex-shrink: 0;
+.page-scroll { flex: 1; overflow-y: auto; padding: 18px 24px; display: flex; flex-direction: column; gap: 12px; }
+
+.action-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all .15s; white-space: nowrap; }
+.action-btn:hover { border-color: var(--accent); color: var(--accent); }
+.action-btn.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+.action-btn.primary:hover { background: #00ffcc; }
+.action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+.action-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.section-hdr { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.section-title { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); font-weight: 700; }
+.section-badge { background: var(--bg4); color: var(--text2); border-radius: 8px; padding: 1px 8px; font-size: 10px; }
+.section-badge.ok { background: rgba(0,230,118,.12); color: var(--green); }
+
+/* ─────────────────────────────────────────────────────────────────
+   SECTION: PROMPTS
+───────────────────────────────────────────────────────────────── */
+.prompt-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.prompt-file-nav {
+  width: 180px; min-width: 180px; border-right: 1px solid var(--border);
+  padding: 10px 8px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg); overflow-y: auto; flex-shrink: 0;
 }
-
-.side-header {
-  height: 52px; display: flex; align-items: center; gap: 0;
-  border-bottom: 1px solid var(--border); background: var(--bg2); flex-shrink: 0;
-}
-
-/* Tabs */
-.tab-btn {
-  flex: 1; height: 100%; display: flex; align-items: center; justify-content: center;
-  gap: 6px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--text3); border: none; background: transparent; cursor: pointer;
-  border-bottom: 2px solid transparent; transition: all .15s;
-}
-.tab-btn:hover { color: var(--text2); background: rgba(255,255,255,.02); }
-.tab-btn.active { color: var(--text); border-bottom-color: var(--accent); background: rgba(0,212,170,.04); }
-.tab-btn .tab-count {
-  background: var(--bg5); color: var(--text2); border-radius: 10px;
-  padding: 1px 7px; font-size: 10px; min-width: 20px; text-align: center;
-}
-.tab-btn.active .tab-count { background: var(--accent); color: #000; }
-
-/* Tab content areas */
-.tab-content { display: none; flex: 1; overflow-y: auto; padding: 14px 12px; flex-direction: column; gap: 10px; }
-.tab-content.active { display: flex; }
-
-/* Prompt editor tab — eigene Scroll/Padding-Overrides */
-#tab-prompts { overflow: hidden; padding: 10px 12px 12px; gap: 8px; }
-
-.prompt-nav { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.prompt-file-btn {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
-  padding: 4px 11px; border-radius: 6px; font-size: 11px; cursor: pointer;
-  transition: all .15s; letter-spacing: .5px;
-}
-.prompt-file-btn:hover { border-color: var(--border2); color: var(--text); }
-.prompt-file-btn.active { background: rgba(0,212,170,.08); border-color: var(--accent); color: var(--accent); }
-
+.prompt-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 7px; cursor: pointer; border: none; border-left: 2px solid transparent; background: transparent; color: var(--text2); font-size: 13px; width: 100%; text-align: left; transition: all .15s; }
+.prompt-item:hover { background: var(--bg3); color: var(--text); }
+.prompt-item.active { background: rgba(0,212,170,.07); color: var(--accent); border-left-color: var(--accent); }
+.prompt-item .pi-icon { font-size: 15px; flex-shrink: 0; }
+.prompt-item .pi-label { flex: 1; }
+.prompt-item .pi-dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; opacity: 0; transition: opacity .15s; }
+.prompt-item .pi-dirty.visible { opacity: 1; }
+.prompt-editor-col { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 20px; gap: 10px; }
 .prompt-editor-wrap { flex: 1; min-height: 0; display: flex; }
-.prompt-editor {
-  flex: 1; background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  padding: 12px; border-radius: 8px;
-  font-size: 12px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
-  resize: none; outline: none; line-height: 1.55; tab-size: 2;
-  transition: border-color .15s;
-}
+.prompt-editor { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 12px 14px; border-radius: 7px; font-size: 12px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; resize: none; outline: none; line-height: 1.6; tab-size: 2; transition: border-color .15s; }
 .prompt-editor:focus { border-color: var(--accent); }
 .prompt-editor.dirty { border-color: var(--yellow); }
-
-.prompt-footer {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0; padding-top: 6px;
-}
-.prompt-status { font-size: 11px; color: var(--text3); transition: color .2s; }
+.prompt-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+.prompt-status { font-size: 11px; color: var(--text3); flex: 1; transition: color .2s; }
 .prompt-status.ok  { color: var(--green); }
 .prompt-status.err { color: var(--red); }
-.prompt-save-btn {
-  background: var(--accent); border: none; color: #000; font-size: 11px; font-weight: 700;
-  padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: all .15s;
-  letter-spacing: .5px;
-}
-.prompt-save-btn:hover { background: #00ffcc; }
-.prompt-save-btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
 
-/* Empty state */
-.empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  flex: 1; gap: 14px; color: var(--text3); padding: 40px 20px; text-align: center;
-}
-.empty-state .e-icon { font-size: 32px; opacity: .2; }
-.empty-state p { font-size: 12px; line-height: 1.75; max-width: 200px; }
+/* ─────────────────────────────────────────────────────────────────
+   SECTION: PLUGINS
+───────────────────────────────────────────────────────────────── */
+.plugin-card { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--border2); border-radius: 8px; overflow: hidden; transition: border-color .15s; }
+.plugin-card.loaded { border-left-color: var(--accent); }
+.plugin-card.unloaded { border-left-color: var(--red); opacity: .6; }
+.plugin-hdr { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; user-select: none; }
+.plugin-hdr:hover { background: rgba(255,255,255,.02); }
+.plugin-icon { font-size: 14px; flex-shrink: 0; }
+.plugin-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+.plugin-count { font-size: 10px; color: var(--text3); background: var(--bg4); padding: 1px 7px; border-radius: 8px; }
+.plugin-count.loaded { color: var(--accent); background: rgba(0,212,170,.12); }
+.plugin-chevron { font-size: 10px; color: var(--text3); transition: transform .2s; flex-shrink: 0; }
+.plugin-card.open .plugin-chevron { transform: rotate(90deg); }
+.plugin-tools { display: none; border-top: 1px solid var(--border); padding: 8px 12px; flex-direction: column; gap: 4px; }
+.plugin-card.open .plugin-tools { display: flex; }
+.plugin-tool-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; }
+.pt-status { font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+.pt-status.ok  { color: var(--green); }
+.pt-status.err { color: var(--red); }
+.pt-name { font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; color: var(--accent); min-width: 110px; flex-shrink: 0; }
+.pt-desc { font-size: 11px; color: var(--text3); line-height: 1.5; }
+.orphan-section { margin-top: 4px; }
+.orphan-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.orphan-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--bg4); border: 1px solid var(--border); color: var(--text2); padding: 3px 9px; border-radius: 12px; font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; margin: 2px; }
 
-/* Spinner row */
-.thinking-row {
-  display: flex; align-items: center; gap: 10px; padding: 10px 2px;
-  color: var(--text2); font-size: 12px; animation: fadeIn .2s ease;
-}
-@keyframes fadeIn { from{opacity:0} to{opacity:1} }
-.spinner {
-  width: 14px; height: 14px; border: 2px solid var(--border2);
-  border-top-color: var(--accent); border-radius: 50%;
-  animation: spin .7s linear infinite; flex-shrink: 0;
-}
-@keyframes spin { to{transform:rotate(360deg)} }
+/* ─────────────────────────────────────────────────────────────────
+   SECTION: MEMORY
+───────────────────────────────────────────────────────────────── */
+.memory-search-wrap { display: flex; gap: 6px; flex-shrink: 0; }
+.memory-search { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 12px; border-radius: 7px; font-size: 12px; outline: none; transition: border-color .15s; }
+.memory-search:focus { border-color: var(--accent); }
+.memory-search::placeholder { color: var(--text3); }
+.memory-list { display: flex; flex-direction: column; gap: 6px; }
+.memory-entry { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--border2); border-radius: 7px; padding: 10px 12px; transition: border-color .15s; }
+.memory-entry.success { border-left-color: var(--green); }
+.memory-entry.failure { border-left-color: var(--red); }
+.memory-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.memory-cat { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.memory-ts  { font-size: 10px; color: var(--text3); margin-left: auto; }
+.memory-summary { font-size: 12.5px; color: var(--text); line-height: 1.5; }
+.memory-lesson  { font-size: 11px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
+.memory-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 20px; color: var(--text3); font-size: 12px; text-align: center; }
 
-/* ── Thought cards ────────────────────────────────────────────────── */
-.thought-card {
-  background: linear-gradient(135deg, rgba(155,109,219,.1), rgba(0,136,255,.06));
-  border: 1px solid rgba(155,109,219,.2); border-left: 3px solid var(--purple);
-  border-radius: 10px; padding: 14px 16px; animation: cardIn .2s ease;
-  flex-shrink: 0;
-}
-@keyframes cardIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-.thought-meta {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 9px;
-}
-.thought-icon  { font-size: 14px; }
-.thought-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--purple); flex: 1; font-weight: 600; }
-.thought-trigger {
-  font-size: 10px; color: var(--purple2); background: rgba(155,109,219,.15);
-  padding: 2px 8px; border-radius: 8px; border: 1px solid rgba(155,109,219,.2);
-}
-.thought-text {
-  font-size: 13px; color: #d8c8f0; line-height: 1.7;
-  white-space: pre-wrap; word-break: break-word;
-}
+/* ─────────────────────────────────────────────────────────────────
+   SECTION: SYSTEM
+───────────────────────────────────────────────────────────────── */
+.settings-group { display: flex; flex-direction: column; gap: 6px; }
+.settings-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 2px; }
+.settings-row { display: flex; align-items: center; gap: 8px; }
+.settings-select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; outline: none; flex: 1; max-width: 360px; }
+.settings-select:focus { border-color: var(--accent); }
+.settings-val { background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 7px 12px; border-radius: 7px; font-size: 11.5px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; word-break: break-all; max-width: 600px; }
+.settings-divider { height: 1px; background: var(--border); margin: 4px 0; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 700px; }
+.stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.stat-value { font-size: 26px; font-weight: 800; color: var(--accent); line-height: 1; }
+.stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; }
 
-/* ── Tools Grid & Cards ───────────────────────────────────────────── */
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); /* Etwas schmaler für mehr pro Reihe */
-  gap: 8px;
-  align-content: start;
-}
-
-.tool-card {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
-  overflow: hidden; animation: cardIn .2s ease; border-left: 3px solid var(--border2);
-  display: flex; flex-direction: column; cursor: pointer; transition: all 0.15s;
-}
-.tool-card:hover { background: var(--bg4); border-color: var(--text3); transform: translateY(-1px); }
-.tool-card.ok      { border-left-color: var(--green); }
-.tool-card.err     { border-left-color: var(--red); }
-.tool-card.running { border-left-color: var(--accent); }
-
-.tool-header {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  user-select: none;
-}
-.tool-icon { font-size: 14px; flex-shrink: 0; }
-.tool-name {
-  flex: 1; font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
-  font-weight: 600; color: var(--accent); 
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.tool-status { display: flex; align-items: center; font-size: 11px; flex-shrink: 0; }
-.tool-status.ok      { color: var(--green); }
-.tool-status.err     { color: var(--red); }
-.tool-status.running { color: var(--text2); }
-.mini-spinner {
-  width: 10px; height: 10px; border: 1.5px solid var(--border2);
-  border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite;
-}
-
-/* ── Modal (Popup) ────────────────────────────────────────────────── */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.7); backdrop-filter: blur(2px);
-  display: flex; justify-content: center; align-items: center; z-index: 1000;
-  opacity: 0; pointer-events: none; transition: opacity 0.2s;
-}
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(2px); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
 .modal-overlay.show { opacity: 1; pointer-events: auto; }
-
-.modal-content {
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
-  width: 90%; max-width: 650px; max-height: 85vh; display: flex; flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow: hidden;
-  transform: translateY(20px) scale(0.98); transition: transform 0.2s;
-}
+.modal-content { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 90%; max-width: 650px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow: hidden; transform: translateY(20px) scale(0.98); transition: transform 0.2s; }
 .modal-overlay.show .modal-content { transform: translateY(0) scale(1); }
-
-.modal-header {
-  padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--bg3);
-  display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-}
-.modal-title { 
-  font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 10px; 
-  font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 14px; 
-}
-.modal-close {
-  background: none; border: none; color: var(--text3); font-size: 24px; line-height: 1; 
-  cursor: pointer; transition: color 0.2s; padding: 0 5px;
-}
+.modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--bg3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.modal-title { font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 10px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 14px; }
+.modal-close { background: none; border: none; color: var(--text3); font-size: 24px; line-height: 1; cursor: pointer; transition: color 0.2s; padding: 0 5px; }
 .modal-close:hover { color: var(--red); }
-
-.modal-body {
-  padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
-}
-.detail-label {
-  font-size: 11px; color: var(--text3); letter-spacing: 1.5px;
-  text-transform: uppercase; font-weight: 700;
-}
-.detail-box {
-  background: #09090b; border: 1px solid var(--border); border-radius: 8px;
-  padding: 14px; font-size: 12.5px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
-  color: #a0a0b8; white-space: pre-wrap; word-break: break-all;
-  max-height: 300px; overflow-y: auto; line-height: 1.5;
-  box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
-}
-
-/* Syntax Highlighting */
+.modal-body { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.detail-label { font-size: 11px; color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+.detail-box { background: #09090b; border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 12.5px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; color: #a0a0b8; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; line-height: 1.5; box-shadow: inset 0 2px 5px rgba(0,0,0,0.3); }
 .json-key    { color: #82aaff; }
 .json-string { color: #c3e88d; }
 .json-number { color: #f78c6c; }
 .json-boolean{ color: #c792ea; }
 .json-null   { color: #ff5370; }
 
-/* ── Toast ────────────────────────────────────────────────────────── */
-.toast {
-  position: fixed; bottom: 24px; right: 24px;
-  background: var(--bg3); border: 1px solid var(--accent); color: var(--accent);
-  padding: 10px 18px; border-radius: 8px; font-size: 13px;
-  opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 100;
-}
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--bg3); border: 1px solid var(--accent); color: var(--accent); padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 100; }
 .toast.show { opacity: 1; }
 
-/* ── Scrollbars ───────────────────────────────────────────────────── */
+/* ── Scrollbars ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
 
-/* ── Responsive ───────────────────────────────────────────────────── */
-@media (max-width: 700px) {
-  .main { flex-direction: column; }
-  .resizer { height: 6px; width: 100%; cursor: row-resize; border-left: none; border-right: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .resizer::after { content: '⋯'; line-height: 6px; }
-  .side-panel { width: 100% !important; height: 35vh; min-height: 200px; max-height: 60vh; }
+@media (max-width: 800px) {
+  :root { --sidebar: 52px; }
+  .snav-label { display: none; }
+  .snav-btn { justify-content: center; padding: 10px 6px; }
+  .snav-btn.active { border-left-width: 2px; padding-left: 6px; }
+  .messages { padding: 16px 14px 12px; }
+  .inline-acc { max-width: 100%; }
+  .msg { max-width: 95%; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .prompt-file-nav { width: 44px; }
+  .prompt-item .pi-label, .prompt-item .pi-dirty { display: none; }
+  .prompt-item { justify-content: center; padding: 10px 6px; }
+  .sidebar-top { display: none; }
 }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- Header -->
+  <!-- Header — persistent -->
   <div class="header">
     <div class="header-left">
       <div class="status-dot" id="statusDot"></div>
@@ -432,104 +385,215 @@ html, body {
             <option value="gemini-1.5-pro">gemini-1.5-pro</option>
           </optgroup>
         </select>
-        <button class="btn" onclick="saveModel()">Speichern</button>
+        <button class="hbtn" onclick="saveModel()">Speichern</button>
       </div>
     </div>
-    <button class="btn danger" onclick="resetChat()">↺ Reset</button>
+    <button class="hbtn danger" onclick="resetChat()">↺ Reset</button>
   </div>
 
-  <!-- Main -->
   <div class="main">
 
-    <!-- Chat -->
-    <div class="chat-panel">
-      <div class="messages" id="messages">
-        <div class="welcome" id="welcome">
-          <div class="welcome-icon">◈</div>
-          <h2>AION</h2>
-          <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
-          <div class="chips">
-            <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
-            <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
-            <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
-            <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
-            <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
-            <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
+    <!-- ═══ PERSISTENT SIDEBAR ═══ -->
+    <div class="sidebar">
+      <div class="sidebar-top">
+        <span class="sidebar-label">Navigation</span>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="snav-btn active" id="snav-chat" onclick="switchSection('chat')">
+          <span class="snav-icon">💬</span>
+          <span class="snav-label">Chat</span>
+        </button>
+        <button class="snav-btn" id="snav-prompts" onclick="switchSection('prompts')">
+          <span class="snav-icon">📝</span>
+          <span class="snav-label">Prompts</span>
+          <span class="snav-dot" id="snav-dirty-prompts"></span>
+        </button>
+        <button class="snav-btn" id="snav-plugins" onclick="switchSection('plugins')">
+          <span class="snav-icon">🔌</span>
+          <span class="snav-label">Plugins</span>
+        </button>
+        <button class="snav-btn" id="snav-memory" onclick="switchSection('memory')">
+          <span class="snav-icon">🧠</span>
+          <span class="snav-label">Memory</span>
+        </button>
+        <button class="snav-btn" id="snav-settings" onclick="switchSection('settings')">
+          <span class="snav-icon">⊞</span>
+          <span class="snav-label">System</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ═══ CONTENT AREA ═══ -->
+    <div class="content-area">
+
+      <!-- SECTION: CHAT -->
+      <div class="section active" id="section-chat">
+        <div class="messages" id="messages">
+          <div class="welcome" id="welcome">
+            <div class="welcome-icon">◈</div>
+            <h2>AION</h2>
+            <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
+            <div class="chips">
+              <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
+              <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
+              <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
+              <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
+              <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
+              <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
+            </div>
+          </div>
+        </div>
+        <div class="input-row">
+          <textarea id="input"
+            placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)"
+            rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
+        </div>
+      </div>
+
+      <!-- SECTION: PROMPTS -->
+      <div class="section" id="section-prompts">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <div class="page-title">Prompts</div>
+            <div class="page-subtitle">Systemanweisungen für AION bearbeiten</div>
+          </div>
+          <div class="page-hdr-actions">
+            <span id="promptStatus" class="prompt-status"></span>
+            <button class="action-btn primary" id="promptSaveBtn" onclick="savePrompt()">💾 Speichern</button>
+          </div>
+        </div>
+        <div class="prompt-body">
+          <div class="prompt-file-nav">
+            <button class="prompt-item active" id="pitem-rules" onclick="promptSwitch('rules')">
+              <span class="pi-icon">⚙</span><span class="pi-label">Regeln</span>
+              <span class="pi-dirty" id="pdirty-rules"></span>
+            </button>
+            <button class="prompt-item" id="pitem-character" onclick="promptSwitch('character')">
+              <span class="pi-icon">🌱</span><span class="pi-label">Charakter</span>
+              <span class="pi-dirty" id="pdirty-character"></span>
+            </button>
+            <button class="prompt-item" id="pitem-self_doc" onclick="promptSwitch('self_doc')">
+              <span class="pi-icon">📖</span><span class="pi-label">Selbst-Doku</span>
+              <span class="pi-dirty" id="pdirty-self_doc"></span>
+            </button>
+          </div>
+          <div class="prompt-editor-col">
+            <div class="prompt-editor-wrap">
+              <textarea id="promptEditor" class="prompt-editor"
+                        spellcheck="false" placeholder="Datei laden…"
+                        oninput="onPromptEdit()"></textarea>
+            </div>
           </div>
         </div>
       </div>
-      <div class="input-row">
-        <textarea id="input"
-          placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)"
-          rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
-      </div>
-    </div>
 
-    <!-- Resizer -->
-    <div class="resizer" id="resizer"></div>
-
-    <!-- Side panel: Thoughts + Tools (tabs) -->
-    <div class="side-panel" id="sidePanel">
-      <div class="side-header">
-        <button class="tab-btn active" id="tab-thoughts-btn" onclick="showTab('thoughts')">
-          💭 Gedanken
-          <span class="tab-count" id="thoughtCount">0</span>
-        </button>
-        <button class="tab-btn" id="tab-tools-btn" onclick="showTab('tools')">
-          ⚙ Tools
-          <span class="tab-count" id="toolCount">0</span>
-        </button>
-        <button class="tab-btn" id="tab-prompts-btn" onclick="showTab('prompts')">
-          📝 Prompts
-        </button>
-      </div>
-
-      <!-- Thoughts tab -->
-      <div class="tab-content active" id="tab-thoughts">
-        <div class="empty-state" id="thoughtsEmpty">
-          <div class="e-icon">💭</div>
-          <p>Hier erscheinen AIons Gedanken in Echtzeit — was er plant, beobachtet und lernt.</p>
+      <!-- SECTION: PLUGINS -->
+      <div class="section" id="section-plugins">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <div class="page-title">Plugins</div>
+            <div class="page-subtitle" id="pluginTotalBadge">…</div>
+          </div>
+          <div class="page-hdr-actions">
+            <button class="action-btn" id="pluginReloadBtn" onclick="reloadPlugins()">↺ Reload</button>
+          </div>
+        </div>
+        <div class="page-scroll">
+          <div id="pluginList">
+            <div class="memory-empty"><span style="font-size:28px;opacity:.2">🔌</span><span>Lade Plugins…</span></div>
+          </div>
         </div>
       </div>
 
-      <!-- Tools tab -->
-      <div class="tab-content" id="tab-tools">
-        <div class="empty-state" id="toolsEmpty">
-          <div class="e-icon">⚙</div>
-          <p>Hier erscheinen alle Tool-Aufrufe. Klicke auf eine Karte für Details.</p>
+      <!-- SECTION: MEMORY -->
+      <div class="section" id="section-memory">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <div class="page-title">Memory</div>
+            <div class="page-subtitle" id="memoryTotalBadge">…</div>
+          </div>
+          <div class="page-hdr-actions">
+            <button class="action-btn danger" onclick="clearMemory()">🗑 Leeren</button>
+          </div>
         </div>
-        <!-- Grid-Container für die neuen Tool-Karten -->
-        <div class="tools-grid" id="toolsGrid"></div>
-      </div>
-
-      <!-- Prompts tab -->
-      <div class="tab-content" id="tab-prompts">
-        <div class="prompt-nav">
-          <button class="prompt-file-btn active" id="prompt-btn-rules"
-                  onclick="switchPromptFile('rules')">⚙ Regeln</button>
-          <button class="prompt-file-btn" id="prompt-btn-character"
-                  onclick="switchPromptFile('character')">🌱 Charakter</button>
-          <button class="prompt-file-btn" id="prompt-btn-self_doc"
-                  onclick="switchPromptFile('self_doc')">📖 Selbst-Doku</button>
-        </div>
-        <div class="prompt-editor-wrap">
-          <textarea id="promptEditor" class="prompt-editor"
-                    spellcheck="false" placeholder="Laden…"
-                    oninput="onPromptEdit()"></textarea>
-        </div>
-        <div class="prompt-footer">
-          <span id="promptStatus" class="prompt-status"></span>
-          <button class="prompt-save-btn" id="promptSaveBtn"
-                  onclick="savePrompt()">💾 Speichern</button>
+        <div class="page-scroll">
+          <div class="memory-search-wrap">
+            <input type="text" class="memory-search" id="memorySearch"
+                   placeholder="🔍  Suchen…" oninput="debounceMemorySearch()">
+            <button class="action-btn" onclick="loadMemory()">↺</button>
+          </div>
+          <div id="memoryList">
+            <div class="memory-empty"><span style="font-size:28px;opacity:.2">🧠</span><span>Lade Einträge…</span></div>
+          </div>
         </div>
       </div>
-    </div>
 
-  </div>
-</div>
+      <!-- SECTION: SYSTEM -->
+      <div class="section" id="section-settings">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <div class="page-title">System</div>
+            <div class="page-subtitle">AION-Konfiguration und Statistiken</div>
+          </div>
+        </div>
+        <div class="page-scroll">
+          <div class="settings-group">
+            <div class="settings-label">Statistiken</div>
+            <div class="stat-grid">
+              <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
+              <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
+              <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Erinnerungen</div></div>
+              <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Gespräche</div></div>
+            </div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
+            <div class="settings-label">KI-Modell</div>
+            <div class="settings-row">
+              <select class="settings-select" id="settingsModel">
+                <optgroup label="── OpenAI ──">
+                  <option value="gpt-4.1">gpt-4.1</option>
+                  <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                  <option value="gpt-4o">gpt-4o</option>
+                  <option value="gpt-4o-mini">gpt-4o-mini</option>
+                  <option value="o3">o3</option>
+                  <option value="o4-mini">o4-mini</option>
+                </optgroup>
+                <optgroup label="── Google Gemini ──">
+                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                  <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                  <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                  <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                </optgroup>
+              </select>
+              <button class="action-btn primary" onclick="saveModelFromSettings()">Speichern</button>
+            </div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
+            <div class="settings-label">AION-Verzeichnis</div>
+            <div class="settings-val" id="settingsBotDir">…</div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
+            <div class="settings-label">Aktionen</div>
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:380px">
+              <button class="action-btn" onclick="resetExchanges()">↺ Gesprächszähler zurücksetzen</button>
+              <button class="action-btn danger" onclick="clearMemory()">🗑 Memory komplett leeren</button>
+              <button class="action-btn" onclick="reloadPlugins()">🔌 Alle Plugins neu laden</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<!-- Modal für Tool-Details -->
+    </div><!-- /content-area -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Modal (Tool-Details) -->
 <div class="modal-overlay" id="toolModal" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
@@ -548,39 +612,55 @@ html, body {
 <div class="toast" id="toast"></div>
 
 <script>
+// ═══════════════════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════════════
 const TOOL_ICONS = {
   web_search:'🔍', web_fetch:'🌐', shell_exec:'🖥️', winget_install:'📦',
   file_read:'📖', file_write:'📝', self_read_code:'👁️', self_patch_code:'🩹',
-  self_modify_code:'✏️', install_package:'🐍', create_plugin:'🔧', create_tool:'🔧',
-  memory_record:'🧠', system_info:'ℹ️', reflect:'💭', update_character:'🌱',
-  switch_model:'🔄', send_telegram_message:'✈️', continue_work:'⏩',
-  todo_add:'✅', todo_list:'📋', todo_remove:'🗑️', smart_patch:'🔨',
+  file_replace_lines:'✂️', self_modify_code:'✏️', install_package:'🐍',
+  create_plugin:'🔧', create_tool:'🔧', memory_record:'🧠', system_info:'ℹ️',
+  reflect:'💭', update_character:'🌱', switch_model:'🔄',
+  send_telegram_message:'✈️', continue_work:'⏩',
+  todo_add:'✅', todo_list:'📋', todo_done:'✅', todo_remove:'🗑️', smart_patch:'🔨',
+  schedule_add:'⏰', schedule_list:'📅', schedule_remove:'🗑️', schedule_toggle:'🔀',
+  image_search:'🖼️', create_docx:'📄', audio_tts:'🔊', audio_transcribe_any:'🎙️',
+};
+const PLUGIN_ICONS = {
+  core_tools:'🛠', reflection:'💭', shell_tools:'🖥️', web_tools:'🌐',
+  character_manager:'🌱', memory_plugin:'🧠', gemini_provider:'✨',
+  telegram_bot:'✈️', image_search:'🖼️', scheduler:'⏰', audio_pipeline:'🎙️',
+  audio_transcriber:'🔊', smart_patch:'🔨', todo_tools:'✅', heartbeat:'💓',
+  restart_tool:'↺', pid_tool:'🔢', docx_tool:'📄', moltbook:'📚',
 };
 
 let isThinking        = false;
 let currentBubble     = null;
 let awaitingNewBubble = false;
-let thoughtCount      = 0;
-let toolCount         = 0;
-let activeTab         = 'thoughts';
-
-// Store für alle Tool-Daten, damit das Modal darauf zugreifen kann
-const toolDataStore = {};
+const toolDataStore   = {};
 let currentModalCallId = null;
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// Section state
+let currentSection = 'chat';
+
+// Prompt state
+let _promptFile   = 'rules';
+let _promptLoaded = {};
+let _promptDirty  = {};
+let _memDebounce  = null;
+
+// ═══════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════
 async function loadHistory() {
   try {
-    const r = await fetch('/api/history');
+    const r    = await fetch('/api/history');
     const data = await r.json();
-    if (!data.messages || data.messages.length === 0) return;
+    if (!data.messages || !data.messages.length) return;
     removeWelcome();
     for (const msg of data.messages) {
-      if (msg.role === 'user') {
-        appendUserMsg(msg.content);
-      } else if (msg.role === 'assistant' && msg.content.trim()) {
-        appendHistoryAionMsg(msg.content);
-      }
+      if (msg.role === 'user') appendUserMsg(msg.content);
+      else if (msg.role === 'assistant' && msg.content.trim()) appendHistoryAionMsg(msg.content);
     }
     scrollChat();
   } catch {}
@@ -588,239 +668,297 @@ async function loadHistory() {
 
 async function init() {
   try {
-    const r = await fetch('/api/status');
-    const s = await r.json();
-    const sel = document.getElementById('modelSelect');
-    let found = false;
-    for (let opt of sel.options) {
-      if (opt.value === s.model) { sel.value = s.model; found = true; break; }
-    }
-    if (!found) {
-      const opt = document.createElement('option');
-      opt.value = s.model; opt.textContent = s.model;
-      sel.appendChild(opt); sel.value = s.model;
-    }
+    const s = await (await fetch('/api/status')).json();
+    syncModelSelects(s.model, document.getElementById('modelSelect'));
   } catch {}
   await loadHistory();
 }
 init();
 
-// ── Resizer Logic ─────────────────────────────────────────────────────────────
-const resizer = document.getElementById('resizer');
-const sidePanel = document.getElementById('sidePanel');
-let isResizing = false;
-
-resizer.addEventListener('mousedown', function(e) {
-  isResizing = true;
-  resizer.classList.add('dragging');
-  e.preventDefault(); 
-  document.body.style.cursor = window.innerWidth > 700 ? 'col-resize' : 'row-resize';
-});
-
-document.addEventListener('mousemove', function(e) {
-  if (!isResizing) return;
-  if (window.innerWidth > 700) {
-    let newWidth = document.body.clientWidth - e.clientX;
-    if (newWidth < 250) newWidth = 250;
-    if (newWidth > document.body.clientWidth * 0.7) newWidth = document.body.clientWidth * 0.7;
-    sidePanel.style.width = `${newWidth}px`;
-  } else {
-    let newHeight = document.body.clientHeight - e.clientY;
-    if (newHeight < 150) newHeight = 150;
-    if (newHeight > document.body.clientHeight * 0.8) newHeight = document.body.clientHeight * 0.8;
-    sidePanel.style.height = `${newHeight}px`;
-  }
-});
-
-document.addEventListener('mouseup', function() {
-  if (isResizing) {
-    isResizing = false;
-    resizer.classList.remove('dragging');
-    document.body.style.cursor = 'default';
-  }
-});
-
-window.addEventListener('resize', () => {
-  if (window.innerWidth > 700) sidePanel.style.height = ''; 
-  else sidePanel.style.width = '';
-});
-
-// ── Tabs ──────────────────────────────────────────────────────────────────────
-function showTab(name) {
-  activeTab = name;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById(`tab-${name}-btn`).classList.add('active');
-  document.getElementById(`tab-${name}`).classList.add('active');
-  if (name === 'prompts' && !_promptLoaded) loadPrompt(_currentPromptFile);
+function syncModelSelects(model, ...selects) {
+  selects.forEach(sel => {
+    if (!sel) return;
+    let found = false;
+    for (let opt of sel.options) { if (opt.value === model) { sel.value = model; found = true; break; } }
+    if (!found) { const o = document.createElement('option'); o.value = model; o.textContent = model; sel.appendChild(o); sel.value = model; }
+  });
 }
 
-// ── Prompt Editor ─────────────────────────────────────────────────────────────
-let _currentPromptFile = 'rules';
-let _promptLoaded      = false;
-let _promptDirty       = false;
+// ═══════════════════════════════════════════════════════════════════
+// SECTION NAVIGATION
+// ═══════════════════════════════════════════════════════════════════
+function switchSection(name) {
+  currentSection = name;
+  document.querySelectorAll('.snav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(`snav-${name}`).classList.add('active');
+  document.getElementById(`section-${name}`).classList.add('active');
+  loadCurrentSection();
+}
 
-const _PROMPT_LABELS = { rules: '⚙ Regeln', character: '🌱 Charakter', self_doc: '📖 Selbst-Doku' };
+function loadCurrentSection() {
+  if (currentSection === 'prompts')  { if (!_promptLoaded[_promptFile]) loadPrompt(_promptFile); }
+  if (currentSection === 'plugins')  loadPlugins();
+  if (currentSection === 'memory')   loadMemory();
+  if (currentSection === 'settings') loadSettings();
+}
 
-function switchPromptFile(name) {
-  if (_promptDirty) {
-    if (!confirm('Ungespeicherte Änderungen verwerfen?')) return;
-  }
-  _currentPromptFile = name;
-  _promptLoaded      = false;
-  _promptDirty       = false;
-  document.querySelectorAll('.prompt-file-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`prompt-btn-${name}`).classList.add('active');
+// ── PROMPTS ───────────────────────────────────────────────────────────────────
+function promptSwitch(name) {
+  if (_promptDirty[_promptFile] && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
+  _promptDirty[_promptFile] = false; updateDirtyDot(_promptFile, false);
+  document.querySelectorAll('.prompt-item').forEach(b => b.classList.remove('active'));
+  document.getElementById(`pitem-${name}`).classList.add('active');
+  _promptFile = name;
   loadPrompt(name);
 }
 
 async function loadPrompt(name) {
   const ta = document.getElementById('promptEditor');
   const st = document.getElementById('promptStatus');
-  ta.value       = '';
-  ta.placeholder = 'Laden…';
-  st.textContent = '';
-  st.className   = 'prompt-status';
+  ta.value = ''; ta.placeholder = 'Laden…'; st.textContent = ''; st.className = 'prompt-status';
   try {
-    const r    = await fetch(`/api/prompt/${name}`);
-    const data = await r.json();
-    ta.value       = data.content || '';
-    ta.placeholder = '';
+    const data = await (await fetch(`/api/prompt/${name}`)).json();
+    ta.value = data.content || ''; ta.placeholder = '';
     ta.classList.remove('dirty');
-    _promptLoaded = true;
-    _promptDirty  = false;
-  } catch (e) {
-    st.textContent = '✗ Fehler beim Laden';
-    st.className   = 'prompt-status err';
-  }
+    _promptLoaded[name] = true; _promptDirty[name] = false; updateDirtyDot(name, false);
+  } catch { st.textContent = '✗ Fehler'; st.className = 'prompt-status err'; }
 }
 
 function onPromptEdit() {
-  _promptDirty = true;
+  _promptDirty[_promptFile] = true;
   document.getElementById('promptEditor').classList.add('dirty');
-  const st = document.getElementById('promptStatus');
-  st.textContent = '● Nicht gespeichert';
-  st.className   = 'prompt-status';
+  document.getElementById('promptStatus').textContent = '● Nicht gespeichert';
+  document.getElementById('promptStatus').className   = 'prompt-status';
+  updateDirtyDot(_promptFile, true);
 }
 
 async function savePrompt() {
   const content = document.getElementById('promptEditor').value;
-  const btn     = document.getElementById('promptSaveBtn');
-  const st      = document.getElementById('promptStatus');
-  btn.disabled  = true;
-  st.textContent = 'Speichern…';
-  st.className   = 'prompt-status';
+  const btn = document.getElementById('promptSaveBtn');
+  const st  = document.getElementById('promptStatus');
+  btn.disabled = true; st.textContent = 'Speichern…'; st.className = 'prompt-status';
   try {
-    const r    = await fetch(`/api/prompt/${_currentPromptFile}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
-    });
-    const data = await r.json();
+    const data = await (await fetch(`/api/prompt/${_promptFile}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content}),
+    })).json();
     if (data.ok) {
-      _promptDirty = false;
+      _promptDirty[_promptFile] = false;
       document.getElementById('promptEditor').classList.remove('dirty');
-      st.textContent = '✓ Gespeichert';
-      st.className   = 'prompt-status ok';
-      setTimeout(() => {
-        if (!_promptDirty) { st.textContent = ''; st.className = 'prompt-status'; }
-      }, 2500);
-    } else {
-      st.textContent = `✗ ${data.error || 'Fehler'}`;
-      st.className   = 'prompt-status err';
-    }
-  } catch (e) {
-    st.textContent = '✗ Netzwerkfehler';
-    st.className   = 'prompt-status err';
-  } finally {
-    btn.disabled = false;
+      updateDirtyDot(_promptFile, false);
+      st.textContent = '✓ Gespeichert'; st.className = 'prompt-status ok';
+      setTimeout(() => { if (!_promptDirty[_promptFile]) { st.textContent = ''; st.className = 'prompt-status'; } }, 2500);
+    } else { st.textContent = `✗ ${data.error||'Fehler'}`; st.className = 'prompt-status err'; }
+  } catch { st.textContent = '✗ Netzwerkfehler'; st.className = 'prompt-status err'; }
+  finally { btn.disabled = false; }
+}
+
+function updateDirtyDot(name, dirty) {
+  const d = document.getElementById(`pdirty-${name}`);
+  if (d) d.classList.toggle('visible', dirty);
+  // Sidebar nav dot: visible if any prompt has unsaved changes
+  const anyDirty = Object.values(_promptDirty).some(Boolean);
+  const navDot = document.getElementById('snav-dirty-prompts');
+  if (navDot) navDot.classList.toggle('visible', anyDirty);
+}
+
+// ── PLUGINS ───────────────────────────────────────────────────────────────────
+async function loadPlugins() {
+  const list = document.getElementById('pluginList');
+  list.innerHTML = '<div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span></div>';
+  try {
+    const data = await (await fetch('/api/plugins')).json();
+    document.getElementById('pluginTotalBadge').textContent = `${data.total_loaded} Tools geladen`;
+    renderPlugins(data);
+  } catch(e) { list.innerHTML = `<div class="memory-empty">✗ Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderPlugins(data) {
+  const list = document.getElementById('pluginList');
+  list.innerHTML = '';
+  let html = '';
+  for (const p of data.plugins) {
+    const icon   = PLUGIN_ICONS[p.name] || '🔌';
+    const cls    = p.loaded ? 'loaded' : 'unloaded';
+    const cntCls = p.loaded ? 'loaded' : '';
+    const toolsHtml = p.tools.map(t => `
+      <div class="plugin-tool-row">
+        <span class="pt-status ${t.loaded ? 'ok' : 'err'}">${t.loaded ? '✓' : '✗'}</span>
+        <span class="pt-name">${esc(t.name)}</span>
+        <span class="pt-desc">${esc((t.description || '').slice(0, 100))}</span>
+      </div>`).join('');
+    html += `
+      <div class="plugin-card ${cls}" id="pc-${esc(p.name)}">
+        <div class="plugin-hdr" onclick="togglePlugin('${esc(p.name)}')">
+          <span class="plugin-icon">${icon}</span>
+          <span class="plugin-name">${esc(p.name)}</span>
+          <span class="plugin-count ${cntCls}">${p.tools.length} Tools</span>
+          <span class="plugin-chevron">▶</span>
+        </div>
+        <div class="plugin-tools">${toolsHtml || '<span style="font-size:11px;color:var(--text3)">Keine Tools registriert</span>'}</div>
+      </div>`;
   }
+  if (data.orphan_tools && data.orphan_tools.length) {
+    const chips = data.orphan_tools.map(t => `<span class="orphan-chip">⚙ ${esc(t.name)}</span>`).join('');
+    html += `<div class="orphan-section"><div class="orphan-label">Weitere Tools (ohne Plugin-Ordner)</div><div style="display:flex;flex-wrap:wrap">${chips}</div></div>`;
+  }
+  list.innerHTML = html || '<div class="memory-empty"><span style="opacity:.3">Keine Plugins gefunden</span></div>';
 }
 
-function updateCounts() {
-  document.getElementById('thoughtCount').textContent = thoughtCount;
-  document.getElementById('toolCount').textContent    = toolCount;
+function togglePlugin(name) { document.getElementById(`pc-${name}`).classList.toggle('open'); }
+
+async function reloadPlugins() {
+  const btn = document.getElementById('pluginReloadBtn');
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const data = await (await fetch('/api/plugins/reload', {method:'POST'})).json();
+    if (data.ok) { showToast(`✓ ${data.count} Tools geladen`); loadPlugins(); loadSettings(); }
+    else showToast('✗ ' + (data.error || 'Fehler'));
+  } catch(e) { showToast('✗ ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '↺ Reload'; }
 }
 
-// ── Model ─────────────────────────────────────────────────────────────────────
+// ── MEMORY ────────────────────────────────────────────────────────────────────
+async function loadMemory() {
+  const q    = document.getElementById('memorySearch').value.trim();
+  const list = document.getElementById('memoryList');
+  list.innerHTML = '<div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span></div>';
+  try {
+    const url  = `/api/memory${q ? `?search=${encodeURIComponent(q)}` : ''}`;
+    const data = await (await fetch(url)).json();
+    document.getElementById('memoryTotalBadge').textContent = `${data.total} Einträge`;
+    renderMemory(data.entries);
+  } catch(e) { list.innerHTML = `<div class="memory-empty">✗ ${esc(e.message)}</div>`; }
+}
+
+function renderMemory(entries) {
+  const list = document.getElementById('memoryList');
+  if (!entries.length) { list.innerHTML = '<div class="memory-empty"><span style="font-size:24px;opacity:.2">🧠</span><span>Keine Einträge gefunden</span></div>'; return; }
+  list.innerHTML = '<div class="memory-list">' + entries.map(e => {
+    const ts  = e.timestamp ? e.timestamp.replace('T',' ').slice(0,16) : '';
+    const cls = e.success === false ? 'failure' : 'success';
+    return `
+      <div class="memory-entry ${cls}">
+        <div class="memory-meta">
+          <span class="memory-cat">${esc(e.category || 'general')}</span>
+          <span class="memory-ts">${esc(ts)}</span>
+        </div>
+        <div class="memory-summary">${esc(e.summary || '')}</div>
+        ${e.lesson ? `<div class="memory-lesson">${esc(e.lesson.slice(0,200))}</div>` : ''}
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function debounceMemorySearch() { clearTimeout(_memDebounce); _memDebounce = setTimeout(loadMemory, 350); }
+
+async function clearMemory() {
+  if (!confirm('Memory komplett leeren? Das kann nicht rückgängig gemacht werden.')) return;
+  try {
+    const data = await (await fetch('/api/memory', {method:'DELETE'})).json();
+    if (data.ok) { showToast('✓ Memory geleert'); loadMemory(); loadSettings(); }
+    else showToast('✗ ' + (data.error || 'Fehler'));
+  } catch(e) { showToast('✗ ' + e.message); }
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const data = await (await fetch('/api/config')).json();
+    document.getElementById('settingsBotDir').textContent    = data.bot_dir || '–';
+    document.getElementById('statMemory').textContent        = data.memory_entries ?? '–';
+    document.getElementById('statExchanges').textContent     = data.exchange_count ?? '–';
+    syncModelSelects(data.model, document.getElementById('settingsModel'), document.getElementById('modelSelect'));
+    try {
+      const pd = await (await fetch('/api/plugins')).json();
+      document.getElementById('statPlugins').textContent = (pd.plugins || []).filter(p => p.loaded).length;
+      document.getElementById('statTools').textContent   = pd.total_loaded ?? '–';
+    } catch {}
+  } catch {}
+}
+
+async function saveModelFromSettings() {
+  const model = document.getElementById('settingsModel').value;
+  await applyModel(model);
+  syncModelSelects(model, document.getElementById('modelSelect'));
+}
+
 async function saveModel() {
   const model = document.getElementById('modelSelect').value;
+  await applyModel(model);
+  syncModelSelects(model, document.getElementById('settingsModel'));
+}
+
+async function applyModel(model) {
   try {
-    const r = await fetch('/api/model', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({model}),
-    });
-    const d = await r.json();
-    if (d.ok) showToast('✓ Modell gespeichert: ' + model);
-    else      showToast('Fehler: ' + (d.error || '?'));
-  } catch(e) { showToast('Fehler: ' + e.message); }
+    const d = await (await fetch('/api/model', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model})})).json();
+    if (d.ok) showToast('✓ Modell: ' + model); else showToast('✗ ' + (d.error||'?'));
+  } catch(e) { showToast('✗ ' + e.message); }
 }
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+async function resetExchanges() {
+  if (!confirm('Gesprächszähler zurücksetzen?')) return;
+  try {
+    const d = await (await fetch('/api/config/reset_exchanges', {method:'POST'})).json();
+    if (d.ok) { showToast('✓ Zähler zurückgesetzt'); loadSettings(); }
+  } catch {}
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════
 function esc(s)      { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtJson(o)  { try{return JSON.stringify(o,null,2)}catch{return String(o)} }
 function toolIcon(n) { return TOOL_ICONS[n] || '⚙️'; }
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,130)+'px'; }
 function scrollChat()   { const m=document.getElementById('messages'); m.scrollTop=m.scrollHeight; }
-function scrollTab(id)  { const t=document.getElementById(id); t.scrollTop=t.scrollHeight; }
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
 
 function highlightJSON(jsonStr) {
   if (!jsonStr) return '';
-  const escaped = esc(jsonStr);
-  return escaped.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
-    let cls = 'json-number';
-    if (/^"/.test(match)) {
-        if (/:$/.test(match)) cls = 'json-key';
-        else cls = 'json-string';
-    } else if (/true|false/.test(match)) cls = 'json-boolean';
-    else if (/null/.test(match)) cls = 'json-null';
-    return `<span class="${cls}">${match}</span>`;
-  });
+  return esc(jsonStr).replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    m => { let c='json-number'; if(/^"/.test(m)) c=/:$/.test(m)?'json-key':'json-string'; else if(/true|false/.test(m)) c='json-boolean'; else if(/null/.test(m)) c='json-null'; return `<span class="${c}">${m}</span>`; }
+  );
 }
 
 function renderMd(text) {
   let s = text;
   s = s.replace(/```[\w]*\n([\s\S]*?)```/g, (_,c) => `<pre><code>${esc(c.trimEnd())}</code></pre>`);
   s = s.replace(/`([^`\n]+)`/g, (_,c) => `<code>${esc(c)}</code>`);
-  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  s = s.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
-  s = s.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
-  s = s.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, block => {
-    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^[ \t]*[-*+] /,'')}</li>`).join('');
-    return `<ul>${items}</ul>`;
-  });
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-  s = s.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+  s = s.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g,'<em>$1</em>');
+  s = s.replace(/^### (.+)$/gm,'<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm,'<h2>$1</h2>');
+  s = s.replace(/^# (.+)$/gm,'<h1>$1</h1>');
+  s = s.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, b => `<ul>${b.trim().split('\n').map(l=>`<li>${l.replace(/^[ \t]*[-*+] /,'')}</li>`).join('')}</ul>`);
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>');
+  s = s.replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
   return `<p>${s}</p>`;
 }
 
-// ── Chat helpers ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// CHAT HELPERS
+// ═══════════════════════════════════════════════════════════════════
 function removeWelcome() { const w=document.getElementById('welcome'); if(w)w.remove(); }
 
 function appendUserMsg(text) {
   removeWelcome();
-  const m = document.getElementById('messages');
-  const d = document.createElement('div');
-  d.className = 'msg user';
-  d.innerHTML = `<div class="msg-label">Du</div><div class="msg-bubble">${esc(text)}</div>`;
+  const m=document.getElementById('messages'), d=document.createElement('div');
+  d.className='msg user';
+  d.innerHTML=`<div class="msg-label">Du</div>
+    <div class="msg-bubble">${esc(text)}</div>
+    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d); scrollChat();
 }
 
 function appendAionBubble() {
-  const m  = document.getElementById('messages');
-  const d  = document.createElement('div');
-  d.className = 'msg aion';
-  const id = 'bubble-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-  d.innerHTML = `<div class="msg-label">AION</div><div class="msg-bubble streaming" id="${id}"></div>`;
+  const m=document.getElementById('messages'), d=document.createElement('div');
+  d.className='msg aion';
+  const id='bubble-'+Date.now()+'-'+Math.random().toString(36).slice(2);
+  d.innerHTML=`<div class="msg-label">AION</div>
+    <div class="msg-bubble streaming" id="${id}"></div>
+    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d); scrollChat();
   return document.getElementById(id);
 }
@@ -828,303 +966,211 @@ function appendAionBubble() {
 function finalizeCurrentBubble() {
   if (!currentBubble) return;
   currentBubble.classList.remove('streaming');
-  if (currentBubble.dataset.raw) {
-    currentBubble.innerHTML = renderMd(currentBubble.dataset.raw);
-  } else {
-    const w = currentBubble.closest('.msg');
-    if (w) w.remove();
-  }
+  if (currentBubble.dataset.raw) currentBubble.innerHTML = renderMd(currentBubble.dataset.raw);
+  else { const w=currentBubble.closest('.msg'); if(w)w.remove(); }
   currentBubble = null;
 }
 
 function appendHistoryAionMsg(text) {
   removeWelcome();
-  const m = document.getElementById('messages');
-  const d = document.createElement('div');
-  d.className = 'msg aion history';
-  d.innerHTML = `<div class="msg-label">AION</div><div class="msg-bubble">${renderMd(text)}</div>`;
+  const m=document.getElementById('messages'), d=document.createElement('div');
+  d.className='msg aion history';
+  d.innerHTML=`<div class="msg-label">AION</div>
+    <div class="msg-bubble">${renderMd(text)}</div>
+    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d);
 }
 
 function appendImageBlock(url) {
-  const m = document.getElementById('messages');
-  const d = document.createElement('div');
-  d.className = 'msg aion';
-  d.innerHTML = `<div class="msg-label">AION</div>
-    <div class="msg-bubble" style="padding:6px">
-      <img src="${esc(url)}" alt="Bild" style="max-width:100%;max-height:400px;border-radius:8px;display:block;cursor:pointer"
-           onclick="window.open('${esc(url)}','_blank')"
-           onerror="this.closest('.msg').remove()">
-    </div>`;
-  m.appendChild(d);
-  scrollChat();
+  const m=document.getElementById('messages'), d=document.createElement('div');
+  d.className='msg aion';
+  d.innerHTML=`<div class="msg-label">AION</div><div class="msg-bubble" style="padding:6px"><img src="${esc(url)}" alt="Bild" style="max-width:100%;max-height:400px;border-radius:8px;display:block;cursor:pointer" onclick="window.open('${esc(url)}','_blank')" onerror="this.closest('.msg').remove()"></div>`;
+  m.appendChild(d); scrollChat();
 }
 
-// ── Side panel helpers ────────────────────────────────────────────────────────
-function clearSidePanel() {
-  thoughtCount = 0; toolCount = 0;
-  for (let key in toolDataStore) delete toolDataStore[key];
-  updateCounts();
-
-  const tt = document.getElementById('tab-thoughts');
-  tt.innerHTML = '<div class="empty-state" id="thoughtsEmpty"><div class="e-icon">💭</div><p>Hier erscheinen AIons Gedanken in Echtzeit.</p></div>';
-
-  const tl = document.getElementById('tab-tools');
-  tl.innerHTML = '<div class="empty-state" id="toolsEmpty"><div class="e-icon">⚙</div><p>Hier erscheinen alle Tool-Aufrufe. Klicke auf eine Karte für Details.</p></div><div class="tools-grid" id="toolsGrid"></div>';
+function copyMsg(btn) {
+  const bubble = btn.closest('.msg').querySelector('.msg-bubble');
+  if (!bubble) return;
+  const text = bubble.innerText || bubble.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Kopiert';
+    setTimeout(() => btn.textContent = orig, 1500);
+  }).catch(() => showToast('Kopieren fehlgeschlagen'));
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// INLINE ACCORDIONS (Thoughts & Tools)
+// ═══════════════════════════════════════════════════════════════════
+function toggleAcc(hdr) { hdr.parentElement.classList.toggle('open'); }
 
 function showThinkingRow() {
   if (document.getElementById('thinkingRow')) return;
-  const tt = document.getElementById('tab-thoughts');
-  const empt = document.getElementById('thoughtsEmpty');
-  if (empt) empt.remove();
   const d = document.createElement('div');
-  d.className = 'thinking-row'; d.id = 'thinkingRow';
-  d.innerHTML = '<div class="spinner"></div><span>AION denkt…</span>';
-  tt.appendChild(d);
-  scrollTab('tab-thoughts');
+  d.className = 'inline-thinking'; d.id = 'thinkingRow';
+  d.innerHTML = '<div class="spinner"></div><span style="font-size:11px">denkt…</span>';
+  document.getElementById('messages').appendChild(d);
+  scrollChat();
 }
+function hideThinkingRow() { const e=document.getElementById('thinkingRow'); if(e)e.remove(); }
 
-function hideThinkingRow() { const el=document.getElementById('thinkingRow'); if(el)el.remove(); }
-
-// Thought card
-function addThoughtCard(text, trigger) {
+function appendInlineThought(text, trigger) {
   hideThinkingRow();
-  const empt = document.getElementById('thoughtsEmpty');
-  if (empt) empt.remove();
-  thoughtCount++;
-  updateCounts();
-
-  const tt   = document.getElementById('tab-thoughts');
-  const card = document.createElement('div');
-  card.className = 'thought-card';
-  card.innerHTML = `
-    <div class="thought-meta">
-      <span class="thought-icon">💭</span>
-      <span class="thought-label">Gedanke</span>
-      <span class="thought-trigger">${esc(trigger || 'allgemein')}</span>
+  const preview = text.replace(/\n/g,' ').slice(0, 70) + (text.length > 70 ? '…' : '');
+  const d = document.createElement('div');
+  d.className = 'inline-acc thought-acc';
+  d.innerHTML = `
+    <div class="inline-acc-hdr" onclick="toggleAcc(this)">
+      <span class="iacc-icon">💭</span>
+      <span class="iacc-preview">${esc(preview)}</span>
+      ${trigger ? `<span class="iacc-badge">${esc(trigger)}</span>` : ''}
+      <span class="iacc-toggle">▶</span>
     </div>
-    <div class="thought-text">${esc(text)}</div>`;
-  tt.appendChild(card);
-  scrollTab('tab-thoughts');
-
-  if (activeTab !== 'thoughts') showTab('thoughts');
-}
-
-// ── Tool Cards & Modal Logic ──────────────────────────────────────────────────
-function addToolCard(callId, toolName, args) {
-  if (toolName === 'reflect') return;
-
-  const empt = document.getElementById('toolsEmpty');
-  if (empt) empt.remove();
-  toolCount++;
-  updateCounts();
-
-  // Speichere die Daten für das Modal
-  toolDataStore[callId] = {
-    name: toolName,
-    args: args,
-    result: null,
-    status: 'running'
-  };
-
-  let grid = document.getElementById('toolsGrid');
-  if (!grid) {
-    grid = document.createElement('div');
-    grid.id = 'toolsGrid'; grid.className = 'tools-grid';
-    document.getElementById('tab-tools').appendChild(grid);
-  }
-
-  // Kompakte Karte ohne ein-/ausklappen
-  const card = document.createElement('div');
-  card.className = 'tool-card running'; card.id = `card-${callId}`;
-  card.onclick = () => openModal(callId);
-  card.innerHTML = `
-    <div class="tool-header">
-      <span class="tool-icon">${toolIcon(toolName)}</span>
-      <span class="tool-name">${esc(toolName)}</span>
-      <span class="tool-status running" id="stat-${callId}"><span class="mini-spinner"></span></span>
+    <div class="inline-acc-body">
+      <div class="thought-body-text">${esc(text)}</div>
     </div>`;
-  grid.appendChild(card);
-  scrollTab('tab-tools');
+  document.getElementById('messages').appendChild(d);
+  scrollChat();
 }
 
-function updateToolCard(callId, result, ok, duration) {
+function appendInlineTool(callId, toolName, args) {
+  if (toolName === 'reflect') return;
+  hideThinkingRow();
+  toolDataStore[callId] = { name: toolName, args, result: null, status: 'running' };
+  const d = document.createElement('div');
+  d.className = 'inline-acc tool-acc running'; d.id = `tacc-${callId}`;
+  const argsStr = fmtJson(args);
+  d.innerHTML = `
+    <div class="inline-acc-hdr" onclick="toggleAcc(this)">
+      <span class="iacc-icon">${toolIcon(toolName)}</span>
+      <span class="iacc-name">${esc(toolName)}</span>
+      <span style="flex:1"></span>
+      <span class="iacc-status running" id="tstat-${callId}"><span class="mini-spinner"></span></span>
+      <button class="iacc-detail-btn" onclick="event.stopPropagation();openModal('${callId}')" title="Vollbild">⬜</button>
+      <span class="iacc-toggle">▶</span>
+    </div>
+    <div class="inline-acc-body">
+      <div class="iacc-section-label">Eingabe</div>
+      <div class="iacc-code">${highlightJSON(argsStr)}</div>
+      <div class="iacc-section-label">Ergebnis</div>
+      <div class="iacc-code result" id="taccr-${callId}"><span style="color:var(--text3);font-style:italic">läuft…</span></div>
+    </div>`;
+  document.getElementById('messages').appendChild(d);
+  scrollChat();
+}
+
+function updateInlineTool(callId, result, ok) {
   if (!toolDataStore[callId]) return;
-  
-  // Update Store
-  toolDataStore[callId].result = result;
-  toolDataStore[callId].status = ok ? 'ok' : 'err';
-
-  // Update Card UI
-  const card = document.getElementById(`card-${callId}`);
-  const stat = document.getElementById(`stat-${callId}`);
-  if (card) { card.classList.remove('running'); card.classList.add(ok ? 'ok' : 'err'); }
-  if (stat) {
-    stat.className = `tool-status ${ok ? 'ok' : 'err'}`;
-    stat.innerHTML = `${ok ? '✓' : '✗'}`;
+  toolDataStore[callId].result = result; toolDataStore[callId].status = ok ? 'ok' : 'err';
+  const acc  = document.getElementById(`tacc-${callId}`);
+  const stat = document.getElementById(`tstat-${callId}`);
+  const res  = document.getElementById(`taccr-${callId}`);
+  if (acc)  { acc.classList.remove('running'); acc.classList.add(ok ? 'ok' : 'err'); }
+  if (stat) { stat.className = `iacc-status ${ok ? 'ok' : 'err'}`; stat.textContent = ok ? '✓' : '✗'; }
+  if (res) {
+    const resultStr = typeof result === 'string' ? result : fmtJson(result);
+    const preview = resultStr.length > 400 ? resultStr.slice(0, 400) + '\n…' : resultStr;
+    res.innerHTML = highlightJSON(preview);
   }
-
-  // Live-Update des Modals, falls es gerade für diese Call-ID geöffnet ist
-  if (currentModalCallId === callId) {
-    openModal(callId);
-  }
+  if (currentModalCallId === callId) openModal(callId);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════════════
 function openModal(callId) {
-  const data = toolDataStore[callId];
-  if (!data) return;
+  const data = toolDataStore[callId]; if (!data) return;
   currentModalCallId = callId;
-  
-  const statusHtml = data.status === 'running' ? '<span class="mini-spinner"></span>' : (data.status === 'ok' ? '✓' : '✗');
-  const statusColor = data.status === 'running' ? 'var(--text2)' : (data.status === 'ok' ? 'var(--green)' : 'var(--red)');
-
-  document.getElementById('modalTitle').innerHTML = `
-    ${toolIcon(data.name)} ${esc(data.name)}
-    <span style="color:${statusColor}; font-size: 16px; margin-left: 5px;">${statusHtml}</span>
-  `;
-  document.getElementById('modalInput').innerHTML = highlightJSON(fmtJson(data.args));
-  
-  const resBox = document.getElementById('modalResult');
-  if (data.status === 'running') {
-    resBox.innerHTML = '<span style="color:var(--text3); font-style:italic;">Tool wird ausgeführt…</span>';
-  } else {
-    resBox.innerHTML = highlightJSON(fmtJson(data.result));
-  }
-
+  const sc  = data.status==='running' ? 'var(--text2)' : (data.status==='ok' ? 'var(--green)' : 'var(--red)');
+  const sh  = data.status==='running' ? '<span class="mini-spinner"></span>' : (data.status==='ok' ? '✓' : '✗');
+  document.getElementById('modalTitle').innerHTML  = `${toolIcon(data.name)} ${esc(data.name)} <span style="color:${sc};font-size:16px;margin-left:5px">${sh}</span>`;
+  document.getElementById('modalInput').innerHTML  = highlightJSON(fmtJson(data.args));
+  document.getElementById('modalResult').innerHTML = data.status==='running'
+    ? '<span style="color:var(--text3);font-style:italic">Wird ausgeführt…</span>'
+    : highlightJSON(fmtJson(data.result));
   document.getElementById('toolModal').classList.add('show');
 }
-
 function closeModal(e) {
-  if (e) {
-    // Wenn auf den Hintergrund geklickt wurde, schließen.
-    if (e.target.id === 'toolModal') {
-      document.getElementById('toolModal').classList.remove('show');
-      currentModalCallId = null;
-    }
-  } else {
-    // Wenn über den X-Button geschlossen wurde
-    document.getElementById('toolModal').classList.remove('show');
-    currentModalCallId = null;
-  }
+  if (!e || e.target.id==='toolModal') { document.getElementById('toolModal').classList.remove('show'); currentModalCallId=null; }
 }
 
-// ── UI state ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// SEND / EVENTS
+// ═══════════════════════════════════════════════════════════════════
 function setThinking(active) {
   isThinking = active;
   document.getElementById('statusDot').className = 'status-dot' + (active ? ' thinking' : '');
-  document.getElementById('sendBtn').disabled     = active;
-  document.getElementById('input').disabled       = active;
+  document.getElementById('sendBtn').disabled  = active;
+  document.getElementById('input').disabled    = active;
 }
 
-// ── Send ──────────────────────────────────────────────────────────────────────
 async function send() {
   const input = document.getElementById('input');
   const text  = input.value.trim();
   if (!text || isThinking) return;
   input.value = ''; autoResize(input);
-  appendUserMsg(text);
-  setThinking(true);
-  clearSidePanel();
-  showThinkingRow();
-  currentBubble     = appendAionBubble();
-  awaitingNewBubble = false;
+  // Switch to chat if on another section
+  if (currentSection !== 'chat') switchSection('chat');
+  appendUserMsg(text); setThinking(true);
+  hideThinkingRow(); showThinkingRow();
+  currentBubble = appendAionBubble(); awaitingNewBubble = false;
   try {
-    const resp   = await fetch('/api/chat', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: text}),
-    });
-    const reader  = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    const resp   = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: text})});
+    const reader = resp.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
     while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
+      const {done, value} = await reader.read(); if (done) break;
       buffer += decoder.decode(value, {stream: true});
       const lines = buffer.split('\n'); buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try { handleEvent(JSON.parse(line.slice(6))); } catch {}
-      }
+      for (const line of lines) { if (!line.startsWith('data: ')) continue; try { handleEvent(JSON.parse(line.slice(6))); } catch {} }
     }
-  } catch(err) {
-    if (currentBubble) {
-      currentBubble.classList.remove('streaming');
-      currentBubble.innerHTML = `<span style="color:var(--red)">Verbindungsfehler: ${esc(err.message)}</span>`;
-      currentBubble = null;
-    }
+  } catch (err) {
+    if (currentBubble) { currentBubble.classList.remove('streaming'); currentBubble.innerHTML=`<span style="color:var(--red)">Verbindungsfehler: ${esc(err.message)}</span>`; currentBubble=null; }
   }
   setThinking(false);
 }
 
-// ── Event handler ─────────────────────────────────────────────────────────────
 function handleEvent(ev) {
   switch (ev.type) {
-
     case 'thought':
       hideThinkingRow();
-      addThoughtCard(ev.text, ev.trigger);
-      awaitingNewBubble = true;
+      if (currentBubble && currentBubble.dataset.raw) { finalizeCurrentBubble(); awaitingNewBubble = true; }
+      appendInlineThought(ev.text, ev.trigger);
       break;
-
     case 'token':
       hideThinkingRow();
-      if (awaitingNewBubble) {
-        finalizeCurrentBubble();
-        currentBubble     = appendAionBubble();
-        awaitingNewBubble = false;
-      }
-      if (currentBubble) {
-        currentBubble.dataset.raw = (currentBubble.dataset.raw || '') + ev.content;
-        currentBubble.textContent = currentBubble.dataset.raw;
-        currentBubble.classList.add('streaming');
-        scrollChat();
-      }
-      break;
-
-    case 'tool_call':
-      hideThinkingRow();
-      if (currentBubble && currentBubble.dataset.raw) {
-        finalizeCurrentBubble();
-        currentBubble = appendAionBubble();
-      }
-      awaitingNewBubble = true;
-      addToolCard(ev.call_id, ev.tool, ev.args);
-      break;
-
-    case 'tool_result':
-      updateToolCard(ev.call_id, ev.result, ev.ok, ev.duration);
-      showThinkingRow();
-      break;
-
-    case 'done':
-      hideThinkingRow();
-      finalizeCurrentBubble();
-      if (ev.response_blocks && ev.response_blocks.length > 0) {
-        for (const block of ev.response_blocks) {
-          if (block.type === 'image' && block.url) {
-            appendImageBlock(block.url);
-          }
-        }
-      }
-      awaitingNewBubble = false;
+      if (awaitingNewBubble) { finalizeCurrentBubble(); currentBubble = appendAionBubble(); awaitingNewBubble = false; }
+      if (!currentBubble) { currentBubble = appendAionBubble(); }
+      currentBubble.dataset.raw = (currentBubble.dataset.raw || '') + ev.content;
+      currentBubble.textContent = currentBubble.dataset.raw;
+      currentBubble.classList.add('streaming');
       scrollChat();
       break;
-
+    case 'tool_call':
+      hideThinkingRow();
+      if (currentBubble && currentBubble.dataset.raw) { finalizeCurrentBubble(); awaitingNewBubble = true; }
+      appendInlineTool(ev.call_id, ev.tool, ev.args);
+      break;
+    case 'tool_result':
+      updateInlineTool(ev.call_id, ev.result, ev.ok);
+      showThinkingRow();
+      break;
+    case 'done':
+      hideThinkingRow(); finalizeCurrentBubble();
+      if (ev.response_blocks) for (const b of ev.response_blocks) if (b.type==='image' && b.url) appendImageBlock(b.url);
+      awaitingNewBubble = false; scrollChat();
+      break;
     case 'error':
       hideThinkingRow();
-      if (currentBubble) {
-        currentBubble.classList.remove('streaming');
-        currentBubble.innerHTML = `<span style="color:var(--red)">Fehler: ${esc(ev.message || 'Unbekannter Fehler')}</span>`;
-        currentBubble = null;
-      }
+      if (currentBubble) { currentBubble.classList.remove('streaming'); currentBubble.innerHTML=`<span style="color:var(--red)">Fehler: ${esc(ev.message||'?')}</span>`; currentBubble=null; }
       break;
   }
 }
 
-// ── Reset ─────────────────────────────────────────────────────────────────────
 async function resetChat() {
-  await fetch('/api/reset', {method: 'POST'});
+  await fetch('/api/reset', {method:'POST'});
+  for (let k in toolDataStore) delete toolDataStore[k];
+  currentBubble = null; awaitingNewBubble = false;
+  switchSection('chat');
   document.getElementById('messages').innerHTML = `
     <div class="welcome" id="welcome">
       <div class="welcome-icon">◈</div><h2>AION</h2>
@@ -1136,12 +1182,10 @@ async function resetChat() {
         <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
       </div>
     </div>`;
-  clearSidePanel();
-  currentBubble = null; awaitingNewBubble = false;
 }
 
 function useChip(el) { document.getElementById('input').value = el.textContent; send(); }
-function onKey(e)    { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+function onKey(e) { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
 </script>
 </body>
 </html>

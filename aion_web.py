@@ -10,6 +10,7 @@ Starten:
 import asyncio
 import json
 import os
+import re
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -84,6 +85,24 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(title="AION", lifespan=_lifespan)
 
+# ── Plugin-Router einbinden ───────────────────────────────────────────────────
+# Plugins können in register() eigene FastAPI-Router via api.register_router()
+# anmelden. Diese werden hier (und nach jedem Hot-Reload) in die App eingebunden.
+
+_included_router_ids: set = set()
+
+def _include_plugin_routers():
+    """Bindet alle noch nicht eingebundenen Plugin-Router in die FastAPI-App ein."""
+    from plugin_loader import _pending_routers
+    for router, prefix, tags in _pending_routers:
+        rid = id(router)
+        if rid not in _included_router_ids:
+            app.include_router(router, prefix=prefix, tags=tags)
+            _included_router_ids.add(rid)
+
+# Plugins wurden bereits beim `import aion` geladen — Router direkt einbinden
+_include_plugin_routers()
+
 # ── SSE-Adapter ───────────────────────────────────────────────────────────────
 
 def _sse(data: dict) -> str:
@@ -95,6 +114,19 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
         yield _sse(event)
 
 # ── API-Routen ────────────────────────────────────────────────────────────────
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # Inline-SVG als Data-URL — kein extra File nötig
+    from fastapi.responses import Response
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+        '<rect width="32" height="32" rx="6" fill="#0d1117"/>'
+        '<text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" '
+        'font-size="20" font-family="monospace" fill="#00e5ff">A</text>'
+        '</svg>'
+    )
+    return Response(content=svg, media_type="image/svg+xml")
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -214,6 +246,114 @@ async def save_prompt(name: str, request: Request):
         return JSONResponse({"ok": True, "name": name, "bytes": len(content)})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+# ── Plugins API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/plugins")
+async def list_plugins():
+    plugins_dir = AION_DIR / "plugins"
+    all_tools   = {
+        name: {"description": data.get("description", ""), "schema": data.get("schema", {})}
+        for name, data in _aion_module._plugin_tools.items()
+        if not name.startswith("__")
+    }
+    plugins = []
+    if plugins_dir.is_dir():
+        for plugin_dir in sorted(plugins_dir.iterdir()):
+            if not plugin_dir.is_dir():
+                continue
+            if plugin_dir.name.startswith("_") or plugin_dir.name.startswith("."):
+                continue
+            plugin_file = plugin_dir / f"{plugin_dir.name}.py"
+            if not plugin_file.is_file():
+                continue
+            try:
+                source     = plugin_file.read_text(encoding="utf-8", errors="replace")
+                tool_names = re.findall(r'register_tool\s*\(\s*name\s*=\s*["\']([^"\']+)["\']', source)
+            except Exception:
+                tool_names = []
+            tools_info = []
+            for tname in tool_names:
+                entry = {"name": tname, "loaded": tname in all_tools}
+                if tname in all_tools:
+                    entry["description"] = all_tools[tname]["description"]
+                tools_info.append(entry)
+            plugins.append({
+                "name":   plugin_dir.name,
+                "file":   str(plugin_file),
+                "tools":  tools_info,
+                "loaded": any(t["loaded"] for t in tools_info) if tools_info else False,
+            })
+    # Tools ohne zugeordnetes Plugin (z.B. via create_plugin flach registriert)
+    assigned = {t["name"] for p in plugins for t in p["tools"]}
+    orphans  = [{"name": n, "loaded": True, "description": d["description"]}
+                for n, d in all_tools.items() if n not in assigned]
+    return JSONResponse({
+        "plugins":     plugins,
+        "orphan_tools": orphans,
+        "total_loaded": len(all_tools),
+    })
+
+@app.post("/api/plugins/reload")
+async def reload_plugins():
+    try:
+        from plugin_loader import load_plugins
+        load_plugins(_aion_module._plugin_tools)
+        _include_plugin_routers()   # neu registrierte Router sofort einbinden
+        tools = [n for n in _aion_module._plugin_tools if not n.startswith("__")]
+        return JSONResponse({"ok": True, "tools": tools, "count": len(tools)})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+# ── Memory API ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/memory")
+async def list_memory(search: str = "", limit: int = 80):
+    memory_file = AION_DIR / "aion_memory.json"
+    try:
+        entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
+    except Exception:
+        entries = []
+    total = len(entries)
+    if search:
+        q = search.lower()
+        entries = [e for e in entries
+                   if q in e.get("summary", "").lower()
+                   or q in e.get("lesson",  "").lower()
+                   or q in e.get("category","").lower()]
+    entries = list(reversed(entries))[:limit]
+    return JSONResponse({"entries": entries, "total": total, "returned": len(entries)})
+
+@app.delete("/api/memory")
+async def clear_memory():
+    memory_file = AION_DIR / "aion_memory.json"
+    try:
+        memory_file.write_text("[]", encoding="utf-8")
+        _aion_module.memory._entries.clear()
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+# ── Config API ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/config")
+async def get_config():
+    cfg = _load_config()
+    return JSONResponse({
+        "model":          _aion_module.MODEL,
+        "bot_dir":        str(AION_DIR),
+        "memory_entries": len(_aion_module.memory._entries),
+        "exchange_count": int(cfg.get("exchange_count", 0)),
+        "config":         {k: v for k, v in cfg.items() if k != "model"},
+    })
+
+@app.post("/api/config/reset_exchanges")
+async def reset_exchanges():
+    cfg = _load_config()
+    cfg["exchange_count"] = 0
+    _save_config(cfg)
+    _session.exchange_count = 0
+    return JSONResponse({"ok": True})
 
 if __name__ == "__main__":
     has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip()) or \
