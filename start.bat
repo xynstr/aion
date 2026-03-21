@@ -137,14 +137,12 @@ echo [OK] Modell: !ACTIVE_MODEL! >> "%LOG%"
 echo.
 
 :choose_mode
-echo %CYAN%%BOLD%  ====================================================%RESET%
-echo %CYAN%%BOLD%  =                                                  =%RESET%
-echo %CYAN%%BOLD%  =   Wie soll AION gestartet werden?               =%RESET%
-echo %CYAN%%BOLD%  =                                                  =%RESET%
-echo %CYAN%%BOLD%  =   %WHITE%[1]%CYAN%  Web UI  ->  Browser + localhost:7000     =%RESET%
-echo %CYAN%%BOLD%  =   %WHITE%[2]%CYAN%  CLI     ->  Terminal-Chat                =%RESET%
-echo %CYAN%%BOLD%  =                                                  =%RESET%
-echo %CYAN%%BOLD%  ====================================================%RESET%
+echo %CYAN%  ====================================================%RESET%
+echo %CYAN%  =   Wie soll AION gestartet werden?               =%RESET%
+echo %CYAN%  ====================================================%RESET%
+echo.
+echo %WHITE%%BOLD%  [1]%RESET%  Web UI  ->  Browser + localhost:7000
+echo %WHITE%%BOLD%  [2]%RESET%  CLI     ->  Terminal-Chat
 echo.
 set "CHOICE="
 set /p "CHOICE=%CYAN%%BOLD%  Eingabe (1/2, Standard: 1): %RESET%"
