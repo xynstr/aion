@@ -15,3 +15,6 @@ uvicorn>=0.24.0
 
 # Environment variables
 python-dotenv>=1.0.0
+
+# TTS (optional — engine=edge empfohlen, engine=sapi5 als Fallback)
+edge-tts>=6.1.0

@@ -5,18 +5,31 @@ Universelles Audio-Ein/Ausgabe-Plugin für AION.
 
 Stellt zwei Tools bereit:
   - audio_transcribe_any : Beliebige Audiodatei → Text (ffmpeg + Vosk, offline)
-  - audio_tts            : Text → WAV-Sprachdatei (pyttsx3/SAPI5, offline)
+  - audio_tts            : Text → WAV-Sprachdatei (multi-engine Router)
+
+TTS-Engines (steuerbar via engine-Parameter oder config.json "tts_engine"):
+  - sapi5  : Windows SAPI5 via pyttsx3 (offline, roboterhaft) — Fallback
+  - edge   : Microsoft Neural TTS via edge-tts (online, sehr natürlich, kostenlos)
+             Stimme konfigurierbar via config.json "tts_voice" (z.B. "de-DE-KatjaNeural")
+  - piper  : Piper TTS (offline, neural, schnell) — in Vorbereitung
+
+Engine-Priorität:
+  1. Expliziter engine-Parameter beim Aufruf
+  2. config.json → "tts_engine"
+  3. Fallback: "sapi5"
 
 Andere Plugins (Telegram, WhatsApp, Discord, ...) können dieses Plugin direkt
 importieren — keine API-Keys, keine Cloud-Abhängigkeiten.
 
 Benötigt:
   - ffmpeg im PATH  (winget install Gyan.FFmpeg)
-  - pyttsx3         (pip install pyttsx3)
-  - vosk            (pip install vosk)
+  - pyttsx3         (pip install pyttsx3)           — für engine=sapi5
+  - edge-tts        (pip install edge-tts)          — für engine=edge
+  - vosk            (pip install vosk)              — für Transkription
   - Vosk-Modell unter plugins/audio_transcriber/vosk-model-small-de-0.15/
 """
 
+import asyncio
 import json
 import os
 import shutil
@@ -29,9 +42,25 @@ from pathlib import Path
 _PLUGIN_DIR = Path(__file__).parent
 _AION_DIR   = _PLUGIN_DIR.parent.parent
 _MODEL_PATH = _AION_DIR / "plugins" / "audio_transcriber" / "vosk-model-small-de-0.15"
+_CONFIG_FILE = _AION_DIR / "config.json"
 
 # Lazy-geladenes Vosk-Modell (wird nur einmal geladen)
 _vosk_model = None
+
+
+# ── Config-Helfer ─────────────────────────────────────────────────────────────
+
+def _get_tts_config() -> tuple[str, str]:
+    """Liest tts_engine + tts_voice aus config.json. Fallback: sapi5 / de-DE-KatjaNeural."""
+    try:
+        if _CONFIG_FILE.exists():
+            cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+            engine = cfg.get("tts_engine", "sapi5")
+            voice  = cfg.get("tts_voice",  "de-DE-KatjaNeural")
+            return engine, voice
+    except Exception:
+        pass
+    return "sapi5", "de-DE-KatjaNeural"
 
 
 # ── Interne Helfer ───────────────────────────────────────────────────────────
@@ -140,50 +169,105 @@ def audio_transcribe_any(file_path: str) -> dict:
                 pass
 
 
-def audio_tts(text: str, output_path: str = "") -> dict:
-    """Wandelt Text in gesprochene Sprache um (WAV, vollständig offline).
-
-    Nutzt pyttsx3 mit Windows SAPI5 (bevorzugt deutsche Stimme).
-    Gibt {"ok": True, "path": "/tmp/xyz.wav"} zurück.
-
-    Kann direkt von anderen Plugins importiert werden:
-        from audio_pipeline.audio_pipeline import audio_tts
-        result = audio_tts("Hallo Welt")
-        wav_path = result["path"]
-    """
+def _tts_sapi5(text: str, output_path: str) -> dict:
+    """TTS via pyttsx3 / Windows SAPI5 (offline, Fallback)."""
     try:
         import pyttsx3
     except ImportError:
         return {"ok": False, "error": "pyttsx3 nicht installiert: pip install pyttsx3"}
-
-    if not output_path:
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        tmp.close()
-        output_path = tmp.name
-
     try:
-        engine = pyttsx3.init()
-
-        # Deutsche Stimme bevorzugen (Windows SAPI5 hat meist mehrere)
-        for v in engine.getProperty("voices"):
+        eng = pyttsx3.init()
+        for v in eng.getProperty("voices"):
             vid  = (v.id   or "").lower()
             vnam = (v.name or "").lower()
             if "de" in vid or "german" in vid or "deutsch" in vnam or "hedda" in vnam:
-                engine.setProperty("voice", v.id)
+                eng.setProperty("voice", v.id)
                 break
-
-        engine.setProperty("rate", 155)   # Wörter pro Minute (normal = 200)
-        engine.setProperty("volume", 1.0)
-        engine.save_to_file(text, output_path)
-        engine.runAndWait()
-
+        eng.setProperty("rate", 155)
+        eng.setProperty("volume", 1.0)
+        eng.save_to_file(text, output_path)
+        eng.runAndWait()
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-            return {"ok": False, "error": "TTS erzeugte leere oder fehlende Datei"}
-
-        return {"ok": True, "path": output_path, "format": "wav"}
-
+            return {"ok": False, "error": "SAPI5 erzeugte leere Datei"}
+        return {"ok": True, "path": output_path, "engine": "sapi5", "format": "wav"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def _tts_edge(text: str, output_path: str, voice: str = "de-DE-KatjaNeural") -> dict:
+    """TTS via edge-tts (Microsoft Neural, online, kostenlos).
+
+    Stimmen (Auswahl Deutsch):
+      de-DE-KatjaNeural    — weiblich, natürlich (Standard)
+      de-DE-ConradNeural   — männlich
+      de-AT-IngridNeural   — österreichisch, weiblich
+      de-CH-LeniNeural     — schweizerdeutsch, weiblich
+    """
+    try:
+        import edge_tts
+    except ImportError:
+        return {"ok": False, "error": "edge-tts nicht installiert: pip install edge-tts"}
+
+    # edge-tts speichert nativ als MP3 — wir nutzen .mp3 als Output
+    mp3_path = output_path.replace(".wav", ".mp3") if output_path.endswith(".wav") else output_path + ".mp3"
+    try:
+        async def _run():
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(mp3_path)
+
+        # Laufenden Event-Loop wiederverwenden falls vorhanden (z.B. in FastAPI)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(asyncio.run, _run())
+                    future.result(timeout=30)
+            else:
+                loop.run_until_complete(_run())
+        except RuntimeError:
+            asyncio.run(_run())
+
+        if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
+            return {"ok": False, "error": "edge-tts erzeugte leere Datei"}
+        return {"ok": True, "path": mp3_path, "engine": "edge", "voice": voice, "format": "mp3"}
+    except Exception as e:
+        return {"ok": False, "error": f"edge-tts Fehler: {e}"}
+
+
+def audio_tts(text: str, engine: str = "", output_path: str = "") -> dict:
+    """Wandelt Text in gesprochene Sprache um — multi-engine Router.
+
+    engine: "edge" (Microsoft Neural, online, empfohlen) |
+            "sapi5" (offline, Fallback) |
+            "" → liest aus config.json "tts_engine"
+
+    Konfiguration via config.json:
+        {"tts_engine": "edge", "tts_voice": "de-DE-KatjaNeural"}
+
+    Kann direkt von anderen Plugins importiert werden:
+        from audio_pipeline.audio_pipeline import audio_tts
+        result = audio_tts("Hallo Welt")
+    """
+    cfg_engine, cfg_voice = _get_tts_config()
+    active_engine = engine or cfg_engine
+
+    if not output_path:
+        suffix = ".mp3" if active_engine == "edge" else ".wav"
+        tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        tmp.close()
+        output_path = tmp.name
+
+    if active_engine == "edge":
+        result = _tts_edge(text, output_path, voice=cfg_voice)
+        if not result.get("ok"):
+            # Fallback auf sapi5 wenn edge fehlschlägt (kein Internet etc.)
+            print(f"[audio_tts] edge-tts fehlgeschlagen ({result.get('error')}) — Fallback sapi5")
+            wav_path = output_path.replace(".mp3", ".wav") if output_path.endswith(".mp3") else output_path
+            return _tts_sapi5(text, wav_path)
+        return result
+
+    return _tts_sapi5(text, output_path)
 
 
 # ── Plugin-Registrierung ─────────────────────────────────────────────────────
@@ -212,9 +296,10 @@ def register(api):
     api.register_tool(
         name="audio_tts",
         description=(
-            "Wandelt Text in gesprochene Sprache um — vollständig offline via pyttsx3/SAPI5. "
-            "Gibt Pfad zur erzeugten WAV-Datei zurück. "
-            "Gibt {ok, path} zurück."
+            "Wandelt Text in gesprochene Sprache um — multi-engine Router. "
+            "Standard-Engine aus config.json (tts_engine). "
+            "Engines: 'edge' (Microsoft Neural, online, beste Qualität), 'sapi5' (offline, Fallback). "
+            "Gibt {ok, path, engine} zurück."
         ),
         func=audio_tts,
         input_schema={
@@ -224,9 +309,13 @@ def register(api):
                     "type": "string",
                     "description": "Text der gesprochen werden soll",
                 },
+                "engine": {
+                    "type": "string",
+                    "description": "TTS-Engine: 'edge' (empfohlen, online) oder 'sapi5' (offline). Leer = aus config.json.",
+                },
                 "output_path": {
                     "type": "string",
-                    "description": "Optionaler Pfad für die WAV-Ausgabedatei. Leer = temporäre Datei.",
+                    "description": "Optionaler Ausgabepfad. Leer = temporäre Datei.",
                 },
             },
             "required": ["text"],
