@@ -190,7 +190,7 @@ def banner() -> None:
 # ── Step 1: Primary Provider ──────────────────────────────────────────────────
 
 def step1_provider() -> str:
-    section("Choose your primary AI provider", "Step 1/7:")
+    section("Choose your primary AI provider", "Step 1/9:")
     print(f"  {_c(C_DIM, 'This will be the default model. You can add more providers in step 2.')}")
     print()
 
@@ -240,13 +240,13 @@ def _ask_api_key(provider_id: str) -> str:
         return api_key
 
 def step2_apikey(provider: str) -> str:
-    section(f"API key for {PROVIDERS[provider]['label']}", "Step 2/7:")
+    section(f"API key for {PROVIDERS[provider]['label']}", "Step 2/9:")
     return _ask_api_key(provider)
 
 # ── Step 3: Model ─────────────────────────────────────────────────────────────
 
 def step3_model(provider: str) -> str:
-    section("Choose a model", "Step 3/7:")
+    section("Choose a model", "Step 3/9:")
     p = PROVIDERS[provider]
     model_list    = p["models"]
     default_model = p["default_model"]
@@ -289,7 +289,7 @@ def step3_model(provider: str) -> str:
 # ── Step 4: Additional Providers ─────────────────────────────────────────────
 
 def step4_additional_providers(primary: str) -> dict:
-    section("Additional providers (optional)", "Step 4/7:")
+    section("Additional providers (optional)", "Step 4/9:")
     print(f"  {_c(C_DIM, 'Add more providers so AION can switch models on demand.')}")
     print(f"  {_c(C_DIM, 'Each provider is only active when its key is present in .env.')}")
     print()
@@ -319,37 +319,86 @@ def step4_additional_providers(primary: str) -> dict:
 
     return extra_keys
 
-# ── Step 5: Telegram ──────────────────────────────────────────────────────────
+# ── Step 5: Messaging Channels ────────────────────────────────────────────────
 
-def step5_telegram() -> dict:
-    section("Telegram (optional)", "Step 5/7:")
-    print(f"  {_c(C_DIM, 'AION can send and receive messages via Telegram.')}")
+def step5_channels() -> dict:
+    section("Messaging channels (optional)", "Step 5/9:")
+    print(f"  {_c(C_DIM, 'Connect AION to messaging platforms — each is a separate plugin.')}")
+    print(f"  {_c(C_DIM, 'All channels are optional. You can add them later via .env.')}")
     print()
 
+    result: dict = {}
+
+    # ── Telegram ────────────────────────────────────────────────────────────
+    print(f"  {_c(C_CYAN, 'Telegram')}")
+    print(f"  {_c(C_DIM, 'Bidirectional bot — text, images, voice messages')}")
     use_tg = ask("Set up Telegram? (y/n)", "n")
-    if use_tg.lower() != "y":
+    if use_tg.lower() == "y":
+        print()
+        print(f"  {_c(C_DIM, '1. Create a bot via @BotFather on Telegram → copy token')}")
+        print(f"  {_c(C_DIM, '2. Get Chat ID: open https://api.telegram.org/bot<TOKEN>/getUpdates')}")
+        print()
+        token   = ask("Bot token (e.g. 123456:ABC-...)")
+        chat_id = ask("Chat ID (e.g. 123456789)")
+        if token and chat_id:
+            result["TELEGRAM_BOT_TOKEN"] = token
+            result["TELEGRAM_CHAT_ID"]   = chat_id
+            ok("Telegram configured.")
+        else:
+            warn("Token or Chat ID missing — Telegram skipped.")
+    else:
         info("Telegram skipped.")
-        return {}
-
-    print()
-    print(f"  {_c(C_DIM, 'Create a bot: @BotFather on Telegram')}")
-    print(f"  {_c(C_DIM, 'Chat ID: Message the bot, then open https://api.telegram.org/bot<TOKEN>/getUpdates')}")
     print()
 
-    token   = ask("Bot token (e.g. 123456:ABC-...)")
-    chat_id = ask("Chat ID (e.g. 123456789)")
+    # ── Discord ─────────────────────────────────────────────────────────────
+    print(f"  {_c(C_CYAN, 'Discord')}")
+    print(f"  {_c(C_DIM, 'Bot responds to @Mentions and DMs — slash command /ask')}")
+    use_dc = ask("Set up Discord? (y/n)", "n")
+    if use_dc.lower() == "y":
+        print()
+        print(f"  {_c(C_DIM, '1. discord.com/developers/applications → New App → Bot')}")
+        print(f"  {_c(C_DIM, '2. Copy Bot Token')}")
+        print(f"  {_c(C_DIM, '3. Enable \"Message Content Intent\" under Bot → Privileged Gateway Intents')}")
+        print()
+        dc_token = ask("Discord Bot Token")
+        if dc_token:
+            result["DISCORD_BOT_TOKEN"] = dc_token
+            ok("Discord configured.")
+        else:
+            warn("No token entered — Discord skipped.")
+    else:
+        info("Discord skipped.")
+    print()
 
-    if not token or not chat_id:
-        warn("Token or chat ID missing — Telegram not configured.")
-        return {}
+    # ── Slack ────────────────────────────────────────────────────────────────
+    print(f"  {_c(C_CYAN, 'Slack')}")
+    print(f"  {_c(C_DIM, 'Bot responds to @Mentions and direct messages via Socket Mode')}")
+    use_sl = ask("Set up Slack? (y/n)", "n")
+    if use_sl.lower() == "y":
+        print()
+        print(f"  {_c(C_DIM, '1. api.slack.com/apps → New App → From scratch')}")
+        print(f"  {_c(C_DIM, '2. Enable Socket Mode → generate App-Level Token (scope: connections:write)')}")
+        print(f"  {_c(C_DIM, '3. OAuth & Permissions → Bot scopes: app_mentions:read, chat:write, im:history, im:read, im:write')}")
+        print(f"  {_c(C_DIM, '4. Install app → copy Bot User OAuth Token')}")
+        print()
+        sl_bot_token = ask("Slack Bot Token (xoxb-...)")
+        sl_app_token = ask("Slack App Token (xapp-...)")
+        if sl_bot_token and sl_app_token:
+            result["SLACK_BOT_TOKEN"] = sl_bot_token
+            result["SLACK_APP_TOKEN"] = sl_app_token
+            ok("Slack configured.")
+        else:
+            warn("Token(s) missing — Slack skipped.")
+    else:
+        info("Slack skipped.")
+    print()
 
-    ok("Telegram credentials saved.")
-    return {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat_id}
+    return result
 
 # ── Step 6: Profile ───────────────────────────────────────────────────────────
 
 def step6_profile() -> dict:
-    section("Your profile", "Step 6/7:")
+    section("Your profile", "Step 6/9:")
     print(f"  {_c(C_DIM, 'Helps AION adapt to you from day one.')}")
     print()
 
@@ -434,7 +483,7 @@ _PERM_LABELS = {
 }
 
 def step7_permissions() -> dict:
-    section("Permissions — what AION may do autonomously", "Step 7/8:")
+    section("Permissions — what AION may do autonomously", "Step 7/9:")
     print(f"  {_c(C_DIM, 'Controls what AION does without asking you first.')}")
     print()
     print(f"    {_c(C_WHITE, '1')}  {_c(C_CYAN, 'Conservative')}  {_c(C_DIM, '— asks before anything that touches the system')}")
@@ -466,10 +515,55 @@ def step7_permissions() -> dict:
     return perms
 
 
-# ── Step 8: System Check ──────────────────────────────────────────────────────
+# ── Step 8: Advanced Settings ─────────────────────────────────────────────────
+
+def step8_advanced() -> dict:
+    section("Advanced settings", "Step 8/9:")
+    print(f"  {_c(C_DIM, 'Fine-tune AION behavior. All settings can be changed later.')}")
+    print()
+
+    result: dict = {}
+
+    # Port
+    port = ask("Web UI port", "7000")
+    result["port"] = port if port.isdigit() else "7000"
+    if result["port"] != "7000":
+        ok(f"Port set to {result['port']}.")
+    else:
+        info("Port: 7000 (default)")
+    print()
+
+    # Browser mode
+    print(f"  {_c(C_CYAN, 'Browser automation (Playwright)')}")
+    print(f"  {_c(C_DIM, 'When AION controls a browser, should it run in the background (headless)')}")
+    print(f"  {_c(C_DIM, 'or show a visible browser window?')}")
+    print()
+    print(f"    {_c(C_WHITE, '1')}  Headless  {_c(C_DIM, '— runs in background, no window  (recommended)')}")
+    print(f"    {_c(C_WHITE, '2')}  Visible   {_c(C_DIM, '— shows browser window (useful for debugging)')}")
+    print()
+    bmode = ask("Browser mode (1/2)", "1")
+    result["browser_headless"] = (bmode != "2")
+    ok(f"Browser: {'headless' if result['browser_headless'] else 'visible'}.")
+    print()
+
+    # Docker
+    print(f"  {_c(C_CYAN, 'Docker')}")
+    print(f"  {_c(C_DIM, 'AION includes a Dockerfile and docker-compose.yml for containerized deployment.')}")
+    print(f"  {_c(C_DIM, 'You can use Docker instead of or alongside the native Python process.')}")
+    print()
+    print(f"  {_c(C_DIM, 'To run via Docker:  docker-compose up')}")
+    print(f"  {_c(C_DIM, 'To build the image: docker build -t aion .')}")
+    print()
+    info("No Docker configuration needed here — uses the same .env and config.json.")
+    print()
+
+    return result
+
+
+# ── Step 9: System Check ──────────────────────────────────────────────────────
 
 def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
-    section("System check", "Step 8/8:")
+    section("System check", "Step 9/9:")
 
     all_ok = True
 
@@ -613,7 +707,7 @@ def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
 # ── Write Output ──────────────────────────────────────────────────────────────
 
 def write_env(primary_provider: str, primary_key: str, model: str,
-              extra_keys: dict, telegram: dict) -> None:
+              extra_keys: dict, channels: dict, advanced: dict) -> None:
     env_path = BOT_DIR / ".env"
     lines = ["# AION Configuration — generated by onboarding.py"]
 
@@ -627,18 +721,29 @@ def write_env(primary_provider: str, primary_key: str, model: str,
         lines.append(f"{env_var}={api_key}")
 
     lines.append(f"AION_MODEL={model}")
-    lines.append("AION_PORT=7000")
+    lines.append(f"AION_PORT={advanced.get('port', '7000')}")
 
-    if telegram.get("TELEGRAM_BOT_TOKEN"):
-        lines.append(f"TELEGRAM_BOT_TOKEN={telegram['TELEGRAM_BOT_TOKEN']}")
-    if telegram.get("TELEGRAM_CHAT_ID"):
-        lines.append(f"TELEGRAM_CHAT_ID={telegram['TELEGRAM_CHAT_ID']}")
+    # Telegram
+    if channels.get("TELEGRAM_BOT_TOKEN"):
+        lines.append(f"TELEGRAM_BOT_TOKEN={channels['TELEGRAM_BOT_TOKEN']}")
+    if channels.get("TELEGRAM_CHAT_ID"):
+        lines.append(f"TELEGRAM_CHAT_ID={channels['TELEGRAM_CHAT_ID']}")
+
+    # Discord
+    if channels.get("DISCORD_BOT_TOKEN"):
+        lines.append(f"DISCORD_BOT_TOKEN={channels['DISCORD_BOT_TOKEN']}")
+
+    # Slack
+    if channels.get("SLACK_BOT_TOKEN"):
+        lines.append(f"SLACK_BOT_TOKEN={channels['SLACK_BOT_TOKEN']}")
+    if channels.get("SLACK_APP_TOKEN"):
+        lines.append(f"SLACK_APP_TOKEN={channels['SLACK_APP_TOKEN']}")
 
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     ok(f".env written ({env_path})")
 
 
-def write_config(model: str, permissions: dict | None = None) -> None:
+def write_config(model: str, permissions: dict | None = None, advanced: dict | None = None) -> None:
     config_path = BOT_DIR / "config.json"
     cfg = {}
     if config_path.exists():
@@ -649,6 +754,9 @@ def write_config(model: str, permissions: dict | None = None) -> None:
     cfg["model"] = model
     if permissions:
         cfg["permissions"] = permissions
+    if advanced:
+        if "browser_headless" in advanced:
+            cfg["browser_headless"] = advanced["browser_headless"]
     config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     ok(f"config.json written ({config_path})")
 
@@ -698,7 +806,8 @@ def write_flag() -> None:
     ok(f"Flag file created ({flag_path})")
 
 
-def completion_banner(model: str, name: str, extra_count: int) -> None:
+def completion_banner(model: str, name: str, extra_count: int,
+                      channels: dict | None = None, advanced: dict | None = None) -> None:
     print()
     greeting = f"Hello, {name}! AION is ready." if name else "AION is ready."
     print(_c(C_GREEN, "  ===================================================="))
@@ -706,11 +815,31 @@ def completion_banner(model: str, name: str, extra_count: int) -> None:
     print(f"  {_c(C_DIM, 'Model:     ')}{_c(C_CYAN, model)}")
     if extra_count:
         print(f"  {_c(C_DIM, 'Providers: ')}{_c(C_CYAN, str(extra_count + 1))} configured")
+
+    # Show active channels
+    if channels:
+        active = []
+        if channels.get("TELEGRAM_BOT_TOKEN"):
+            active.append("Telegram")
+        if channels.get("DISCORD_BOT_TOKEN"):
+            active.append("Discord")
+        if channels.get("SLACK_BOT_TOKEN"):
+            active.append("Slack")
+        if active:
+            print(f"  {_c(C_DIM, 'Channels:  ')}{_c(C_CYAN, ', '.join(active))}")
+
+    # Show port
+    if advanced:
+        port = advanced.get("port", "7000")
+        print(f"  {_c(C_DIM, 'Web UI:    ')}{_c(C_CYAN, f'http://localhost:{port}')}")
+
     print(f"  {_c(C_WHITE, greeting)}")
     print(_c(C_GREEN, "  ===================================================="))
     print()
-    print(f"  {_c(C_DIM, 'To switch models later: tell AION or use the System tab in the Web UI.')}")
-    print(f"  {_c(C_DIM, 'To add providers later: add API keys to .env and restart AION.')}")
+    print(f"  {_c(C_DIM, 'Start:              aion')}")
+    print(f"  {_c(C_DIM, 'Terminal mode:      aion --cli')}")
+    print(f"  {_c(C_DIM, 'Docker:             docker-compose up')}")
+    print(f"  {_c(C_DIM, 'Re-run setup:       aion --setup')}")
     print()
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -723,21 +852,22 @@ def run_onboarding() -> None:
         api_key      = step2_apikey(provider)
         model        = step3_model(provider)
         extra_keys   = step4_additional_providers(provider)
-        telegram     = step5_telegram()
+        channels     = step5_channels()
         profile      = step6_profile()
         permissions  = step7_permissions()
+        advanced     = step8_advanced()
         _ok          = step7_systemcheck(provider, api_key, model)
 
         # Write output
         print()
         section("Save configuration", "Saving:")
 
-        write_env(provider, api_key, model, extra_keys, telegram)
-        write_config(model, permissions)
+        write_env(provider, api_key, model, extra_keys, channels, advanced)
+        write_config(model, permissions, advanced)
         update_character_md(profile)
         write_flag()
 
-        completion_banner(model, profile.get("name", ""), len(extra_keys))
+        completion_banner(model, profile.get("name", ""), len(extra_keys), channels, advanced)
 
     except KeyboardInterrupt:
         print()
