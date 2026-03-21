@@ -69,6 +69,18 @@ echo %GREEN%  [OK]  Optionale Pakete%RESET%
 echo [OK] Alle Pakete >> "%LOG%"
 echo.
 
+REM === Onboarding (einmalig) ===
+if not exist "aion_onboarding_complete.flag" (
+    echo.
+    echo %CYAN%  Erster Start -- Onboarding wird ausgefuehrt...%RESET%
+    echo.
+    python onboarding.py
+    if errorlevel 1 (
+        echo %RED%  [FEHLER]  Onboarding fehlgeschlagen oder abgebrochen.%RESET%
+        pause & exit /b 1
+    )
+)
+
 echo %BOLD%  --- [3/4] Konfiguration -------------------------------------%RESET%
 echo [S3] .env >> "%LOG%"
 

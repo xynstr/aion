@@ -9,6 +9,7 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
 
 # UTF-8 auf Windows aktivieren
 if sys.platform == "win32":
@@ -167,6 +168,18 @@ async def _cancel_spinner(task) -> None:
 # ── Haupt-Loop ────────────────────────────────────────────────────────────────
 async def main():
     global _boot_active
+
+    # ── Onboarding (einmalig) ──────────────────────────────────────────────
+    _flag = Path(__file__).parent / "aion_onboarding_complete.flag"
+    if not _flag.exists():
+        import subprocess as _sp
+        _ob = Path(__file__).parent / "onboarding.py"
+        if _ob.exists():
+            result = _sp.run([sys.executable, str(_ob)])
+            if result.returncode != 0:
+                print(_c(C_ERR, "  Onboarding abgebrochen."))
+                return
+        print()
 
     # ── Banner ────────────────────────────────────────────────────────────────
     print()
