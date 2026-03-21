@@ -521,6 +521,7 @@ async def _telegram_worker(token: str):
                     response        = ""
                     response_blocks = []
                     needs_approval  = False
+                    tg_tool_sent    = False  # AION hat send_telegram_* Tool selbst aufgerufen
                     try:
                         async for event in sessions[chat_id].stream(
                             text, images=images or None
@@ -535,6 +536,9 @@ async def _telegram_worker(token: str):
                                 needs_approval = True
                             elif t == "error":
                                 response = f"Fehler: {event.get('message', '?')}"
+                            elif t == "tool_result":
+                                if event.get("tool") in ("send_telegram_message", "send_telegram_voice"):
+                                    tg_tool_sent = True
                     except Exception as e:
                         response = f"Fehler bei der Verarbeitung: {e}"
                         print(f"[Telegram] stream() Fehler für {chat_id}: {e}")
@@ -542,6 +546,9 @@ async def _telegram_worker(token: str):
                         typing_task.cancel()
                         busy.discard(chat_id)
 
+                    # Wenn AION selbst via Tool gesendet hat → kein doppelter Send
+                    if tg_tool_sent:
+                        continue
                     if not response.strip() and not response_blocks:
                         response = "Fertig."
 

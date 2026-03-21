@@ -201,6 +201,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .send-btn { width: 44px; height: 44px; border-radius: 8px; background: var(--accent); border: none; color: #000; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; font-weight: bold; }
 .send-btn:hover:not(:disabled) { background: #00ffcc; transform: scale(1.06); }
 .send-btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
+.attach-btn { width: 36px; height: 44px; border-radius: 8px; background: transparent; border: 1px solid var(--border); color: var(--text2); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; }
+.attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+.attach-preview { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 20px 0; }
+.attach-thumb { position: relative; width: 52px; height: 52px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+.attach-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.attach-thumb .remove-attach { position: absolute; top: 1px; right: 2px; background: rgba(0,0,0,.65); color: #fff; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+.attach-file-chip { display: flex; align-items: center; gap: 5px; background: var(--bg3); border: 1px solid var(--border); border-radius: 16px; padding: 4px 10px; font-size: 12px; color: var(--text2); }
+.attach-file-chip button { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 12px; padding: 0; line-height: 1; }
 
 /* ─────────────────────────────────────────────────────────────────
    PAGE HEADER (shared)
@@ -443,10 +451,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             </div>
           </div>
         </div>
+        <div id="attachPreview" class="attach-preview"></div>
         <div class="input-row">
+          <input type="file" id="fileInput" multiple accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv" style="display:none" onchange="onFileSelected(event)">
+          <button class="attach-btn" title="Datei anhängen" onclick="document.getElementById('fileInput').click()">📎</button>
           <textarea id="input"
             placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)"
-            rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+            rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
         </div>
       </div>
@@ -1104,18 +1115,84 @@ function setThinking(active) {
   document.getElementById('input').disabled    = active;
 }
 
+let pendingImages = [];   // base64 data-URLs
+let pendingTextFiles = []; // {name, content}
+
+function onFileSelected(e) {
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  files.forEach(f => {
+    const isImg = f.type.startsWith('image/');
+    const reader = new FileReader();
+    if (isImg) {
+      reader.onload = ev => { pendingImages.push(ev.target.result); renderAttachPreview(); };
+      reader.readAsDataURL(f);
+    } else {
+      reader.onload = ev => { pendingTextFiles.push({name: f.name, content: ev.target.result}); renderAttachPreview(); };
+      reader.readAsText(f);
+    }
+  });
+}
+
+function onPaste(e) {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const reader = new FileReader();
+      reader.onload = ev => { pendingImages.push(ev.target.result); renderAttachPreview(); };
+      reader.readAsDataURL(item.getAsFile());
+    }
+  }
+}
+
+function renderAttachPreview() {
+  const el = document.getElementById('attachPreview');
+  el.innerHTML = '';
+  pendingImages.forEach((src, i) => {
+    const wrap = document.createElement('div'); wrap.className = 'attach-thumb';
+    const img = document.createElement('img'); img.src = src;
+    const rm = document.createElement('button'); rm.className = 'remove-attach'; rm.textContent = '×';
+    rm.onclick = () => { pendingImages.splice(i, 1); renderAttachPreview(); };
+    wrap.append(img, rm); el.appendChild(wrap);
+  });
+  pendingTextFiles.forEach((f, i) => {
+    const chip = document.createElement('div'); chip.className = 'attach-file-chip';
+    chip.innerHTML = `📄 ${esc(f.name)} <button onclick="pendingTextFiles.splice(${i},1);renderAttachPreview()">×</button>`;
+    el.appendChild(chip);
+  });
+  el.style.display = (pendingImages.length || pendingTextFiles.length) ? 'flex' : 'none';
+}
+
+function clearAttachments() {
+  pendingImages = []; pendingTextFiles = [];
+  const el = document.getElementById('attachPreview');
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
+}
+
 async function send() {
   const input = document.getElementById('input');
-  const text  = input.value.trim();
-  if (!text || isThinking) return;
+  let text  = input.value.trim();
+  if (!text && !pendingImages.length && !pendingTextFiles.length) return;
+  if (isThinking) return;
+  // Append text file contents to message
+  if (pendingTextFiles.length) {
+    const fileContext = pendingTextFiles.map(f => `\`\`\`${f.name}\n${f.content}\n\`\`\``).join('\n\n');
+    text = text ? text + '\n\n' + fileContext : fileContext;
+  }
+  const imgs = pendingImages.length ? [...pendingImages] : null;
   input.value = ''; autoResize(input);
+  clearAttachments();
   // Switch to chat if on another section
   if (currentSection !== 'chat') switchSection('chat');
   appendUserMsg(text); setThinking(true);
   hideThinkingRow(); showThinkingRow();
   currentBubble = appendAionBubble(); awaitingNewBubble = false;
   try {
-    const resp   = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: text})});
+    const body = {message: text};
+    if (imgs) body.images = imgs;
+    const resp   = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
     const reader = resp.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
     while (true) {
       const {done, value} = await reader.read(); if (done) break;
