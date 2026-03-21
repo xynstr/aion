@@ -484,7 +484,7 @@ async def _telegram_worker(token: str):
                                 if res.get("ok") and res.get("text", "").strip():
                                     text = res["text"].strip()
                                     is_voice_input = True
-                                    print(f"[Telegram] Sprachnachricht → '{text[:70]}'")
+                                    print(f"[Telegram] Sprachnachricht -> '{text[:70]}'")
                                 else:
                                     text = f"[Sprachnachricht — Transkription fehlgeschlagen: {res.get('error', '?')}]"
                             else:
