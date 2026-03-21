@@ -13,8 +13,6 @@ set "CYAN=%E%[96m"
 set "GREEN=%E%[92m"
 set "YELLOW=%E%[93m"
 set "RED=%E%[91m"
-set "BLUE=%E%[94m"
-set "MAGENTA=%E%[95m"
 set "WHITE=%E%[97m"
 set "GRAY=%E%[90m"
 
@@ -26,7 +24,7 @@ echo ========================================== >> "%LOG%"
 
 cls
 
-REM ── Header ──────────────────────────────────────────────────────────────────
+REM ── Logo ─────────────────────────────────────────────────────────────────────
 echo.
 echo %CYAN%%BOLD%  ╔══════════════════════════════════════════╗%RESET%
 echo %CYAN%%BOLD%  ║                                          ║%RESET%
@@ -36,26 +34,20 @@ echo %CYAN%%BOLD%  ║    %WHITE%███████ %CYAN% ██   ██ %W
 echo %CYAN%%BOLD%  ║    %WHITE%██   ██ %CYAN% ██   ██ %WHITE%██   ██ %CYAN%██  ████    %CYAN%║%RESET%
 echo %CYAN%%BOLD%  ║    %WHITE%██   ██ %CYAN%  █████  %WHITE%██████  %CYAN%██   ███    %CYAN%║%RESET%
 echo %CYAN%%BOLD%  ║                                          ║%RESET%
-echo %CYAN%%BOLD%  ║  %GRAY%Autonomous AI Agent  ·  Web UI v2.0   %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║  %GRAY%Autonomous Intelligent Operations Node %CYAN%║%RESET%
 echo %CYAN%%BOLD%  ╚══════════════════════════════════════════╝%RESET%
 echo.
 echo %GRAY%  Log: %LOG%%RESET%
 echo.
 
-REM ── Hilfsmakros ─────────────────────────────────────────────────────────────
-REM  step_ok  "Text"   →  grüner Haken
-REM  step_warn "Text"  →  gelbes Ausrufezeichen
-REM  step_fail "Text"  →  roter X + pause + exit
-REM  (inline via goto da Batch keine echten Funktionen hat)
-
 REM ══════════════════════════════════════════════════════════════════════════════
-echo %BOLD%  ┌─ Schritt 1 / 6 ── Python ─────────────────────────┐%RESET%
+echo %BOLD%  ┌─ 1 / 4  Python ────────────────────────────────┐%RESET%
 echo [S1] Python >> "%LOG%"
 python --version >> "%LOG%" 2>&1
 if errorlevel 1 (
     echo %RED%  │  ✗  Python nicht gefunden!%RESET%
     echo %YELLOW%  │     Bitte installieren: python.org/downloads%RESET%
-    echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+    echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
     echo [FEHLER] Python nicht gefunden >> "%LOG%"
     echo. & pause & exit /b 1
 )
@@ -63,39 +55,35 @@ for /f "tokens=*" %%v in ('python --version 2^>^&1') do (
     echo %GREEN%  │  ✓  %%v%RESET%
     echo [OK] %%v >> "%LOG%"
 )
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 
 REM ══════════════════════════════════════════════════════════════════════════════
-echo %BOLD%  ┌─ Schritt 2 / 6 ── Pakete ─────────────────────────┐%RESET%
+echo %BOLD%  ┌─ 2 / 4  Pakete ─────────────────────────────────┐%RESET%
 echo [S2] Pakete >> "%LOG%"
-
-echo %GRAY%  │  ·  pip upgrade...%RESET%
+echo %GRAY%  │  ·  pip + requirements.txt ...%RESET%
 python -m pip install --upgrade pip -q >> "%LOG%" 2>&1
-
-echo %GRAY%  │  ·  requirements.txt...%RESET%
 python -m pip install -r requirements.txt -q >> "%LOG%" 2>&1
 if errorlevel 1 (
     echo %RED%  │  ✗  requirements.txt fehlgeschlagen!%RESET%
-    echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+    echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
     echo [FEHLER] requirements install >> "%LOG%"
     echo. & pause & exit /b 1
 )
 echo %GREEN%  │  ✓  Kern-Pakete OK%RESET%
-
 echo %GRAY%  │  ·  Optionale Pakete (google-genai, vosk, ...)%RESET%
-python -m pip install google-genai -q    >> "%LOG%" 2>&1
-python -m pip install requests -q        >> "%LOG%" 2>&1
-python -m pip install duckduckgo-search -q >> "%LOG%" 2>&1
-python -m pip install vosk -q            >> "%LOG%" 2>&1
-python -m pip install pyttsx3 -q         >> "%LOG%" 2>&1
+python -m pip install google-genai -q       >> "%LOG%" 2>&1
+python -m pip install requests -q           >> "%LOG%" 2>&1
+python -m pip install duckduckgo-search -q  >> "%LOG%" 2>&1
+python -m pip install vosk -q               >> "%LOG%" 2>&1
+python -m pip install pyttsx3 -q            >> "%LOG%" 2>&1
 echo %GREEN%  │  ✓  Optionale Pakete OK%RESET%
 echo [OK] Alle Pakete >> "%LOG%"
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 
 REM ══════════════════════════════════════════════════════════════════════════════
-echo %BOLD%  ┌─ Schritt 3 / 6 ── Konfiguration ──────────────────┐%RESET%
+echo %BOLD%  ┌─ 3 / 4  Konfiguration ──────────────────────────┐%RESET%
 echo [S3] .env >> "%LOG%"
 
 if exist ".env" (
@@ -106,7 +94,7 @@ if exist ".env" (
 
 REM .env fehlt — Setup-Wizard
 echo %YELLOW%  │  !  .env fehlt — Setup-Wizard%RESET%
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 echo %CYAN%  AION benoetigt mindestens einen API-Key (OpenAI ODER Gemini).%RESET%
 echo %GRAY%  Leere Eingabe = Feld ueberspringen.%RESET%
@@ -143,7 +131,7 @@ if "!AION_MODEL_INPUT!"=="" set "AION_MODEL_INPUT=gemini-2.0-flash"
 ) > .env
 echo %GREEN%  │  ✓  .env erstellt%RESET%
 echo [OK] .env erstellt >> "%LOG%"
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 
 :env_check
@@ -155,24 +143,50 @@ if errorlevel 1 (
     echo. & pause & exit /b 1
 )
 echo %GREEN%  │  ✓  API-Key vorhanden%RESET%
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 
 REM ══════════════════════════════════════════════════════════════════════════════
-echo %BOLD%  ┌─ Schritt 4 / 6 ── Modell ─────────────────────────┐%RESET%
+echo %BOLD%  ┌─ 4 / 4  Modell ─────────────────────────────────┐%RESET%
 echo [S4] Modell >> "%LOG%"
 for /f %%m in ('python -c "from dotenv import load_dotenv; import os, json; load_dotenv(); cfg={}; open_ = open('config.json') if __import__('os').path.exists('config.json') else None; cfg=json.load(open_) if open_ else {}; open_ and open_.close(); print(cfg.get('model', os.getenv('AION_MODEL','gemini-2.0-flash')))" 2^>nul') do set "ACTIVE_MODEL=%%m"
 if not defined ACTIVE_MODEL set "ACTIVE_MODEL=gemini-2.0-flash"
 echo %GREEN%  │  ✓  Modell: %CYAN%%BOLD%%ACTIVE_MODEL%%RESET%
 echo [OK] Modell: %ACTIVE_MODEL% >> "%LOG%"
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 
 REM ══════════════════════════════════════════════════════════════════════════════
-echo %BOLD%  ┌─ Schritt 5 / 6 ── Alte Instanzen beenden ─────────┐%RESET%
-echo [S5] Cleanup >> "%LOG%"
+REM  MODUS-AUSWAHL
+REM ══════════════════════════════════════════════════════════════════════════════
+:choose_mode
+echo %CYAN%%BOLD%  ╔══════════════════════════════════════════╗%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ║  %WHITE%Wie soll AION gestartet werden?%CYAN%          ║%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ║  %WHITE%[1]%CYAN%  Web UI%GRAY%  →  Browser + localhost:7000%CYAN%   ║%RESET%
+echo %CYAN%%BOLD%  ║  %WHITE%[2]%CYAN%  CLI%GRAY%     →  Terminal-Chat             %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║                                          ║%RESET%
+echo %CYAN%%BOLD%  ╚══════════════════════════════════════════╝%RESET%
+echo.
+set "CHOICE="
+set /p "CHOICE=%CYAN%%BOLD%  Eingabe (1/2, Standard: 1): %RESET%"
+if "!CHOICE!"=="" set "CHOICE=1"
+if "!CHOICE!"=="1" goto :start_web
+if "!CHOICE!"=="2" goto :start_cli
+echo %YELLOW%  Ungueltige Eingabe — bitte 1 oder 2 eingeben.%RESET%
+echo.
+goto :choose_mode
 
-REM -- Port 7000 freigeben (kein if/else wegen CMD-ESC-Bug mit ANSI-Codes) -----
+
+REM ══════════════════════════════════════════════════════════════════════════════
+REM  WEB-START
+REM ══════════════════════════════════════════════════════════════════════════════
+:start_web
+echo.
+echo [Modus] Web >> "%LOG%"
+echo %BOLD%  ┌─ Web UI  ──  Port-Cleanup ──────────────────────┐%RESET%
+
 set OLDPID=
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000 "') do (
     if not defined OLDPID set OLDPID=%%a
@@ -187,12 +201,10 @@ if not defined OLDPID goto :port_free
     echo [OK] Port 7000 frei >> "%LOG%"
 :after_port_kill
 
-REM -- Alle python.exe-Prozesse beenden ----------------------------------------
 taskkill /F /IM python.exe >nul 2>&1
-echo [OK] Python-Cleanup abgeschlossen >> "%LOG%"
+echo [OK] Python-Cleanup >> "%LOG%"
 timeout /t 2 >nul
 
-REM -- Zweite Port-Prüfung nach dem Kill ----------------------------------------
 set OLDPID2=
 for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000 "') do (
     if not defined OLDPID2 set OLDPID2=%%a
@@ -205,26 +217,17 @@ if not defined OLDPID2 goto :port2_free
 timeout /t 3 >nul
 echo %GREEN%  │  ✓  Bereit%RESET%
 echo [OK] Cleanup fertig >> "%LOG%"
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
+echo %BOLD%  └────────────────────────────────────────────────┘%RESET%
 echo.
 
-REM ══════════════════════════════════════════════════════════════════════════════
-echo %BOLD%  ┌─ Schritt 6 / 6 ── Start ──────────────────────────┐%RESET%
-echo [S6] Start >> "%LOG%"
-
 if not exist "aion_web.py" (
-    echo %RED%  │  ✗  aion_web.py nicht gefunden!%RESET%
+    echo %RED%  ✗  aion_web.py nicht gefunden!%RESET%
     echo [FEHLER] aion_web.py fehlt >> "%LOG%"
-    echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
     echo. & pause & exit /b 1
 )
 
-echo %GREEN%  │  ✓  Alle Checks bestanden — starte Server...%RESET%
-echo %BOLD%  └────────────────────────────────────────────────────┘%RESET%
-echo.
-
 echo %CYAN%%BOLD%  ╔══════════════════════════════════════════╗%RESET%
-echo %CYAN%%BOLD%  ║  %GREEN%✓  AION laeuft                          %CYAN%║%RESET%
+echo %CYAN%%BOLD%  ║  %GREEN%✓  AION Web UI startet                  %CYAN%║%RESET%
 echo %CYAN%%BOLD%  ║                                          ║%RESET%
 echo %CYAN%%BOLD%  ║  %WHITE%→  http://localhost:7000              %CYAN%║%RESET%
 echo %CYAN%%BOLD%  ║  %WHITE%→  Modell: %-32s%CYAN%║%RESET%
@@ -260,3 +263,28 @@ echo.
 echo %GRAY%  AION gestoppt.%RESET%
 pause
 endlocal
+goto :eof
+
+
+REM ══════════════════════════════════════════════════════════════════════════════
+REM  CLI-START
+REM ══════════════════════════════════════════════════════════════════════════════
+:start_cli
+echo.
+echo [Modus] CLI >> "%LOG%"
+
+if not exist "aion_cli.py" (
+    echo %RED%  ✗  aion_cli.py nicht gefunden!%RESET%
+    echo [FEHLER] aion_cli.py fehlt >> "%LOG%"
+    echo. & pause & exit /b 1
+)
+
+cls
+python aion_cli.py
+
+echo [INFO] aion_cli.py beendet >> "%LOG%"
+echo.
+echo %GRAY%  CLI-Sitzung beendet.%RESET%
+pause
+endlocal
+goto :eof
