@@ -53,12 +53,13 @@ def register(api):
     def todo_done(task: str = "", **_) -> dict:
         """Aufgabe als erledigt markieren."""
         lines = _read_lines()
+        task_clean = task.strip()
         for i, line in enumerate(lines):
-            if line.strip() == f"- [ ] {task.strip()}" or f"- [ ] {task}" in line:
+            if line.strip() == f"- [ ] {task_clean}":
                 lines[i] = line.replace("- [ ] ", "- [x] ", 1)
                 _write_lines(lines)
-                return {"ok": True, "done": task}
-        return {"ok": False, "error": f"Offene Aufgabe nicht gefunden: {task}"}
+                return {"ok": True, "done": task_clean}
+        return {"ok": False, "error": f"Offene Aufgabe nicht gefunden: {task_clean}"}
 
     def todo_remove(task: str = "", **_) -> dict:
         lines = _read_lines()

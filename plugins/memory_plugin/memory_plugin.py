@@ -55,7 +55,7 @@ def read_last_entries(num_entries: int = 50, channel_filter: str = "") -> dict:
                 try:
                     obj = json.loads(line)
                     ch = obj.get("channel", "default")
-                    if ch.startswith(channel_filter) or ch == channel_filter:
+                    if ch == channel_filter or ch.startswith(channel_filter + "_"):
                         filtered.append(line)
                 except Exception:
                     pass

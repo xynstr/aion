@@ -141,7 +141,10 @@ async def _stream_chat_with_images(user_input: str, images: list | None) -> Asyn
 
 @app.post("/api/chat")
 async def chat(request: Request):
-    body       = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     user_input = body.get("message", "").strip()
     # Optionale Bilder als Liste von Base64-Data-URLs oder öffentlichen URLs
     images     = body.get("images") or None
@@ -170,12 +173,15 @@ async def status():
         "model":            _aion_module.MODEL,
         "memory_entries":   len(memory._entries),
         "conversation_len": len(_session.messages),
-        "character":        _load_character()[:500],
+        "character":        (_load_character() or "")[:500],
     })
 
 @app.post("/api/model")
 async def set_model(request: Request):
-    body  = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     model = body.get("model", "").strip()
     if not model:
         return JSONResponse({"error": "Kein Modell angegeben"}, status_code=400)
@@ -308,7 +314,7 @@ async def reload_plugins():
 # ── Memory API ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/memory")
-async def list_memory(search: str = "", limit: int = 80):
+async def list_memory(search: str = "", limit: int = 80, offset: int = 0):
     memory_file = AION_DIR / "aion_memory.json"
     try:
         entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
@@ -321,8 +327,14 @@ async def list_memory(search: str = "", limit: int = 80):
                    if q in e.get("summary", "").lower()
                    or q in e.get("lesson",  "").lower()
                    or q in e.get("category","").lower()]
-    entries = list(reversed(entries))[:limit]
-    return JSONResponse({"entries": entries, "total": total, "returned": len(entries)})
+    entries_sorted = list(reversed(entries))
+    page = entries_sorted[offset:offset + limit]
+    return JSONResponse({
+        "entries":  page,
+        "total":    total,
+        "returned": len(page),
+        "has_more": (offset + limit) < len(entries_sorted),
+    })
 
 @app.delete("/api/memory")
 async def clear_memory():

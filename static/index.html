@@ -660,12 +660,17 @@ let _promptLoaded = {};
 let _promptDirty  = {};
 let _memDebounce  = null;
 
+// Memory pagination state
+let _memOffset   = 0;
+const _MEM_LIMIT = 80;
+
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
 async function loadHistory() {
   try {
-    const r    = await fetch('/api/history');
+    const r = await fetch('/api/history');
+    if (!r.ok) return;
     const data = await r.json();
     if (!data.messages || !data.messages.length) return;
     removeWelcome();
@@ -830,22 +835,33 @@ async function reloadPlugins() {
 }
 
 // ── MEMORY ────────────────────────────────────────────────────────────────────
-async function loadMemory() {
+let _memAllEntries = [];
+
+async function loadMemory(append = false) {
   const q    = document.getElementById('memorySearch').value.trim();
   const list = document.getElementById('memoryList');
-  list.innerHTML = '<div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span></div>';
+  if (!append) {
+    _memOffset = 0;
+    _memAllEntries = [];
+    list.innerHTML = '<div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span></div>';
+  }
   try {
-    const url  = `/api/memory${q ? `?search=${encodeURIComponent(q)}` : ''}`;
-    const data = await (await fetch(url)).json();
+    let url = `/api/memory?limit=${_MEM_LIMIT}&offset=${_memOffset}`;
+    if (q) url += `&search=${encodeURIComponent(q)}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
     document.getElementById('memoryTotalBadge').textContent = `${data.total} Einträge`;
-    renderMemory(data.entries);
+    _memAllEntries = _memAllEntries.concat(data.entries);
+    _memOffset += data.entries.length;
+    renderMemory(_memAllEntries, data.has_more);
   } catch(e) { list.innerHTML = `<div class="memory-empty">✗ ${esc(e.message)}</div>`; }
 }
 
-function renderMemory(entries) {
+function renderMemory(entries, hasMore = false) {
   const list = document.getElementById('memoryList');
   if (!entries.length) { list.innerHTML = '<div class="memory-empty"><span style="font-size:24px;opacity:.2">🧠</span><span>Keine Einträge gefunden</span></div>'; return; }
-  list.innerHTML = '<div class="memory-list">' + entries.map(e => {
+  const cards = entries.map(e => {
     const ts  = e.timestamp ? e.timestamp.replace('T',' ').slice(0,16) : '';
     const cls = e.success === false ? 'failure' : 'success';
     return `
@@ -857,10 +873,14 @@ function renderMemory(entries) {
         <div class="memory-summary">${esc(e.summary || '')}</div>
         ${e.lesson ? `<div class="memory-lesson">${esc(e.lesson.slice(0,200))}</div>` : ''}
       </div>`;
-  }).join('') + '</div>';
+  }).join('');
+  const moreBtn = hasMore
+    ? `<div style="text-align:center;padding:12px"><button class="action-btn" onclick="loadMemory(true)">Mehr laden</button></div>`
+    : '';
+  list.innerHTML = '<div class="memory-list">' + cards + '</div>' + moreBtn;
 }
 
-function debounceMemorySearch() { clearTimeout(_memDebounce); _memDebounce = setTimeout(loadMemory, 350); }
+function debounceMemorySearch() { clearTimeout(_memDebounce); _memDebounce = setTimeout(() => loadMemory(false), 350); }
 
 async function clearMemory() {
   if (!confirm('Memory komplett leeren? Das kann nicht rückgängig gemacht werden.')) return;
@@ -1244,7 +1264,7 @@ function handleEvent(ev) {
 }
 
 async function resetChat() {
-  await fetch('/api/reset', {method:'POST'});
+  try { await fetch('/api/reset', {method:'POST'}); } catch {}
   for (let k in toolDataStore) delete toolDataStore[k];
   currentBubble = null; awaitingNewBubble = false;
   switchSection('chat');

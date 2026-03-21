@@ -18,6 +18,7 @@ _INTERVAL_S     = 60          # Heartbeat-Takt
 _TODO_CHECK_MIN = 30          # Todos alle N Minuten prüfen
 _last_todo_check: datetime.datetime | None = None
 _todo_worker_running = False
+_todo_worker_lock    = threading.Lock()
 
 
 def _count_open_todos() -> int:
@@ -34,9 +35,10 @@ def _count_open_todos() -> int:
 def _run_todo_session():
     """Startet eine AionSession im Hintergrund um offene Todos abzuarbeiten."""
     global _todo_worker_running
-    if _todo_worker_running:
-        return
-    _todo_worker_running = True
+    with _todo_worker_lock:
+        if _todo_worker_running:
+            return
+        _todo_worker_running = True
     try:
         import asyncio
         import aion as _aion

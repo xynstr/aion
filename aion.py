@@ -1234,7 +1234,11 @@ class AionSession:
                             # Gemini-Adapter → Stream-Iterator; OpenAI → Response-Objekt
                             # Beide Fälle abdecken:
                             if check_raw is None:
-                                raise ValueError("check_raw ist None — Client-Fehler")
+                                _log_event("check_none", {
+                                    "note": "check_raw is None → treated as NO",
+                                    "iter": _iter, "channel": self.channel,
+                                })
+                                break
                             if hasattr(check_raw, "choices"):
                                 # OpenAI-style: direkt .choices[0].message.content lesen
                                 check_answer = (check_raw.choices[0].message.content or "").strip().upper()
