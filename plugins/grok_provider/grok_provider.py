@@ -55,6 +55,7 @@ def register(api):
         build_fn=_build_client,
         label="xAI Grok",
         models=KNOWN_MODELS,
+        env_keys=["XAI_API_KEY"],
     )
 
     print(f"[Plugin] grok_provider loaded — models: {', '.join(KNOWN_MODELS)}")

@@ -106,6 +106,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .welcome p { color: var(--text2); max-width: 360px; line-height: 1.75; font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
 .chip { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 7px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all .15s; user-select: none; }
+.key-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; letter-spacing: .5px; }
+.key-set   { background: rgba(0,229,100,.12); color: #00e564; border: 1px solid rgba(0,229,100,.25); }
+.key-missing { background: rgba(255,80,80,.12); color: #ff5050; border: 1px solid rgba(255,80,80,.25); }
+.key-name  { font-size: 11px; font-family: monospace; color: var(--text2); }
+.key-input { flex: 1; background: var(--bg4); border: 1px solid var(--border); color: var(--text); padding: 5px 8px; border-radius: 6px; font-size: 12px; font-family: monospace; outline: none; }
+.key-input:focus { border-color: var(--accent); }
 .chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,170,.06); }
 
 /* Messages */
@@ -424,6 +430,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <span class="snav-icon">🧠</span>
           <span class="snav-label">Memory</span>
         </button>
+        <button class="snav-btn" id="snav-keys" onclick="switchSection('keys')">
+          <span class="snav-icon">🔑</span>
+          <span class="snav-label">Keys</span>
+        </button>
         <button class="snav-btn" id="snav-settings" onclick="switchSection('settings')">
           <span class="snav-icon">⊞</span>
           <span class="snav-label">System</span>
@@ -536,6 +546,22 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div id="memoryList">
             <div class="memory-empty"><span style="font-size:28px;opacity:.2">🧠</span><span>Lade Einträge…</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: KEYS -->
+      <div class="section" id="section-keys">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <div class="page-title">API Keys</div>
+            <div class="page-subtitle">Zugangsdaten für KI-Provider und Dienste</div>
+          </div>
+          <button class="action-btn" onclick="loadKeys()">↺</button>
+        </div>
+        <div class="page-scroll">
+          <div id="keysList">
+            <div class="memory-empty"><span style="font-size:28px;opacity:.2">🔑</span><span>Lade Keys…</span></div>
           </div>
         </div>
       </div>
@@ -714,6 +740,7 @@ function loadCurrentSection() {
   if (currentSection === 'prompts')  { if (!_promptLoaded[_promptFile]) loadPrompt(_promptFile); }
   if (currentSection === 'plugins')  loadPlugins();
   if (currentSection === 'memory')   loadMemory();
+  if (currentSection === 'keys')     loadKeys();
   if (currentSection === 'settings') loadSettings();
 }
 
@@ -887,6 +914,74 @@ async function clearMemory() {
     if (data.ok) { showToast('✓ Memory geleert'); loadMemory(); loadSettings(); }
     else showToast('✗ ' + (data.error || 'Fehler'));
   } catch(e) { showToast('✗ ' + e.message); }
+}
+
+// ── KEYS ──────────────────────────────────────────────────────────────────────
+async function loadKeys() {
+  try {
+    const r = await fetch('/api/keys');
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    renderKeys(d);
+  } catch(e) {
+    document.getElementById('keysList').innerHTML =
+      `<div class="memory-empty"><span style="color:var(--danger)">Fehler beim Laden der Keys</span></div>`;
+  }
+}
+
+function renderKeys(data) {
+  const el = document.getElementById('keysList');
+  let html = '';
+
+  const makeRow = (k) => `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span class="key-name">${k.key}</span>
+        <span class="key-badge ${k.set ? 'key-set' : 'key-missing'}">${k.set ? '✓ gesetzt' : '✗ fehlt'}</span>
+        ${k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace">${k.masked}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:6px">
+        <input type="password" class="key-input" id="key-${k.key}"
+               placeholder="${k.set ? 'Neuen Wert eingeben zum Überschreiben…' : 'Key hier eingeben…'}">
+        <button class="action-btn primary" onclick="saveKey('${k.key}')">Speichern</button>
+      </div>
+    </div>`;
+
+  for (const prov of data.providers) {
+    html += `<div class="settings-group">
+      <div class="settings-label">${prov.label}</div>`;
+    for (const k of prov.env_keys) html += makeRow(k);
+    html += `</div><div class="settings-divider"></div>`;
+  }
+
+  if (data.other_keys && data.other_keys.length) {
+    html += `<div class="settings-group"><div class="settings-label">Sonstige</div>`;
+    for (const k of data.other_keys) html += makeRow(k);
+    html += `</div>`;
+  }
+
+  el.innerHTML = html || '<div class="memory-empty"><span style="opacity:.4">Keine Keys gefunden</span></div>';
+}
+
+async function saveKey(envKey) {
+  const input = document.getElementById(`key-${envKey}`);
+  const val   = input.value.trim();
+  if (!val) { showToast('Bitte einen Wert eingeben', true); return; }
+  try {
+    const r = await fetch('/api/keys', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({[envKey]: val}),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(`✓ ${envKey} gespeichert`);
+      input.value = '';
+      loadKeys();
+    } else {
+      showToast(`Fehler: ${d.error}`, true);
+    }
+  } catch(e) { showToast('Netzwerkfehler', true); }
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────

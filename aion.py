@@ -124,19 +124,21 @@ client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 _provider_registry: list[dict] = []
 
 
-def register_provider(prefix: str, build_fn, label: str = "", models: list | None = None):
+def register_provider(prefix: str, build_fn, label: str = "", models: list | None = None, env_keys: list | None = None):
     """Register an LLM provider. Called by provider plugins.
 
-    prefix  — model-name prefix that routes to this provider (e.g. "ollama/", "claude-")
+    prefix   — model-name prefix that routes to this provider (e.g. "ollama/", "claude-")
     build_fn — callable(model: str) → OpenAI-compatible client
-    label   — human-readable name shown in Web UI / System tab
-    models  — optional list of known model names for switch_model hints
+    label    — human-readable name shown in Web UI / System tab
+    models   — optional list of known model names for switch_model hints
+    env_keys — optional list of env var names required by this provider (e.g. ["GEMINI_API_KEY"])
     """
     _provider_registry.append({
-        "prefix":  prefix,
+        "prefix":   prefix,
         "build_fn": build_fn,
-        "label":   label or prefix,
-        "models":  models or [],
+        "label":    label or prefix,
+        "models":   models or [],
+        "env_keys": env_keys or [],
     })
 
 

@@ -349,6 +349,111 @@ async def clear_memory():
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
+# ── Keys API ────────────────────────────────────────────────────────────────────
+
+_WELL_KNOWN_KEYS = [
+    {"key": "OPENAI_API_KEY",     "label": "OpenAI"},
+    {"key": "TELEGRAM_BOT_TOKEN", "label": "Telegram"},
+    {"key": "TELEGRAM_CHAT_ID",   "label": "Telegram"},
+]
+
+def _mask_key(val: str) -> str:
+    if not val:
+        return ""
+    if len(val) <= 8:
+        return "●" * len(val)
+    return val[:4] + "…" + val[-4:]
+
+@app.get("/api/keys")
+async def get_keys():
+    """Returns all known API keys (masked) grouped by provider."""
+    registry  = getattr(_aion_module, "_provider_registry", [])
+    covered   = set()
+    providers = []
+
+    for entry in registry:
+        env_keys = entry.get("env_keys", [])
+        if not env_keys:
+            continue
+        keys_info = []
+        for k in env_keys:
+            val = os.environ.get(k, "")
+            keys_info.append({"key": k, "set": bool(val), "masked": _mask_key(val)})
+            covered.add(k)
+        providers.append({
+            "label":    entry.get("label", entry.get("prefix", "?")),
+            "env_keys": keys_info,
+        })
+
+    # OpenAI fallback (not in registry, always shown)
+    oai_val = os.environ.get("OPENAI_API_KEY", "")
+    if "OPENAI_API_KEY" not in covered:
+        providers.append({
+            "label":    "OpenAI",
+            "env_keys": [{"key": "OPENAI_API_KEY", "set": bool(oai_val), "masked": _mask_key(oai_val)}],
+        })
+        covered.add("OPENAI_API_KEY")
+
+    # Other well-known keys (Telegram, etc.)
+    other_keys = []
+    for entry in _WELL_KNOWN_KEYS:
+        k = entry["key"]
+        if k not in covered:
+            val = os.environ.get(k, "")
+            other_keys.append({"key": k, "set": bool(val), "masked": _mask_key(val)})
+            covered.add(k)
+
+    # Any remaining keys in .env not yet covered
+    env_file = AION_DIR / ".env"
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k = line.split("=", 1)[0].strip()
+            if k in covered:
+                continue
+            if any(k.endswith(s) for s in ("_KEY", "_TOKEN", "_ID", "_SECRET")):
+                val = os.environ.get(k, "")
+                other_keys.append({"key": k, "set": bool(val), "masked": _mask_key(val)})
+                covered.add(k)
+
+    return JSONResponse({"providers": providers, "other_keys": other_keys})
+
+@app.post("/api/keys")
+async def save_keys(request: Request):
+    """Write one or more keys to .env and update the running process."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    env_file = AION_DIR / ".env"
+    lines    = env_file.read_text(encoding="utf-8").splitlines() if env_file.is_file() else []
+
+    updated  = set()
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            k = stripped.split("=", 1)[0].strip()
+            if k in body and body[k]:
+                new_lines.append(f"{k}={body[k]}")
+                os.environ[k] = body[k]
+                updated.add(k)
+            else:
+                new_lines.append(line)
+        else:
+            new_lines.append(line)
+
+    for k, v in body.items():
+        if k not in updated and v:
+            new_lines.append(f"{k}={v}")
+            os.environ[k] = v
+
+    env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    return JSONResponse({"ok": True, "updated": list(body.keys())})
+
 # ── Config API ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/providers")

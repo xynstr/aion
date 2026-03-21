@@ -323,6 +323,7 @@ def register(api):
             build_fn=_build_client,
             label="Google Gemini",
             models=GEMINI_MODELS,
+            env_keys=["GEMINI_API_KEY"],
         )
     else:
         # Fallback for older aion.py without registry
