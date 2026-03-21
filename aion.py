@@ -227,8 +227,9 @@ selbst-lernender KI-Assistent.
 === DEIN CHARAKTER ===
 {character}
 
-=== SPRACHE ===
-Antworte immer auf Deutsch, außer der Nutzer schreibt auf einer anderen Sprache.
+=== LANGUAGE ===
+Always respond in the same language the user writes in. Mirror the user's language automatically.
+If the user writes German → respond in German. English → English. Never switch unless the user does first.
 {plugin_block}{changelog_block}"""
 
 # ── Gedächtnis-System ─────────────────────────────────────────────────────────
