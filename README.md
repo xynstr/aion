@@ -1,37 +1,37 @@
 # AION — Autonomous Intelligent Operations Node
 
-Ein autonomer KI-Agent für Windows. Läuft als Python-Prozess, kommuniziert über Google Gemini oder OpenAI API, führt Tools aus, lernt und kann sich selbst modifizieren.
+An autonomous AI agent for Windows. Runs as a Python process, communicates via the Google Gemini or OpenAI API, executes tools, learns, and can modify itself.
 
 ---
 
 ## Features
 
-- **Autonomes Arbeiten** — bis zu 50 Tool-Iterationen ohne Nutzer-Warten, mit automatischem Completion-Check + Task-Enforcer
-  - **Completion-Check** — nach Tool-Aufrufen: "hat AION eine Aktion angekündigt aber nicht ausgeführt?"
-  - **Task-Enforcer** — nach Tool-Aufrufen: "ist die Aufgabe wirklich komplett? Oder fehlen noch Schritte?" → Forcestart falls unvollständig
-- **Geplante Aufgaben** — Scheduler mit Uhrzeiten (`06:00`) und Intervallen (`alle 5m`) — läuft vollständig autonom
-- **Selbst-Modifikation** — liest, patcht und überschreibt eigenen Code; erstellt neue Plugins
-- **Web UI** — Live-Stream von Antworten, Gedanken und Tool-Aufrufen; persistente Sidebar-Navigation (Chat / Prompts / Plugins / Memory / System)
-- **CLI-Modus** — vollständig ohne Browser/Server: `start_cli.bat` oder `python aion_cli.py`; farbige Terminal-Ausgabe mit Tool-/Gedanken-Anzeige
-- **Telegram** — bidirektional: Text, Bilder und Sprachnachrichten (OGG → Vosk-Transkription, TTS-Rückantwort)
-  - Kanal-isolierte History: nur Telegram-Chats laden Telegram-History (kein Web-Kontext)
-  - `memory_read_web_history` Tool: auf Wunsch Web-UI-History laden und Kontext mitnehmen
-- **Gedächtnis** — persistentes JSON-Gedächtnis + Konversationshistorie (JSONL) mit Channel-Filterung
-- **Persönlichkeit** — `character.md` entwickelt sich durch Gespräche; alle 5 Gespräche LLM-Analyse mit Mustererkennung
-- **Multi-Provider** — Google Gemini (2.5-pro, 2.5-flash …) und OpenAI (GPT-4.1, o3 …) wechselbar
-- **Plugin-System** — `plugins/<name>/<name>.py` wird automatisch geladen; READMEs werden als Plugin-Übersicht injiziert
-  - **create_plugin Tool** erzwingt korrekte Subdirectory-Struktur (auch wenn AION falsche Pfade übergibt)
-  - Auto-generierte README.md in jedem neuen Plugin
-- **Audio-Pipeline** — beliebiges Audioformat → Transkription (ffmpeg + Vosk, offline) + TTS (pyttsx3/SAPI5, offline)
-- **Moltbook** — soziale Präsenz: Feed lesen, Posts erstellen, kommentieren
+- **Autonomous operation** — up to 50 tool iterations without waiting for the user, with automatic completion check + task enforcer
+  - **Completion Check** — after tool calls: "did AION announce an action but not carry it out?"
+  - **Task Enforcer** — after tool calls: "is the task truly complete, or are steps still missing?" → force-continues if incomplete
+- **Scheduled tasks** — scheduler with fixed times (`06:00`) and intervals (`every 5m`) — runs fully autonomously
+- **Self-modification** — reads, patches, and overwrites its own code; creates new plugins
+- **Web UI** — live stream of responses, thoughts, and tool calls; persistent sidebar navigation (Chat / Prompts / Plugins / Memory / System)
+- **CLI mode** — fully without browser/server: `start_cli.bat` or `python aion_cli.py`; color terminal output with tool/thought display
+- **Telegram** — bidirectional: text, images, and voice messages (OGG → Vosk transcription, TTS reply)
+  - Channel-isolated history: only Telegram chats load Telegram history (no web context bleed)
+  - `memory_read_web_history` tool: load Web UI history on request and carry over context
+- **Memory** — persistent JSON memory + conversation history (JSONL) with channel filtering
+- **Personality** — `character.md` evolves through conversations; LLM analysis with pattern recognition every 5 conversations
+- **Multi-provider** — Google Gemini (2.5-pro, 2.5-flash …) and OpenAI (GPT-4.1, o3 …) switchable
+- **Plugin system** — `plugins/<name>/<name>.py` is loaded automatically; READMEs are injected as plugin overviews
+  - **create_plugin tool** enforces correct subdirectory structure (even when AION passes incorrect paths)
+  - Auto-generated README.md in every new plugin
+- **Audio pipeline** — any audio format → transcription (ffmpeg + Vosk, offline) + TTS (pyttsx3/SAPI5, offline)
+- **Moltbook** — social presence: read feed, create posts, comment
 
 ---
 
-## Voraussetzungen
+## Requirements
 
 - Python 3.10+
-- Windows (für `shell_exec`, `winget_install`)
-- Google Gemini API-Key (empfohlen) und/oder OpenAI API-Key
+- Windows (for `shell_exec`, `winget_install`)
+- Google Gemini API key (recommended) and/or OpenAI API key
 
 ---
 
@@ -43,12 +43,12 @@ pip install -r requirements.txt
 
 ---
 
-## Konfiguration
+## Configuration
 
-Erstelle eine `.env`-Datei im Projektverzeichnis:
+Create a `.env` file in the project directory:
 
 ```env
-GEMINI_API_KEY=AIza...           # empfohlen
+GEMINI_API_KEY=AIza...           # recommended
 OPENAI_API_KEY=sk-...            # optional
 TELEGRAM_BOT_TOKEN=1234...:AAE...  # optional
 TELEGRAM_CHAT_ID=123456789         # optional
@@ -56,127 +56,127 @@ AION_MODEL=gemini-2.5-flash        # optional, default: gpt-4.1
 AION_PORT=7000                     # optional, default: 7000
 ```
 
-Das aktive Modell wird in `config.json` gespeichert und beim nächsten Start wiederhergestellt.
+The active model is stored in `config.json` and restored on the next start.
 
 ---
 
-## Starten / Stoppen
+## Starting / Stopping
 
 ```bash
-start.bat        # Startet Web-Server + öffnet Browser (killt alte Instanzen)
-start_cli.bat    # Startet interaktiven CLI-Modus (kein Browser nötig)
-stop.bat         # Stoppt alle AION-Prozesse sauber
+start.bat        # Starts web server + opens browser (kills old instances)
+start_cli.bat    # Starts interactive CLI mode (no browser needed)
+stop.bat         # Stops all AION processes cleanly
 restart.bat      # Stop + Start
-status.bat       # Zeigt ob Server läuft
+status.bat       # Shows whether the server is running
 ```
 
-Oder manuell:
+Or manually:
 ```bash
-python aion_web.py   # Web-Server (Port 7000)
-python aion_cli.py   # CLI-Modus (interaktives Terminal)
+python aion_web.py   # Web server (port 7000)
+python aion_cli.py   # CLI mode (interactive terminal)
 ```
 
 ---
 
 ## Web UI
 
-Öffnet sich automatisch unter `http://localhost:7000`
+Opens automatically at `http://localhost:7000`
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  ●  AION          [Model ▼]  [Speichern]          [↺ Reset]   │
+│  ●  AION          [Model ▼]  [Save]               [↺ Reset]   │
 ├──────────┬─────────────────────────────────────────────────────┤
 │          │                                                     │
-│ 💬 Chat  │   AKTIVE SEITE                                      │
-│ 📝 Prompts   (wechselt je nach Sidebar-Auswahl)               │
+│ 💬 Chat  │   ACTIVE PAGE                                       │
+│ 📝 Prompts   (switches based on sidebar selection)            │
 │ 🔌 Plugins                                                     │
-│ 🧠 Memory│   Chat: Token-Streaming, Gedanken + Tool-Calls      │
-│ ⊞ System │         als inline Akkordeons (zentriert)           │
+│ 🧠 Memory│   Chat: token streaming, thoughts + tool calls     │
+│ ⊞ System │         as inline accordions (centered)            │
 │          │                                                     │
 │          ├─────────────────────────────────────────────────────┤
-│          │   [Eingabe…]                              [▶]       │
+│          │   [Input…]                                [▶]       │
 └──────────┴─────────────────────────────────────────────────────┘
 ```
 
-**Sidebar** (172px, immer sichtbar — kein Toggle):
-- **💬 Chat** — Haupt-Chat; Gedanken + Tool-Aufrufe inline als aufklappbare Akkordeons
-- **📝 Prompts** — `rules.md`, `character.md`, `AION_SELF.md` direkt im Browser bearbeiten (volle Breite)
-- **🔌 Plugins** — alle Plugins mit Tools + Status (✓/✗) + Reload
-- **🧠 Memory** — Gedächtnis durchsuchen, farbkodiert (grün/rot), löschen
-- **⊞ System** — Statistiken, Modell wechseln, Pfade, Aktionen
+**Sidebar** (172px, always visible — no toggle):
+- **💬 Chat** — main chat; thoughts + tool calls inline as expandable accordions
+- **📝 Prompts** — edit `rules.md`, `character.md`, `AION_SELF.md` directly in the browser (full width)
+- **🔌 Plugins** — all plugins with tools + status (✓/✗) + reload
+- **🧠 Memory** — search memory, color-coded (green/red), delete entries
+- **⊞ System** — statistics, switch model, paths, actions
 
-## CLI-Modus
+## CLI Mode
 
 ```
 > start_cli.bat
 
   ╔══════════════════════════════════════╗
-  ║  AION  —  CLI-Modus                  ║
+  ║  AION  —  CLI Mode                   ║
   ╚══════════════════════════════════════╝
 
-  AION wird initialisiert… ✓
-  Modell: gemini-2.5-flash  |  Tools: 32
+  Initializing AION… ✓
+  Model: gemini-2.5-flash  |  Tools: 32
 
-Du  › liste die dateien im projektverzeichnis auf
+You  › list the files in the project directory
   ⚙  shell_exec({'command': 'dir /b'})  → ✓ aion.py aion_web.py aion_cli.py ...
-AION › Hier sind die Dateien im Verzeichnis: ...
+AION › Here are the files in the directory: ...
 
-Du  › exit
-  Sitzung beendet. Tschüss! 👋
+You  › exit
+  Session ended. Goodbye! 👋
 ```
 
-- Gedanken erscheinen als `💭 …` in Lila
-- Tool-Aufrufe als `⚙ tool(args) → ✓/✗ ergebnis` in Gelb/Grau
-- Antworten als `AION › …` live gestreamt in Cyan
-- Interne Befehle: `/help`, `/clear`, `/model`
+- Thoughts appear as `💭 …` in purple
+- Tool calls as `⚙ tool(args) → ✓/✗ result` in yellow/gray
+- Responses as `AION › …` live-streamed in cyan
+- Internal commands: `/help`, `/clear`, `/model`
 
 ---
 
-## Geplante Aufgaben (Scheduler)
+## Scheduled Tasks (Scheduler)
 
-AION kann Aufgaben zu festen Uhrzeiten **oder in Intervallen** selbstständig ausführen:
+AION can execute tasks at fixed times **or at intervals** autonomously:
 
 ```
-"Plane täglich um 06:00: Lese meine Emails, extrahiere Termine und trage sie in den Kalender ein."
-"Plane werktags um 08:00: Schreibe mir eine kurze Tages-Zusammenfassung via Telegram."
-"Schreibe mir alle 5 Minuten eine Telegram-Nachricht mit dem aktuellen Status."
-"Erinnere mich jede Stunde an meine Wasserration."
+"Schedule daily at 06:00: Read my emails, extract appointments and add them to the calendar."
+"Schedule on weekdays at 08:00: Send me a short daily summary via Telegram."
+"Send me a Telegram message every 5 minutes with the current status."
+"Remind me every hour to drink water."
 ```
 
-**Intervall-Syntax:** `"5m"`, `"30s"`, `"1h"`, `"2h30m"`, `"alle 10 Minuten"`
+**Interval syntax:** `"5m"`, `"30s"`, `"1h"`, `"2h30m"`, `"every 10 minutes"`
 
-Verwaltung per Sprache oder direkt:
-- `schedule_list` — alle Tasks anzeigen
-- `schedule_remove` — Task löschen
-- `schedule_toggle` — Task aktivieren/deaktivieren
+Manage by voice or directly:
+- `schedule_list` — show all tasks
+- `schedule_remove` — delete a task
+- `schedule_toggle` — enable/disable a task
 
 ---
 
 ## Telegram
 
-1. Bot bei [@BotFather](https://t.me/BotFather) erstellen → Token
-2. `TELEGRAM_BOT_TOKEN` und `TELEGRAM_CHAT_ID` in `.env` setzen
-3. AION starten — Telegram-Polling startet automatisch
+1. Create a bot via [@BotFather](https://t.me/BotFather) → token
+2. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`
+3. Start AION — Telegram polling starts automatically
 
-AION schreibt dir von sich aus, wenn:
-- Ein Scheduler-Task abgeschlossen ist
-- Du ihm sagst `"Schreib mir via Telegram wenn X fertig ist"`
+AION will message you on its own when:
+- A scheduler task completes
+- You tell it `"Message me via Telegram when X is done"`
 
 ---
 
-## Plugin erstellen
+## Creating a Plugin
 
-Jede Datei in `plugins/<name>/<name>.py` muss eine `register(api)`-Funktion haben:
+Every file at `plugins/<name>/<name>.py` must have a `register(api)` function:
 
 ```python
 def register(api):
-    def mein_tool(param: str = "", **_) -> dict:
+    def my_tool(param: str = "", **_) -> dict:
         return {"ok": True, "result": param}
 
     api.register_tool(
-        name="mein_tool",
-        description="Beschreibung für das LLM",
-        func=mein_tool,
+        name="my_tool",
+        description="Description for the LLM",
+        func=my_tool,
         input_schema={
             "type": "object",
             "properties": {
@@ -187,111 +187,111 @@ def register(api):
     )
 ```
 
-**Wichtig:** `def fn(param: str = "", **_)` — keine `input: dict` Parameter!
+**Important:** `def fn(param: str = "", **_)` — no `input: dict` parameters!
 
-### Plugin mit eigenen Web-Endpunkten
+### Plugin with Custom Web Endpoints
 
-Plugins können auch eigene HTTP-Routen bereitstellen — ohne `aion_web.py` anzufassen:
+Plugins can also provide their own HTTP routes — without touching `aion_web.py`:
 
 ```python
 from fastapi import APIRouter
 
 router = APIRouter()
 
-@router.get("/api/meinplugin/status")
+@router.get("/api/myplugin/status")
 async def status():
     return {"ok": True}
 
 def register(api):
-    api.register_tool(...)                              # LLM-Tool wie gehabt
-    api.register_router(router, tags=["meinplugin"])   # eigene HTTP-Routen
+    api.register_tool(...)                              # LLM tool as usual
+    api.register_router(router, tags=["myplugin"])     # custom HTTP routes
 ```
 
-Neue Plugins werden sofort geladen — kein Neustart nötig (außer bei Änderungen an `aion.py`).
-AION kann auch zur Laufzeit Plugins via `create_plugin` Tool erstellen.
+New plugins are loaded immediately — no restart needed (except for changes to `aion.py`).
+AION can also create plugins at runtime via the `create_plugin` tool.
 
 ---
 
-## Web-API
+## Web API
 
-| Methode | Pfad | Beschreibung |
-|---------|------|-------------|
-| GET | `/api/status` | Server-Status, Modell, Uptime |
-| POST | `/api/chat` | Chat-Nachricht senden (SSE-Stream) |
-| POST | `/api/model` | Modell wechseln |
-| GET | `/api/plugins` | Alle Plugins mit Tools + Lade-Status |
-| POST | `/api/plugins/reload` | Plugins Hot-Reload |
-| GET | `/api/memory` | Gedächtnis-Einträge (`?search=`, `?limit=`) |
-| DELETE | `/api/memory` | Gedächtnis leeren |
-| GET | `/api/config` | Konfiguration + Statistiken |
-| GET | `/api/prompt/{name}` | Prompt lesen (`rules`, `charakter`, `selbst`) |
-| POST | `/api/prompt/{name}` | Prompt speichern |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/status` | Server status, model, uptime |
+| POST | `/api/chat` | Send a chat message (SSE stream) |
+| POST | `/api/model` | Switch model |
+| GET | `/api/plugins` | All plugins with tools + load status |
+| POST | `/api/plugins/reload` | Hot-reload plugins |
+| GET | `/api/memory` | Memory entries (`?search=`, `?limit=`) |
+| DELETE | `/api/memory` | Clear memory |
+| GET | `/api/config` | Configuration + statistics |
+| GET | `/api/prompt/{name}` | Read prompt (`rules`, `character`, `self`) |
+| POST | `/api/prompt/{name}` | Save prompt |
 
 ---
 
-## Dateisystem
+## File System
 
 ```
 AION/
-├── aion.py                      # Kernlogik: Memory, Tools, LLM-Loop, AionSession
-├── aion_web.py                  # Web-Server (FastAPI + SSE), Port 7000
-├── aion_cli.py                  # CLI-Modus: interaktives Terminal ohne Browser
-├── plugin_loader.py             # Lädt Plugins + register_router Support
-├── static/index.html            # Web UI (Vanilla JS, persistente Sidebar)
+├── aion.py                      # Core logic: memory, tools, LLM loop, AionSession
+├── aion_web.py                  # Web server (FastAPI + SSE), port 7000
+├── aion_cli.py                  # CLI mode: interactive terminal without browser
+├── plugin_loader.py             # Loads plugins + register_router support
+├── static/index.html            # Web UI (Vanilla JS, persistent sidebar)
 ├── plugins/
 │   ├── core_tools/              # continue_work, read_self_doc, system_info, memory_record
-│   ├── reflection/              # reflect (innerer Monolog → thoughts.md)
-│   ├── character_manager/       # update_character (character.md aktualisieren)
+│   ├── reflection/              # reflect (inner monologue → thoughts.md)
+│   ├── character_manager/       # update_character (update character.md)
 │   ├── shell_tools/             # shell_exec, winget_install, install_package
 │   ├── web_tools/               # web_search, web_fetch
 │   ├── pid_tool/                # get_own_pid
 │   ├── restart_tool/            # restart_with_approval
-│   ├── audio_pipeline/          # Beliebige Audiodatei → Text (ffmpeg+Vosk) + TTS (pyttsx3)
-│   ├── audio_transcriber/       # WAV → Text via Vosk (Basis-Transkription)
-│   ├── scheduler/               # Cron-Scheduler (schedule_add/list/remove/toggle)
-│   ├── moltbook/                # Soziale Plattform moltbook.com (Feed, Posts, Kommentare)
-│   ├── telegram_bot/            # Telegram: Text + Bilder + Sprachnachrichten
+│   ├── audio_pipeline/          # Any audio format → text (ffmpeg+Vosk) + TTS (pyttsx3)
+│   ├── audio_transcriber/       # WAV → text via Vosk (base transcription)
+│   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
+│   ├── moltbook/                # Social platform moltbook.com (feed, posts, comments)
+│   ├── telegram_bot/            # Telegram: text + images + voice messages
 │   ├── gemini_provider/         # Google Gemini + switch_model
-│   ├── memory_plugin/           # Konversationshistorie (JSONL)
-│   ├── todo_tools/              # Aufgabenverwaltung
-│   ├── smart_patch/             # Fuzzy-Code-Patching
-│   ├── image_search/            # Bildersuche (Openverse + Bing)
-│   ├── docx_tool/               # Word-Dokumente erstellen
-│   └── heartbeat/               # Keep-Alive + autonome Todo-Bearbeitung (alle 30min)
-├── character.md                 # Persönlichkeit (selbst-aktualisierend via update_character)
-├── AION_SELF.md                 # Technische Selbst-Dokumentation für AION
-├── aion_memory.json             # Persistentes Gedächtnis (max. 300 Einträge)
-├── thoughts.md                  # Aufgezeichnete Gedanken
-├── .env                         # API-Keys (nicht in Git)
-├── config.json                  # Aktives Modell + Gesprächszähler
-├── start.bat                    # Startet Web-Server + Browser
-├── start_cli.bat                # Startet CLI-Modus (kein Browser)
-├── stop.bat                     # Stoppt alle AION-Prozesse
-├── restart.bat                  # Neustart
-└── status.bat                   # Server-Status prüfen
+│   ├── memory_plugin/           # Conversation history (JSONL)
+│   ├── todo_tools/              # Task management
+│   ├── smart_patch/             # Fuzzy code patching
+│   ├── image_search/            # Image search (Openverse + Bing)
+│   ├── docx_tool/               # Create Word documents
+│   └── heartbeat/               # Keep-alive + autonomous todo processing (every 30min)
+├── character.md                 # Personality (self-updating via update_character)
+├── AION_SELF.md                 # Technical self-documentation for AION
+├── aion_memory.json             # Persistent memory (max. 300 entries)
+├── thoughts.md                  # Recorded thoughts
+├── .env                         # API keys (not in Git)
+├── config.json                  # Active model + conversation counter
+├── start.bat                    # Starts web server + browser
+├── start_cli.bat                # Starts CLI mode (no browser)
+├── stop.bat                     # Stops all AION processes
+├── restart.bat                  # Restart
+└── status.bat                   # Check server status
 ```
 
 ---
 
-## Verfügbare Modelle
+## Available Models
 
-| Provider | Modell | Empfehlung |
-|---------|--------|-----------|
-| Google Gemini | `gemini-2.5-pro` | ★ Beste Qualität |
-| Google Gemini | `gemini-2.5-flash` | Schnell & günstig |
-| Google Gemini | `gemini-2.0-flash` | Stabil |
-| OpenAI | `gpt-4.1` | OpenAI Flagship |
+| Provider | Model | Recommendation |
+|----------|-------|----------------|
+| Google Gemini | `gemini-2.5-pro` | ★ Best quality |
+| Google Gemini | `gemini-2.5-flash` | Fast & affordable |
+| Google Gemini | `gemini-2.0-flash` | Stable |
+| OpenAI | `gpt-4.1` | OpenAI flagship |
 | OpenAI | `gpt-4o` | Multimodal |
 | OpenAI | `o3` | Reasoning |
-| OpenAI | `o4-mini` | Schnell |
+| OpenAI | `o4-mini` | Fast |
 
-Wechsel per Web UI (Dropdown oder Sidebar → System) oder Sprache: `"Wechsle zu gemini-2.5-pro"`
+Switch via Web UI (dropdown or Sidebar → System) or by voice: `"Switch to gemini-2.5-pro"`
 
 ---
 
-## Sicherheitshinweis
+## Security Notice
 
-- `.env` ist in `.gitignore` — API-Keys niemals committen
-- `shell_exec` führt beliebige Windows-Befehle aus — nur auf vertrauenswürdigen Systemen
-- `self_modify_code` / `self_patch_code` — AION fragt vor Code-Änderungen um Bestätigung
-- Scheduler-Tasks laufen mit vollen AION-Rechten — Tasks sorgfältig formulieren
+- `.env` is in `.gitignore` — never commit API keys
+- `shell_exec` runs arbitrary Windows commands — use only on trusted systems
+- `self_modify_code` / `self_patch_code` — AION asks for confirmation before making code changes
+- Scheduler tasks run with full AION permissions — formulate tasks carefully
