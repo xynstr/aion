@@ -782,9 +782,15 @@ async def _dispatch(name: str, inputs: dict) -> str:
         if "def register" not in plugin_code:
             return json.dumps({"error": "Plugin-Code muss 'def register(api):' enthalten!"})
         try:
-            PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
-            plugin_path = PLUGINS_DIR / f"{plugin_name}.py"
+            # Enforce subdirectory structure: plugins/name/name.py (NEVER flat in plugins/ root)
+            plugin_dir = PLUGINS_DIR / plugin_name
+            plugin_dir.mkdir(parents=True, exist_ok=True)
+            plugin_path = plugin_dir / f"{plugin_name}.py"
             plugin_path.write_text(plugin_code, encoding="utf-8")
+            # Auto-create README.md if not present
+            readme_path = plugin_dir / "README.md"
+            if not readme_path.exists():
+                readme_path.write_text(f"# {plugin_name}\n{plugin_desc}\n", encoding="utf-8")
             from plugin_loader import load_plugins
             load_plugins(_plugin_tools)
             memory.record(category="self_improvement", summary=f"Plugin erstellt: {plugin_name}",
@@ -1005,6 +1011,8 @@ class AionSession:
             _check_fail_streak = 0   # Zählt aufeinanderfolgende Check-Fehler
             _empty_resp_streak = 0   # Zählt aufeinanderfolgende leere LLM-Antworten
             _stop_for_approval = False  # Gesetzt wenn Tool approval_required zurückgibt
+            _tools_called_this_turn: list[str] = []   # Alle Tools die in diesem Turn aufgerufen wurden
+            _task_check_done = False  # Task-Check läuft max. einmal pro Turn
             for _iter in range(MAX_TOOL_ITERATIONS):
                 tools  = _build_tool_schemas()
                 stream = await _client.chat.completions.create(
@@ -1082,6 +1090,7 @@ class AionSession:
                         t0         = time.monotonic()
                         result_raw = await _dispatch(fn_name, fn_inputs)
                         duration   = round(time.monotonic() - t0, 2)
+                        _tools_called_this_turn.append(fn_name)
 
                         try:
                             result_data = json.loads(result_raw)
@@ -1265,7 +1274,67 @@ class AionSession:
                                 })
                                 continue
                             else:
-                                pass  # Wirklich fertig — AION hat reflect selbst aufgerufen (oder nicht nötig)
+                                # Existing check: no announcement without action.
+                                # Now: if tools were called this turn, verify task is truly complete.
+                                if _tools_called_this_turn and not _task_check_done:
+                                    _task_check_done = True
+                                    try:
+                                        user_text_short = user_input if isinstance(user_input, str) else str(user_input)
+                                        tools_summary = ", ".join(_tools_called_this_turn[-10:])
+                                        task_check_raw = await _client.chat.completions.create(
+                                            model=MODEL,
+                                            messages=[
+                                                {"role": "system", "content": (
+                                                    "You are a strict task-completion checker. Answer only YES or NO.\n"
+                                                    "Question: Given the user's request and the tools called, "
+                                                    "is the task fully and completely done?\n"
+                                                    "Answer NO if an obvious follow-up step is missing "
+                                                    "(e.g. a file was created but not activated, "
+                                                    "a plugin was created but not reloaded, "
+                                                    "a command ran but result was not verified).\n"
+                                                    "Answer YES if the task is complete or only optional steps remain."
+                                                )},
+                                                {"role": "user", "content": (
+                                                    f"User request: {user_text_short[:200]}\n"
+                                                    f"Tools called: {tools_summary}\n"
+                                                    f"AI final response: {final_text[:300]}\n"
+                                                    "Task fully complete? YES or NO"
+                                                )},
+                                            ],
+                                            max_tokens=5,
+                                            temperature=0.0,
+                                        )
+                                        if hasattr(task_check_raw, "choices"):
+                                            task_answer = (task_check_raw.choices[0].message.content or "").strip().upper()
+                                        else:
+                                            task_answer = ""
+                                            async for _tc in task_check_raw:
+                                                _delta = _tc.choices[0].delta
+                                                if _delta.content:
+                                                    task_answer += _delta.content
+                                            task_answer = task_answer.strip().upper()
+
+                                        _log_event("task_check", {
+                                            "answer": task_answer,
+                                            "tools": _tools_called_this_turn,
+                                            "channel": self.channel,
+                                        })
+
+                                        if task_answer.startswith("NO"):
+                                            yield {"type": "thought",
+                                                   "text": f"Task-Check: unvollständig (Tools: {tools_summary}) — erzwinge Abschluss",
+                                                   "trigger": "task-check", "call_id": "task_check"}
+                                            messages.append({
+                                                "role": "user",
+                                                "content": (
+                                                    "[System] Task not fully complete. "
+                                                    "Review what you did and finish all remaining steps now. "
+                                                    "Do not announce — execute directly."
+                                                ),
+                                            })
+                                            continue
+                                    except Exception:
+                                        pass  # Task-Check Fehler → normal fortfahren
                         except Exception as _check_exc:
                             # Check fehlgeschlagen
                             _check_fail_streak += 1
