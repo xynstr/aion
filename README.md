@@ -6,16 +6,22 @@ Ein autonomer KI-Agent für Windows. Läuft als Python-Prozess, kommuniziert üb
 
 ## Features
 
-- **Autonomes Arbeiten** — bis zu 50 Tool-Iterationen ohne Nutzer-Warten, mit automatischem Completion-Check
+- **Autonomes Arbeiten** — bis zu 50 Tool-Iterationen ohne Nutzer-Warten, mit automatischem Completion-Check + Task-Enforcer
+  - **Completion-Check** — nach Tool-Aufrufen: "hat AION eine Aktion angekündigt aber nicht ausgeführt?"
+  - **Task-Enforcer** — nach Tool-Aufrufen: "ist die Aufgabe wirklich komplett? Oder fehlen noch Schritte?" → Forcestart falls unvollständig
 - **Geplante Aufgaben** — Scheduler mit Uhrzeiten (`06:00`) und Intervallen (`alle 5m`) — läuft vollständig autonom
 - **Selbst-Modifikation** — liest, patcht und überschreibt eigenen Code; erstellt neue Plugins
 - **Web UI** — Live-Stream von Antworten, Gedanken und Tool-Aufrufen; persistente Sidebar-Navigation (Chat / Prompts / Plugins / Memory / System)
 - **CLI-Modus** — vollständig ohne Browser/Server: `start_cli.bat` oder `python aion_cli.py`; farbige Terminal-Ausgabe mit Tool-/Gedanken-Anzeige
 - **Telegram** — bidirektional: Text, Bilder und Sprachnachrichten (OGG → Vosk-Transkription, TTS-Rückantwort)
-- **Gedächtnis** — persistentes JSON-Gedächtnis + Konversationshistorie (JSONL)
+  - Kanal-isolierte History: nur Telegram-Chats laden Telegram-History (kein Web-Kontext)
+  - `memory_read_web_history` Tool: auf Wunsch Web-UI-History laden und Kontext mitnehmen
+- **Gedächtnis** — persistentes JSON-Gedächtnis + Konversationshistorie (JSONL) mit Channel-Filterung
 - **Persönlichkeit** — `character.md` entwickelt sich durch Gespräche; alle 5 Gespräche LLM-Analyse mit Mustererkennung
 - **Multi-Provider** — Google Gemini (2.5-pro, 2.5-flash …) und OpenAI (GPT-4.1, o3 …) wechselbar
 - **Plugin-System** — `plugins/<name>/<name>.py` wird automatisch geladen; READMEs werden als Plugin-Übersicht injiziert
+  - **create_plugin Tool** erzwingt korrekte Subdirectory-Struktur (auch wenn AION falsche Pfade übergibt)
+  - Auto-generierte README.md in jedem neuen Plugin
 - **Audio-Pipeline** — beliebiges Audioformat → Transkription (ffmpeg + Vosk, offline) + TTS (pyttsx3/SAPI5, offline)
 - **Moltbook** — soziale Präsenz: Feed lesen, Posts erstellen, kommentieren
 

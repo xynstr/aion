@@ -90,7 +90,7 @@ AION/
 | `self_modify_code` | `path: str`, `content: str` | Ganze Datei überschreiben. NUR für neue Dateien < 200 Zeilen! |
 | `self_restart` | — | Hot-Reload: Plugins neu laden (kein sys.exit). |
 | `self_reload_tools` | — | Plugins neu laden ohne Neustart. |
-| `create_plugin` | `name: str`, `description: str`, `code: str` | Neues Plugin erstellen. Code MUSS `def register(api):` enthalten. |
+| `create_plugin` | `name: str`, `description: str`, `code: str`, `confirmed: bool` | Neues Plugin erstellen. Code MUSS `def register(api):` enthalten. **Erzwingt** subdirectory-Struktur `plugins/name/name.py` + auto-generierte README.md (unabhängig vom übergebenen Pfad). |
 
 ### Internet (`web_tools.py`)
 | Tool | Parameter | Beschreibung |
@@ -122,11 +122,17 @@ AION/
 |------|-----------|-------------|
 | `send_telegram_message` | `message: str` | Nachricht an konfigurierte Telegram-Chat-ID senden. |
 
+**Wichtig**: Telegram-Sitzungen laden **nur ihre eigene Chat-History** (gefiltert nach `channel=telegram_CHATID`).
+- Kein Web-UI-Kontext-Bleed
+- Auf Nutzer-Anfrage: `memory_read_web_history` Tool nutzen um Web-Einträge zu laden
+- Ermöglicht nahtlose Übergänge zwischen Kanälen ohne Kontext-Vermischung
+
 ### Gedächtnishistorie (`memory_plugin.py`)
 | Tool | Parameter | Beschreibung |
 |------|-----------|-------------|
-| `memory_append_history` | `role: str`, `content: str` | Eintrag in `conversation_history.jsonl` schreiben. |
-| `memory_read_history` | `num_entries: int` | Letzte N Einträge aus Konversationshistorie lesen. |
+| `memory_append_history` | `role: str`, `content: str`, `channel: str` | Eintrag in `conversation_history.jsonl` schreiben (mit Channel-Tag: `web`, `telegram_123`, etc.). |
+| `memory_read_history` | `num_entries: int`, `channel_filter: str` | Letzte N Einträge lesen. `channel_filter` filtert nach Kanal-Präfix (`"telegram"`, `"web"`, etc.). |
+| `memory_read_web_history` | `num_entries: int` | Letzte N Einträge aus Web-UI-History. Nutze dieses Tool wenn Nutzer fragt "was haben wir im Web gemacht?" |
 | `memory_search_context` | `query: str` | Semantische Suche in Konversationshistorie. |
 
 ### Aufgabenverwaltung (`todo_tools.py`)
@@ -245,10 +251,16 @@ System-Prompt aufbauen (character.md + Plugin-READMEs + Gedächtnis)
 LLM API aufrufen (Gemini oder OpenAI)
       ↓
   ┌── Tool-Calls → dispatchen → Ergebnisse → weiter (max. 50×)
-  └── Nur Text → Completion-Check (FERTIG oder WEITER?)
-        ├── YES  → [System]-Message → nächste Iteration
-        ├── NO   → done-Event
-        └── LEER (Gemini Safety-Block) → als NO behandelt (kein Fehler)
+  │
+  └── Nur Text (finale Antwort):
+        ├─ Completion-Check: "Hat AION eine Aktion angekündigt ohne sie auszuführen?"
+        │   ├── YES  → [System]-Message → nächste Iteration
+        │   └── NO   → Task-Enforcer-Check
+        │
+        └─ Task-Enforcer (falls Tools aufgerufen wurden diesen Turn):
+            "Ist die Aufgabe wirklich komplett? Oder fehlen noch Schritte?"
+            ├── NO   → [System]-Message "Task unvollständig → Abschluss erzwingen" → nächste Iteration
+            └── YES  → done-Event
       ↓
 Antwort an Nutzer / Telegram (HTML-Format, bei Spracheingabe: TTS-Rückantwort)
       ↓
@@ -275,17 +287,22 @@ Auto-Memory (alle 5 Gespräche: _auto_character_update mit Mustererkennung, temp
 
 ## Plugin erstellen — Schritt für Schritt
 
-### 1. Dateistruktur (PFLICHT)
+### 1. Dateistruktur (PFLICHT — AUTOMATISCH ERZWUNGEN)
 
 ```
 plugins/
 └── mein_plugin/              ← Unterordner mit gleichem Namen wie Plugin
     ├── mein_plugin.py        ← Hauptdatei (muss register(api) enthalten)
-    └── README.md             ← Optional, aber empfohlen (1. Zeile = Kurzbeschreibung)
+    └── README.md             ← Auto-generiert von create_plugin (1. Zeile = Kurzbeschreibung)
 ```
 
-**Verboten:** `plugins/mein_plugin.py` direkt in plugins/ root.
-**Warum:** Backups landen sonst als `*.backup_*.py` in plugins/ und werden als Plugins geladen → kaputte Schemas → Gemini 400 für ALLE Requests.
+**WICHTIG:** `create_plugin` Tool erzwingt diese Struktur automatisch. Selbst wenn falsche Pfade übergeben werden:
+- Input: `create_plugin(name="foo_bar", code="...")` → Output: `plugins/foo_bar/foo_bar.py` ✓
+- Input: `create_plugin(name="plugins/foo_bar.py", ...)` → Output: `plugins/foo_bar/foo_bar.py` ✓ (Pfad normalisiert)
+
+README.md wird automatisch generiert mit der `description` aus dem Tool-Aufruf.
+
+**Warum Subdirectory-Erzwingung:** Backups landen sonst als `*.backup_*.py` in plugins/ und werden als Plugins geladen → kaputte Schemas → Gemini 400 für ALLE Requests.
 
 ### 2. Minimales Plugin
 
