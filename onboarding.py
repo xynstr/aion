@@ -395,10 +395,81 @@ def step6_profile() -> dict:
     return {"name": name, "anrede": anrede, "lang": lang,
             "uses": uses, "style": style, "extra": extra}
 
-# ── Step 7: System Check ──────────────────────────────────────────────────────
+# ── Step 7: Permissions ───────────────────────────────────────────────────────
+
+_PERM_PRESETS = {
+    "conservative": {
+        "shell_exec": "ask", "install_package": "ask", "file_write": "ask",
+        "file_delete": "ask", "self_modify": "ask",   "create_plugin": "ask",
+        "restart": "ask",    "web_search": "allow",   "web_fetch": "allow",
+        "telegram_auto": "ask", "memory_write": "allow", "schedule": "ask",
+    },
+    "balanced": {
+        "shell_exec": "ask", "install_package": "ask", "file_write": "allow",
+        "file_delete": "ask", "self_modify": "ask",   "create_plugin": "ask",
+        "restart": "ask",    "web_search": "allow",   "web_fetch": "allow",
+        "telegram_auto": "allow", "memory_write": "allow", "schedule": "ask",
+    },
+    "autonomous": {
+        "shell_exec": "allow", "install_package": "allow", "file_write": "allow",
+        "file_delete": "allow", "self_modify": "allow", "create_plugin": "allow",
+        "restart": "allow",  "web_search": "allow",   "web_fetch": "allow",
+        "telegram_auto": "allow", "memory_write": "allow", "schedule": "allow",
+    },
+}
+
+_PERM_LABELS = {
+    "shell_exec":      "Shell commands",
+    "install_package": "Install packages (pip)",
+    "file_write":      "Write / modify files",
+    "file_delete":     "Delete files",
+    "self_modify":     "Modify own code",
+    "create_plugin":   "Create plugins",
+    "restart":         "Restart AION",
+    "web_search":      "Web search",
+    "web_fetch":       "Fetch URLs",
+    "telegram_auto":   "Send Telegram messages autonomously",
+    "memory_write":    "Write to memory",
+    "schedule":        "Create scheduled tasks",
+}
+
+def step7_permissions() -> dict:
+    section("Permissions — what AION may do autonomously", "Step 7/8:")
+    print(f"  {_c(C_DIM, 'Controls what AION does without asking you first.')}")
+    print()
+    print(f"    {_c(C_WHITE, '1')}  {_c(C_CYAN, 'Conservative')}  {_c(C_DIM, '— asks before anything that touches the system')}")
+    print(f"    {_c(C_WHITE, '2')}  {_c(C_CYAN, 'Balanced')}      {_c(C_DIM, '— search/read/write free, shell/install/code needs OK  (recommended)')}")
+    print(f"    {_c(C_WHITE, '3')}  {_c(C_CYAN, 'Autonomous')}    {_c(C_DIM, '— AION decides everything on its own')}")
+    print()
+
+    choice = ask("Preset (1/2/3)", "2")
+    preset_map = {"1": "conservative", "2": "balanced", "3": "autonomous"}
+    preset_name = preset_map.get(choice, "balanced")
+    perms = dict(_PERM_PRESETS[preset_name])
+    ok(f"Preset '{preset_name}' selected.")
+    print()
+
+    customize = ask("Customize individual permissions? (y/n)", "n")
+    if customize.lower() == "y":
+        print()
+        for key, label in _PERM_LABELS.items():
+            current = perms[key]
+            current_display = _c(C_GREEN, "allow") if current == "allow" else \
+                              _c(C_YELLOW, "ask")  if current == "ask"   else \
+                              _c(C_RED, "deny")
+            val = ask(f"  {label:<42} [{current_display}]  (allow/ask/deny)", current).lower()
+            if val in ("allow", "ask", "deny"):
+                perms[key] = val
+        print()
+
+    perms["preset"] = preset_name
+    return perms
+
+
+# ── Step 8: System Check ──────────────────────────────────────────────────────
 
 def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
-    section("System check", "Step 7/7:")
+    section("System check", "Step 8/8:")
 
     all_ok = True
 
@@ -512,7 +583,7 @@ def write_env(primary_provider: str, primary_key: str, model: str,
     ok(f".env written ({env_path})")
 
 
-def write_config(model: str) -> None:
+def write_config(model: str, permissions: dict | None = None) -> None:
     config_path = BOT_DIR / "config.json"
     cfg = {}
     if config_path.exists():
@@ -521,6 +592,8 @@ def write_config(model: str) -> None:
         except Exception:
             cfg = {}
     cfg["model"] = model
+    if permissions:
+        cfg["permissions"] = permissions
     config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     ok(f"config.json written ({config_path})")
 
@@ -597,6 +670,7 @@ def run_onboarding() -> None:
         extra_keys   = step4_additional_providers(provider)
         telegram     = step5_telegram()
         profile      = step6_profile()
+        permissions  = step7_permissions()
         _ok          = step7_systemcheck(provider, api_key, model)
 
         # Write output
@@ -604,7 +678,7 @@ def run_onboarding() -> None:
         section("Save configuration", "Saving:")
 
         write_env(provider, api_key, model, extra_keys, telegram)
-        write_config(model)
+        write_config(model, permissions)
         update_character_md(profile)
         write_flag()
 

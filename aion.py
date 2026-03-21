@@ -154,6 +154,63 @@ def _build_client(model: str):
     return AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
+# ── Permissions ───────────────────────────────────────────────────────────────
+
+PERMISSION_DEFAULTS: dict = {
+    "shell_exec":      "ask",
+    "install_package": "ask",
+    "file_write":      "allow",
+    "file_delete":     "ask",
+    "self_modify":     "ask",
+    "create_plugin":   "ask",
+    "restart":         "ask",
+    "web_search":      "allow",
+    "web_fetch":       "allow",
+    "telegram_auto":   "allow",
+    "memory_write":    "allow",
+    "schedule":        "ask",
+}
+
+PERMISSION_LABELS: dict = {
+    "shell_exec":      "Shell commands (shell_exec)",
+    "install_package": "Install packages (pip)",
+    "file_write":      "Write / modify files",
+    "file_delete":     "Delete files",
+    "self_modify":     "Modify own code",
+    "create_plugin":   "Create plugins",
+    "restart":         "Restart AION",
+    "web_search":      "Web search",
+    "web_fetch":       "Fetch URLs",
+    "telegram_auto":   "Send Telegram messages autonomously",
+    "memory_write":    "Write to memory",
+    "schedule":        "Create / modify scheduled tasks",
+}
+
+def _load_permissions() -> dict:
+    try:
+        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+        perms = cfg.get("permissions", {})
+        return {k: perms.get(k, v) for k, v in PERMISSION_DEFAULTS.items()}
+    except Exception:
+        return dict(PERMISSION_DEFAULTS)
+
+def _permissions_prompt(perms: dict) -> str:
+    lines = ["=== PERMISSIONS ===",
+             "These are your current permissions. Follow them strictly."]
+    ask_list  = [PERMISSION_LABELS[k] for k, v in perms.items() if v == "ask"]
+    deny_list = [PERMISSION_LABELS[k] for k, v in perms.items() if v == "deny"]
+    if ask_list:
+        lines.append("ASK first (get explicit user confirmation before doing these):")
+        for l in ask_list:
+            lines.append(f"  - {l}")
+    if deny_list:
+        lines.append("DENIED (refuse and explain if asked):")
+        for l in deny_list:
+            lines.append(f"  - {l}")
+    lines.append("Everything not listed above: allowed freely.")
+    return "\n".join(lines)
+
+
 # ── Unsupported File Utility ───────────────────────────────────────────────────
 
 def unsupported_file_message(label: str) -> str:
@@ -269,7 +326,8 @@ def _build_system_prompt() -> str:
         rules = rules.replace("{BOT_CHARACTER}", str(CHARACTER_FILE))
         rules = rules.replace("{BOT_PLUGINS}",   str(PLUGINS_DIR))
         rules = rules.replace("{BOT_SELF}",      str(BOT_DIR / "AION_SELF.md"))
-        return rules + plugin_block + changelog_block
+        perms_block = "\n\n" + _permissions_prompt(_load_permissions())
+        return rules + plugin_block + changelog_block + perms_block
 
     # Fallback: hardcodierter Prompt (wird genutzt wenn prompts/rules.md fehlt)
     return f"""Du bist AION (Autonomous Intelligent Operations Node) — ein eigenständiger, \

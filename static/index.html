@@ -106,6 +106,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .welcome p { color: var(--text2); max-width: 360px; line-height: 1.75; font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
 .chip { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 7px 15px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all .15s; user-select: none; }
+.perm-row { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; background:var(--bg3); border-radius:6px; border:1px solid var(--border); }
+.perm-label { font-size:12px; color:var(--text2); }
+.perm-select { background:var(--bg4); border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:5px; font-size:11px; cursor:pointer; outline:none; }
+.perm-select.val-allow { border-color:rgba(0,229,100,.4); color:#00e564; }
+.perm-select.val-ask   { border-color:rgba(255,200,0,.4);  color:#ffc800; }
+.perm-select.val-deny  { border-color:rgba(255,80,80,.4);  color:#ff5050; }
 .key-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; letter-spacing: .5px; }
 .key-set   { background: rgba(0,229,100,.12); color: #00e564; border: 1px solid rgba(0,229,100,.25); }
 .key-missing { background: rgba(255,80,80,.12); color: #ff5050; border: 1px solid rgba(255,80,80,.25); }
@@ -614,6 +620,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
+            <div class="settings-label">Berechtigungen</div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+              <button class="action-btn" onclick="applyPermPreset('conservative')">🔒 Conservative</button>
+              <button class="action-btn" onclick="applyPermPreset('balanced')">⚖️ Balanced</button>
+              <button class="action-btn" onclick="applyPermPreset('autonomous')">🚀 Autonomous</button>
+            </div>
+            <div id="permissionsList" style="display:flex;flex-direction:column;gap:4px"></div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
             <div class="settings-label">Aktionen</div>
             <div style="display:flex;flex-direction:column;gap:8px;max-width:380px">
               <button class="action-btn" onclick="resetExchanges()">↺ Gesprächszähler zurücksetzen</button>
@@ -741,7 +757,7 @@ function loadCurrentSection() {
   if (currentSection === 'plugins')  loadPlugins();
   if (currentSection === 'memory')   loadMemory();
   if (currentSection === 'keys')     loadKeys();
-  if (currentSection === 'settings') loadSettings();
+  if (currentSection === 'settings') { loadSettings(); loadPermissions(); }
 }
 
 // ── PROMPTS ───────────────────────────────────────────────────────────────────
@@ -982,6 +998,62 @@ async function saveKey(envKey) {
       showToast(`Fehler: ${d.error}`, true);
     }
   } catch(e) { showToast('Netzwerkfehler', true); }
+}
+
+// ── PERMISSIONS ───────────────────────────────────────────────────────────────
+let _permData = null;
+
+async function loadPermissions() {
+  try {
+    const r = await fetch('/api/permissions');
+    if (!r.ok) return;
+    _permData = await r.json();
+    renderPermissions(_permData);
+  } catch {}
+}
+
+function renderPermissions(data) {
+  const el = document.getElementById('permissionsList');
+  if (!el || !data) return;
+  el.innerHTML = Object.entries(data.permissions).map(([key, val]) => {
+    const label = (data.labels && data.labels[key]) || key;
+    return `<div class="perm-row">
+      <span class="perm-label">${label}</span>
+      <select class="perm-select val-${val}" onchange="savePerm('${key}', this.value, this)">
+        <option value="allow" ${val==='allow'?'selected':''}>allow</option>
+        <option value="ask"   ${val==='ask'  ?'selected':''}>ask</option>
+        <option value="deny"  ${val==='deny' ?'selected':''}>deny</option>
+      </select>
+    </div>`;
+  }).join('');
+}
+
+async function savePerm(key, value, selectEl) {
+  if (selectEl) { selectEl.className = `perm-select val-${value}`; }
+  try {
+    await fetch('/api/permissions', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({[key]: value}),
+    });
+    showToast(`✓ ${key}: ${value}`);
+  } catch { showToast('Fehler beim Speichern', true); }
+}
+
+const _PERM_PRESETS = {
+  conservative: { shell_exec:'ask', install_package:'ask', file_write:'ask', file_delete:'ask', self_modify:'ask', create_plugin:'ask', restart:'ask', web_search:'allow', web_fetch:'allow', telegram_auto:'ask', memory_write:'allow', schedule:'ask' },
+  balanced:     { shell_exec:'ask', install_package:'ask', file_write:'allow', file_delete:'ask', self_modify:'ask', create_plugin:'ask', restart:'ask', web_search:'allow', web_fetch:'allow', telegram_auto:'allow', memory_write:'allow', schedule:'ask' },
+  autonomous:   { shell_exec:'allow', install_package:'allow', file_write:'allow', file_delete:'allow', self_modify:'allow', create_plugin:'allow', restart:'allow', web_search:'allow', web_fetch:'allow', telegram_auto:'allow', memory_write:'allow', schedule:'allow' },
+};
+
+async function applyPermPreset(preset) {
+  const perms = _PERM_PRESETS[preset];
+  if (!perms) return;
+  try {
+    const body = {...perms, preset};
+    await fetch('/api/permissions', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    showToast(`✓ Preset "${preset}" gespeichert`);
+    loadPermissions();
+  } catch { showToast('Fehler', true); }
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────

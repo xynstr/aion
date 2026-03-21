@@ -587,6 +587,33 @@ async def get_config():
         "config":         {k: v for k, v in cfg.items() if k != "model"},
     })
 
+@app.get("/api/permissions")
+async def get_permissions():
+    perms  = _aion_module._load_permissions()
+    preset = perms.pop("preset", None)
+    cfg    = _load_config()
+    saved  = cfg.get("permissions", {})
+    preset = saved.get("preset", "balanced")
+    return JSONResponse({
+        "permissions": perms,
+        "preset":      preset,
+        "labels":      _aion_module.PERMISSION_LABELS,
+        "defaults":    _aion_module.PERMISSION_DEFAULTS,
+    })
+
+@app.post("/api/permissions")
+async def save_permissions(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    cfg = _load_config()
+    existing = cfg.get("permissions", {})
+    existing.update(body)
+    cfg["permissions"] = existing
+    _save_config(cfg)
+    return JSONResponse({"ok": True, "permissions": existing})
+
 @app.post("/api/config/reset_exchanges")
 async def reset_exchanges():
     cfg = _load_config()
