@@ -420,7 +420,55 @@ async def _telegram_worker(token: str):
                     photos  = msg.get("photo", [])
                     voice   = msg.get("voice") or msg.get("audio")
 
-                    if not chat_id or (not text and not photos and not voice):
+                    if not chat_id:
+                        continue
+
+                    # ── Nicht unterstützte Dateitypen → freundliche Rückmeldung ──
+                    _unsupported_label = None
+                    _video      = msg.get("video")
+                    _document   = msg.get("document")
+                    _sticker    = msg.get("sticker")
+                    _animation  = msg.get("animation")
+                    _video_note = msg.get("video_note")
+                    _contact    = msg.get("contact")
+                    _location   = msg.get("location")
+
+                    if _video:
+                        fname   = _video.get("file_name", "")
+                        size_mb = round(_video.get("file_size", 0) / 1_048_576, 1)
+                        dur     = _video.get("duration", 0)
+                        _unsupported_label = f"Video{' «' + fname + '»' if fname else ''} ({dur}s, {size_mb} MB)"
+                    elif _document:
+                        fname   = _document.get("file_name", "?")
+                        mime    = _document.get("mime_type", "")
+                        size_kb = round(_document.get("file_size", 0) / 1024)
+                        _unsupported_label = f"Datei «{fname}»{' (' + mime + ')' if mime else ''} ({size_kb} KB)"
+                    elif _sticker:
+                        emoji = _sticker.get("emoji", "")
+                        _unsupported_label = f"Sticker {emoji}".strip()
+                    elif _animation:
+                        _unsupported_label = "GIF / Animation"
+                    elif _video_note:
+                        dur = _video_note.get("duration", 0)
+                        _unsupported_label = f"Videonachricht ({dur}s)"
+                    elif _contact:
+                        name = (_contact.get("first_name", "") + " " + _contact.get("last_name", "")).strip()
+                        _unsupported_label = f"Kontakt «{name}»"
+                    elif _location:
+                        lat = _location.get("latitude", "?")
+                        lon = _location.get("longitude", "?")
+                        _unsupported_label = f"Standort ({lat}, {lon})"
+
+                    if _unsupported_label:
+                        await _send(chat_id,
+                            f"📥 Ich habe empfangen: {_unsupported_label}\n\n"
+                            "Dieses Format kann ich noch nicht verarbeiten. "
+                            "Soll ich mir beibringen, damit umzugehen? "
+                            "Ich kann dafür ein neues Plugin erstellen."
+                        )
+                        continue
+
+                    if not text and not photos and not voice:
                         continue
 
                     _save_chat_id(chat_id)
