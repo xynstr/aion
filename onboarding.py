@@ -553,6 +553,61 @@ def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
     else:
         warn("Plugin directory not found")
 
+    # 5. Playwright / Browser
+    info("Browser automation (Playwright) ...")
+    try:
+        from playwright.sync_api import sync_playwright
+        # Chromium starten als Funktionstest
+        try:
+            _pw = sync_playwright().start()
+            _b  = _pw.chromium.launch(headless=True)
+            _b.close()
+            _pw.stop()
+            ok("Playwright + Chromium ready")
+        except Exception:
+            # Playwright installiert, aber Chromium fehlt
+            print()
+            warn("Playwright is installed but Chromium is missing.")
+            answer = ask("Install Chromium now? (recommended)", default="y").lower()
+            if answer in ("y", "yes", "j", "ja", ""):
+                info("Running: playwright install chromium ...")
+                import subprocess
+                result = subprocess.run(
+                    [sys.executable, "-m", "playwright", "install", "chromium"],
+                    capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    ok("Chromium installed successfully")
+                else:
+                    warn(f"Chromium install failed: {result.stderr[:200]}")
+                    warn("Run manually: playwright install chromium")
+            else:
+                info("Skipped — run later: playwright install chromium")
+    except ImportError:
+        print()
+        warn("Playwright not installed (browser automation won't be available).")
+        answer = ask("Install Playwright + Chromium now? (recommended)", default="y").lower()
+        if answer in ("y", "yes", "j", "ja", ""):
+            info("Running: pip install playwright && playwright install chromium ...")
+            import subprocess
+            r1 = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "playwright", "-q"],
+                capture_output=True, text=True
+            )
+            if r1.returncode == 0:
+                r2 = subprocess.run(
+                    [sys.executable, "-m", "playwright", "install", "chromium"],
+                    capture_output=True, text=True
+                )
+                if r2.returncode == 0:
+                    ok("Playwright + Chromium installed successfully")
+                else:
+                    warn("Chromium install failed — run manually: playwright install chromium")
+            else:
+                warn(f"pip install playwright failed: {r1.stderr[:200]}")
+        else:
+            info("Skipped — run later: pip install playwright && playwright install chromium")
+
     return all_ok
 
 # ── Write Output ──────────────────────────────────────────────────────────────

@@ -154,6 +154,44 @@ def _build_client(model: str):
     return AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
+def _get_fallback_models(current_model: str) -> list[str]:
+    """Gibt verfügbare Fallback-Modelle zurück — nur Provider mit gesetzten API-Keys.
+
+    Logik:
+    - Den eigenen Provider (der gerade versagt hat) überspringen
+    - Nur Provider einbeziehen, deren env_keys alle gesetzt sind
+    - Provider ohne env_keys (z.B. Ollama) immer einbeziehen
+    - Jeweils das erste Modell aus der models-Liste nehmen
+    - Zusätzlich: explizite model_fallback-Liste aus config.json (falls gesetzt)
+    """
+    fallbacks: list[str] = []
+    seen: set[str] = set()
+
+    for entry in _provider_registry:
+        # Eigenen Provider (der gerade fehlgeschlagen ist) überspringen
+        if current_model.startswith(entry["prefix"]):
+            continue
+        # API-Key-Check: alle env_keys müssen gesetzt sein
+        env_keys = entry.get("env_keys") or []
+        if env_keys and not all(os.environ.get(k, "").strip() for k in env_keys):
+            continue
+        # Erstes verfügbares Modell dieses Providers nehmen
+        models = entry.get("models") or []
+        if models:
+            m = models[0]
+            if m not in seen:
+                seen.add(m)
+                fallbacks.append(m)
+
+    # Explizite Fallback-Liste aus config.json ergänzt (falls vorhanden)
+    for m in _load_config().get("model_fallback", []):
+        if m != current_model and m not in seen:
+            seen.add(m)
+            fallbacks.append(m)
+
+    return fallbacks
+
+
 # ── Permissions ───────────────────────────────────────────────────────────────
 
 PERMISSION_DEFAULTS: dict = {
@@ -1129,14 +1167,14 @@ class AionSession:
             _stop_for_approval = False  # Gesetzt wenn Tool approval_required zurückgibt
             _tools_called_this_turn: list[str] = []   # Alle Tools die in diesem Turn aufgerufen wurden
             _task_check_done = False  # Task-Check läuft max. einmal pro Turn
-            _fallback_list = _load_config().get("model_fallback", [])
+            _fallback_list = _get_fallback_models(MODEL)
             for _iter in range(MAX_TOOL_ITERATIONS):
                 tools  = _build_tool_schemas()
 
                 # ── Model Failover ─────────────────────────────────────────
                 _tried_fb: set = set()
                 stream = None
-                for _fb_model in ([MODEL] + [m for m in _fallback_list if m != MODEL]):
+                for _fb_model in ([MODEL] + _fallback_list):
                     if _fb_model in _tried_fb:
                         continue
                     _tried_fb.add(_fb_model)
