@@ -382,7 +382,7 @@ async def _telegram_worker(token: str):
                             _save_chat_id(cq_chat_id)
                             if cq_chat_id not in sessions:
                                 sess = AionSession(channel=f"telegram_{cq_chat_id}")
-                                await sess.load_history(num_entries=10)
+                                await sess.load_history(num_entries=10, channel_filter=f"telegram_{cq_chat_id}")
                                 sessions[cq_chat_id] = sess
                             if cq_chat_id not in busy:
                                 busy.add(cq_chat_id)
@@ -432,10 +432,10 @@ async def _telegram_worker(token: str):
                             "Schreib mir einfach — du kannst auch Bilder senden!")
                         continue
 
-                    # Session pro User — erstmalig History laden
+                    # Session pro User — erstmalig nur Telegram-History laden (kein Web-Kontext)
                     if chat_id not in sessions:
                         sess = AionSession(channel=f"telegram_{chat_id}")
-                        await sess.load_history(num_entries=10)
+                        await sess.load_history(num_entries=10, channel_filter=f"telegram_{chat_id}")
                         sessions[chat_id] = sess
 
                     # Bild(er) als Base64-Data-URL laden wenn vorhanden

@@ -14,10 +14,10 @@ def _ts() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def append_to_history(role: str, content: str) -> dict:
+def append_to_history(role: str, content: str, channel: str = "default") -> dict:
     """Fügt einen neuen Eintrag zur Konversationshistorie hinzu (max HISTORY_MAX Einträge)."""
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    entry = {"role": role, "content": content, "ts": _ts()}
+    entry = {"role": role, "content": content, "ts": _ts(), "channel": channel}
     try:
         # Bestehende Einträge lesen und neuen anhängen
         lines = []
@@ -33,9 +33,13 @@ def append_to_history(role: str, content: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def read_last_entries(num_entries: int = 50) -> dict:
+def read_last_entries(num_entries: int = 50, channel_filter: str = "") -> dict:
     """
     Liest die letzten N Einträge aus der Konversationshistorie.
+    channel_filter: wenn gesetzt, nur Einträge dieses Kanals zurückgeben.
+      - "telegram" matcht alle telegram_* Kanäle
+      - "web" matcht alle web* Kanäle
+      - exakter Wert wie "telegram_123456" für einen bestimmten Chat
     Gibt sie im OpenAI-Format {role, content} zurück, ohne 'ts'.
     """
     if not HISTORY_FILE.exists():
@@ -43,18 +47,36 @@ def read_last_entries(num_entries: int = 50) -> dict:
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             lines = [l.strip() for l in f if l.strip()]
+
+        # Channel-Filter anwenden (auf allen Einträgen, nicht nur den letzten N)
+        if channel_filter:
+            filtered = []
+            for line in lines:
+                try:
+                    obj = json.loads(line)
+                    ch = obj.get("channel", "default")
+                    if ch.startswith(channel_filter) or ch == channel_filter:
+                        filtered.append(line)
+                except Exception:
+                    pass
+            lines = filtered
+
         last_lines = lines[-num_entries:]
         entries = []
         for line in last_lines:
             try:
                 obj = json.loads(line)
-                # Nur role + content zurückgeben (OpenAI-Format)
                 entries.append({"role": obj["role"], "content": obj.get("content", "")})
             except Exception:
                 pass
         return {"ok": True, "entries": entries}
     except Exception as e:
         return {"ok": False, "error": str(e), "entries": []}
+
+
+def read_web_history(num_entries: int = 20) -> dict:
+    """Liest die letzten N Einträge aus der Web-UI-History (channel=web*)."""
+    return read_last_entries(num_entries=num_entries, channel_filter="web")
 
 
 def search_context(query: str, max_results: int = 10) -> dict:
@@ -127,6 +149,10 @@ def register(api):
                 "content": {
                     "type": "string",
                     "description": "Inhalt der Nachricht"
+                },
+                "channel": {
+                    "type": "string",
+                    "description": "Kanal: 'web', 'telegram_CHATID', 'heartbeat', etc."
                 }
             },
             "required": ["role", "content"]
@@ -146,6 +172,30 @@ def register(api):
                 "num_entries": {
                     "type": "integer",
                     "description": "Anzahl der letzten Einträge (Standard: 50)"
+                },
+                "channel_filter": {
+                    "type": "string",
+                    "description": "Kanal-Filter: z.B. 'telegram_123456', 'telegram', 'web'"
+                }
+            },
+            "required": []
+        }
+    )
+
+    api.register_tool(
+        name="memory_read_web_history",
+        description=(
+            "Liest die letzten N Nachrichten aus der Web-UI-History. "
+            "Nutze dieses Tool wenn der Nutzer fragt was im Web-Chat besprochen wurde, "
+            "oder wenn er von Web auf Telegram wechselt und den Kontext mitbringen möchte."
+        ),
+        func=read_web_history,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "num_entries": {
+                    "type": "integer",
+                    "description": "Anzahl der letzten Web-Einträge (Standard: 20)"
                 }
             },
             "required": []

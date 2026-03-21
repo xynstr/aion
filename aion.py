@@ -936,10 +936,16 @@ class AionSession:
                 self._client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         return self._client
 
-    async def load_history(self, num_entries: int = 20):
-        """Lädt vergangene Nachrichten aus Tier 2 (conversation_history.jsonl) in den Kontext."""
+    async def load_history(self, num_entries: int = 20, channel_filter: str = ""):
+        """Lädt vergangene Nachrichten aus Tier 2 (conversation_history.jsonl) in den Kontext.
+
+        channel_filter: wenn gesetzt, nur Einträge dieses Kanals laden.
+        """
         try:
-            raw    = await _dispatch("memory_read_history", {"num_entries": num_entries})
+            params = {"num_entries": num_entries}
+            if channel_filter:
+                params["channel_filter"] = channel_filter
+            raw    = await _dispatch("memory_read_history", params)
             result = json.loads(raw)
             if result.get("ok") and result.get("entries"):
                 self.messages = result["entries"]
@@ -1385,8 +1391,8 @@ class AionSession:
                         lesson=f"Nutzer: '{last_user[:200]}' → AION: '{final_text[:300]}'",
                         success=True,
                     )
-                    await _dispatch("memory_append_history", {"role": "user",      "content": last_user})
-                    await _dispatch("memory_append_history", {"role": "assistant", "content": final_text})
+                    await _dispatch("memory_append_history", {"role": "user",      "content": last_user,   "channel": self.channel})
+                    await _dispatch("memory_append_history", {"role": "assistant", "content": final_text,  "channel": self.channel})
                 except Exception:
                     pass
 
@@ -1743,7 +1749,7 @@ async def run():
         # ── Normaler Turn ──────────────────────────────
         try:
             # Nutzereingabe persistent speichern
-            await _dispatch("memory_append_history", {"role": "user", "content": user_input})
+            await _dispatch("memory_append_history", {"role": "user", "content": user_input, "channel": self.channel})
 
             conversation = _conversations.get('default', [])
             answer, updated_conversation = await chat_turn(conversation, user_input)
@@ -1751,7 +1757,7 @@ async def run():
 
             # AION-Antwort persistent speichern
             if answer:
-                await _dispatch("memory_append_history", {"role": "assistant", "content": answer})
+                await _dispatch("memory_append_history", {"role": "assistant", "content": answer, "channel": self.channel})
 
             if HAS_RICH:
                 console.print(Panel(Markdown(clio_text), title='CLIO-Reflexion', border_style='yellow'))
