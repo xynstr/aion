@@ -5,6 +5,61 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ---
 
+## 2026-03-22 (4) — Claude Abo-Integration + Audio Web UI + Keys Tab + Public README
+
+### Neu: Claude CLI Provider Plugin (`plugins/claude_cli_provider/`)
+- `ask_claude(prompt, context_files, task_type)` — nutzt Claude.ai-Abo via `claude --print`; kein API-Key nötig
+- `claude_cli_login()` — installiert Claude Code CLI via npm falls fehlt, öffnet Browser für OAuth
+- `claude_cli_status()` — prüft ob CLI installiert + angemeldet
+- `get_task_routing()` / `set_task_routing()` — liest/schreibt `task_routing` in `config.json`
+- Startup-Check meldet CLI-Status beim Laden
+
+### Neu: Task Routing (`config.json → "task_routing"`)
+- Routing-Tabelle: `coding → claude-opus-4-6`, `review → claude-sonnet-4-6`, `browsing → gemini-2.5-flash`, `default → gemini-2.5-pro`
+- AION liest `rules.md`-Regel: für Code-Aufgaben automatisch `ask_claude` verwenden
+- Konfigurierbar via Web UI System-Tab + onboarding Step 8 + `set_task_routing` Tool
+
+### Neu: Audio im Web UI
+- `aion.py`: `collected_audio` Liste parallel zu `collected_images` — sammelt `audio_tts`-Ergebnisse
+- `aion_web.py`: `/api/audio/{filename}` Endpunkt mit Sicherheitsprüfungen (Extension + kein Path-Traversal)
+- `static/index.html`: `appendAudioBlock(url, format)` rendert `<audio controls>` Player im Chat
+
+### Neu: Web UI Keys-Tab Verbesserungen
+- `_KEY_META` Objekt mit Provider-Links, Hinweisen und Status-Dots
+- Claude-Login-Block direkt im Keys-Tab (kein Terminal nötig)
+- Auto-Poll nach Login: alle 4s prüfen ob claude CLI authentifiziert
+
+### Neu: Task Routing Sektion im System-Tab
+- 4 Felder: coding/review/browsing/default Modell
+- Status-Anzeige: Claude CLI installiert + angemeldet
+- Speichern via `/api/config/settings` (allowed-Set um `task_routing` erweitert)
+
+### Neu: Neue API Endpunkte
+- `GET /api/audio/{filename}` — Audio-Datei aus Temp-Verzeichnis servieren
+- `GET /api/claude-cli/status` — CLI-Installations- und Auth-Status
+- `POST /api/claude-cli/login` — Browser-Login starten
+
+### Fix: Double `.mp3` Extension (`audio_pipeline.py`)
+- `_tts_edge()` fügte `.mp3` an, obwohl Pfad bereits auf `.mp3` endete → `filename.mp3.mp3`
+- Fix: explizite Prüfung vor dem Anhängen der Extension
+
+### Fix: Telegram Response Ordering — Voice nach allen Blöcken
+- Voice-Reply war in `elif`-Zweig → wurde übersprungen wenn `response_blocks` gefüllt war
+- Fix: Voice-Versand in `if response_blocks:` Block verschoben, nach allen Text/Bild-Blöcken
+
+### Update: README.md komplett neu für Public Release
+- Badges, Feature-Vergleich, Provider-Tabelle (API-Key vs. Abo), REST-API-Referenz
+- Troubleshooting, LLM-Loop-Diagramm, Task Routing Sektion
+
+### Update: AION_SELF.md Abschnitt 13
+- Claude CLI Provider Plugin dokumentiert
+- Audio Web UI Pipeline dokumentiert
+- Keys Tab Verbesserungen dokumentiert
+- Neue API-Endpunkte dokumentiert
+- `claude_cli_provider` in Plugin-Verzeichnis und Tools-Tabelle eingetragen
+
+---
+
 ## 2026-03-19 (3)
 
 ### Neu: file_replace_lines Tool

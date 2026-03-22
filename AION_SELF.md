@@ -106,6 +106,262 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 **History segregation:** Each channel (web, telegram_123, slack_456, discord_789, subagent_xyz) has isolated conversation history
 **Benefit:** Multi-channel clarity. Users know which services are active and how to restart.
 
+### 11. Bug Fixes (2026-03-22 — Session 2)
+
+#### Browser Rules — No Hallucination
+**Problem:** After loading 20 history messages where AION had responded "screenshot taken" without calling any tool, the LLM followed the pattern and hallucinated tool calls.
+**Fix:** `prompts/rules.md` — added `=== BROWSER & SCREENSHOTS (CRITICAL) ===` section:
+- ALWAYS call `browser_open` + `browser_screenshot` — NO exceptions
+- NEVER write "I opened the page" or "Here is the screenshot" without actually calling tools first
+**Result:** LLM is explicitly forbidden from hallucinating browser/screenshot actions.
+
+#### Approval Buttons Fix — `approval_pending` Flag
+**Problem:** Approval buttons (Ja/Nein) appeared and disappeared immediately in the Web UI. SSE event order: `approval` (creates bar) → `done` (removes bar). Frontend's `case 'done':` deleted `approvalBar` right after `case 'approval':` created it.
+**Fix:** `aion.py` — `done` event now includes `approval_pending: _stop_for_approval`:
+```python
+yield {"type": "done", ..., "approval_pending": _stop_for_approval}
+```
+`static/index.html` — `case 'done':` only removes bar when `!ev.approval_pending`.
+**Result:** Approval buttons stay visible until the user clicks them.
+
+#### `switch_model` Signature Fix
+**Problem:** `_switch_model() got an unexpected keyword argument 'model'` — the function had `def _switch_model(params: dict)` but `_dispatch` calls `fn(**inputs)`, not `fn(inputs)`.
+**Fix:** `plugins/gemini_provider/gemini_provider.py`:
+```python
+# Before:  def _switch_model(params: dict) -> dict:
+# After:   def _switch_model(model: str = "", **kwargs) -> dict:
+```
+**Rule for all plugin functions:** MUST use keyword args: `def fn(param: str = "", **_)`.
+
+#### ffmpeg WinGet Fallback
+**Problem:** WinGet installs ffmpeg to `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*\bin\` but does NOT add it to PATH. `shutil.which("ffmpeg")` returned None → voice messages in Telegram failed.
+**Fix:** `plugins/audio_pipeline/audio_pipeline.py` — new `_find_ffmpeg()` helper:
+```python
+def _find_ffmpeg() -> str | None:
+    found = shutil.which("ffmpeg")
+    if found: return found
+    winget_base = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages")
+    matches = glob.glob(os.path.join(winget_base, "Gyan.FFmpeg*", "**", "ffmpeg.exe"), recursive=True)
+    return matches[0] if matches else None
+```
+`plugins/telegram_bot/telegram_bot.py` — two ffmpeg call sites updated to use `_ap._find_ffmpeg()`.
+
+#### Screenshot Pipeline — Web UI + Telegram
+**Web UI:** `browser_screenshot` returns `{"image": "data:image/png;base64,..."}`. `aion.py` collects this into `collected_images` list, builds `response_blocks` with `{"type": "image", "url": "..."}`, sends in `done` event. Frontend appends `<img>` via `appendImageBlock()`.
+**Telegram:** `response_blocks` are received from `stream()` and rendered. For images:
+- `data:` URLs (base64) → decoded and sent as multipart file upload (`sendPhoto` with `files=`)
+- HTTP URLs → sent directly as JSON `photo` field
+**Previously broken:** Telegram was sending `data:` URLs as JSON strings → Telegram API rejected silently.
+
+#### Channel-Filtered History Load
+**Fix (commit b0504a9):** `load_history()` now uses `channel_filter="web"` in Web UI sessions. Heartbeat/Telegram messages no longer appear in Web UI chat after restart.
+
+### 12. Bug Fixes (2026-03-22 — Session 3)
+
+#### Multiple Telegram Workers (4 Responses per Message)
+**Problem:** Module-level `_polling_started = False` gets reset each time the plugin module is re-imported (hot-reload). Every reload started a new polling thread → 4 active workers = 4 responses per message.
+**Fix:** `plugins/telegram_bot/telegram_bot.py` — replaced `_polling_started` flag with `threading.enumerate()` check by thread name:
+```python
+def _start_polling(token: str):
+    with _polling_lock:
+        for t in threading.enumerate():
+            if t.name == "telegram-polling" and t.is_alive():
+                print("[Telegram] Polling-Thread läuft bereits — kein zweiter Start.")
+                return
+        t = threading.Thread(target=_run, daemon=True, name="telegram-polling")
+        t.start()
+```
+`threading.enumerate()` survives module reloads — the thread object lives in the OS, not in the module namespace.
+**Same fix applied to:** `discord_bot.py` (thread name `"discord-bot"`) and `slack_bot.py` (thread name `"slack-bot"`).
+
+#### Telegram Spam — `send_telegram_message` During Conversation
+**Problem:** AION called `send_telegram_message` tool mid-conversation to "send the response". This is wrong — the tool is for PROACTIVE outbound messages only. During an active session, the reply is sent automatically after `stream()` completes.
+**Fix 1:** `prompts/rules.md` — added `=== TELEGRAM / MESSAGING TOOLS (CRITICAL) ===`:
+- `send_telegram_message` = only for PROACTIVE notifications (scheduler, heartbeat, alerts)
+- NEVER call it during an active conversation — the reply is sent automatically
+**Fix 2:** `telegram_bot.py` — when `tg_tool_sent=True`, images and voice are still delivered:
+```python
+if tg_tool_sent:
+    image_blocks = [b for b in response_blocks if b.get("type") == "image" and b.get("url")]
+    for block in image_blocks:
+        await _send_photo(chat_id, block["url"])
+    if is_voice_input and response.strip():
+        await _send_voice_reply(chat_id, response)
+    continue
+```
+
+#### Infinite Error Loop Fix
+**Problem:** When the asyncio event loop shut down, `await asyncio.sleep(5)` inside the error handler also raised an exception → infinite recursion loop spamming "cannot schedule new futures after shutdown" to the console.
+**Fix:** `telegram_bot.py` — error handler detects shutdown signals and returns cleanly:
+```python
+except Exception as e:
+    err_msg = str(e)
+    if "shutdown" in err_msg or "futures after" in err_msg or "closed" in err_msg:
+        print("[Telegram] Event-Loop beendet — Worker beendet sich sauber.")
+        return
+    try:
+        await asyncio.sleep(5)
+    except Exception:
+        return  # sleep failed too → loop is gone, exit cleanly
+```
+
+#### `restart_with_approval` Rewrite
+**Problem:** AION had broken `restart_tool.py` by adding `api.get_context("channel", default="web")` — this method does NOT exist in PluginAPI. Also introduced a circular import to `telegram_bot`. Plugin crashed on load.
+**Fix:** Complete rewrite with simple `confirmed` parameter pattern:
+```python
+def restart_with_approval(reason: str = "", confirmed: bool = False, **_) -> dict:
+    if not confirmed:
+        return {
+            "approval_required": True,
+            "message": "AION-Prozess neu starten?" + (f" Grund: {reason}" if reason else ""),
+            "preview": "Der aktuelle AION-Prozess wird beendet...\n→ 'Ja' zum Neustart, 'Nein' zum Abbrechen."
+        }
+    entry = _get_aion_entry_point()
+    subprocess.Popen([sys.executable, str(entry)], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    os._exit(0)
+```
+**Rule:** PluginAPI does NOT have `get_context()`, `get_channel()`, or similar methods. Never call them.
+**Also fixed:** `rules.md` — removed references to non-existent `start.bat`. AION is started via `python aion_web.py` or `aion` command.
+
+#### Discord + Slack — Images and Voice
+**Problem:** Discord and Slack bots used `sess.turn()` which does not return `response_blocks`. Images from `browser_screenshot` were never sent to these channels.
+**Fix — Discord (`discord_bot.py`):**
+- Switched to `sess.stream()` → reads `response_blocks` from `done` event
+- `_send_image(channel, url)`: `data:` URLs decoded to bytes → `discord.File(io.BytesIO(...))`, HTTP URLs sent as text
+- Voice input: audio attachment → transcribe via `audio_pipeline.audio_transcribe_any` → text
+- Voice output: TTS via `audio_pipeline.audio_tts` → send as `discord.File`
+- Slash command `/ask` also uses `response_blocks`
+
+**Fix — Slack (`slack_bot.py`):**
+- `_run_session` switched to `sess.stream()` with `response_blocks`
+- Images: `data:` URLs → `files_upload_v2(content=img_bytes)` (fallback: `files_upload`), HTTP URLs → text message
+
+#### Double `.mp3` Extension Bug
+**Problem:** `_tts_edge()` in `audio_pipeline.py`:
+```python
+mp3_path = output_path.replace(".wav", ".mp3") if output_path.endswith(".wav") else output_path + ".mp3"
+```
+When `audio_tts` creates the temp file with `suffix=".mp3"` (edge engine) and passes the path, `_tts_edge` blindly appended `.mp3` again → `filename.mp3.mp3`. On Windows, the 8.3 short name truncated this to `filename.mp3.mp__3` — causing ffmpeg to fail on the file.
+**Fix:**
+```python
+if output_path.endswith(".mp3"):
+    mp3_path = output_path
+elif output_path.endswith(".wav"):
+    mp3_path = output_path.replace(".wav", ".mp3")
+else:
+    mp3_path = output_path + ".mp3"
+```
+
+#### Telegram Response Ordering — Voice at End
+**Problem:** When `response_blocks` is non-empty (images present), the `elif is_voice_input` branch was never reached → voice reply never sent. User expected: text → image → text → image → voice.
+**Fix:** Voice reply moved inside the `if response_blocks:` block, executed after all text/image blocks:
+```python
+if response_blocks:
+    for block in blocks_to_send:
+        # ... send text and images in order ...
+    # Voice comes last — after all text and images
+    if is_voice_input and response.strip() and not needs_approval:
+        await _send_voice_reply(chat_id, response)
+elif is_voice_input ...:
+    # Only reached when no response_blocks at all
+    sent = await _send_voice_reply(chat_id, response)
+```
+
+### 13. Claude CLI Provider Plugin + Audio Web UI + Keys Tab (2026-03-22 — Session 4)
+
+#### Claude CLI Provider Plugin (`plugins/claude_cli_provider/claude_cli_provider.py`)
+**What:** New plugin that connects AION to the user's Claude.ai subscription via the Claude Code CLI. No API key needed — uses `claude login` (OAuth).
+**Tools registered:**
+| Tool | Description |
+|------|-------------|
+| `ask_claude` | Send a task to Claude via `claude --print --model <model>`. Appends `context_files` content (max 30k chars each). Reads `task_routing` from `config.json` for default model. |
+| `get_task_routing` | Show current routing config + whether claude CLI is available. |
+| `set_task_routing` | Write `task_routing` to `config.json`. Use `"remove"` to delete an entry. |
+| `claude_cli_login` | Install Claude Code CLI via npm if missing, then open browser for OAuth login. |
+| `claude_cli_status` | Check if CLI is installed and authenticated. |
+
+**Key internals:**
+- `_find_claude()`: searches PATH → npm APPDATA → `~/.claude/local` → WinGet glob
+- `_claude_authenticated()`: runs `claude --print --model claude-haiku-4-5-20251001 ping` with 10s timeout
+- Task routing: `config.json → "task_routing"` maps task types to models. `ask_claude(task_type="coding")` picks the right model automatically.
+- Default routing (set in onboarding): `coding → claude-opus-4-6`, `review → claude-sonnet-4-6`, `browsing → gemini-2.5-flash`, `default → gemini-2.5-pro`
+
+**Rules added to `prompts/rules.md`:**
+```
+=== TASK ROUTING — CLAUDE FOR CODING ===
+For all code-writing, refactoring, review, and algorithm tasks:
+1. file_read() the relevant files
+2. ask_claude(prompt, context_files=[...], task_type="coding")
+3. Apply result via file_replace_lines() or file_write()
+```
+
+**IMPORTANT:** `PluginAPI` does NOT have `get_context()` — never call it. Use keyword args: `def fn(param: str = "", **_)`.
+
+---
+
+#### Audio in Web UI (`aion.py` + `aion_web.py` + `static/index.html`)
+**What:** Audio generated by `audio_tts` is now visible in the Web UI as an `<audio>` player.
+
+**Pipeline:**
+1. `aion.py` — after `audio_tts` tool result: collect into `collected_audio` list (parallel to `collected_images`):
+```python
+if ok and fn_name == "audio_tts":
+    audio_path = result_data.get("path", "")
+    if audio_path and os.path.exists(audio_path):
+        collected_audio.append({"path": audio_path, "format": result_data.get("format", "mp3")})
+```
+2. `aion.py` — build `response_blocks` entry: `{"type": "audio", "url": "/api/audio/<filename>", "format": ..., "path": ...}`
+3. `aion_web.py` — `/api/audio/{filename}` endpoint: serves temp files from `tempfile.gettempdir()` with security checks (extension allowlist `.mp3/.wav/.ogg`, no path traversal)
+4. `static/index.html` — `appendAudioBlock(url, format)`: renders `<audio controls src="...">` inside AION's message bubble. Done handler: checks `b.type === 'audio'` in `ev.response_blocks`
+
+---
+
+#### Web UI Keys Tab Improvements
+**What:** Keys tab now shows provider-specific setup instructions, direct links, and status indicators.
+
+**`_KEY_META` dict** in `static/index.html` provides per-provider:
+- `label`: display name
+- `hint`: short description of what the key is
+- `link`: direct URL to get the key (AI Studio, OpenAI platform, Anthropic console, etc.)
+- `isSubscription`: true for Claude (no API key)
+
+**Visual additions:**
+- Green/red status dots (key present = green, missing = red/orange)
+- "Get Key ↗" links for API-key providers
+- Claude Login block at top with `checkClaudeStatusInKeys()` + `claudeCliLoginFromKeys()` (auto-polls every 4s for 2 minutes after login initiated)
+
+---
+
+#### Task Routing in Web UI System Tab
+**What:** New "Claude CLI / Task Routing" section in the System tab.
+
+**Fields:** coding, review, browsing, default model inputs
+**Status indicator:** Shows whether claude CLI is installed + authenticated
+**`saveTaskRouting()`:** POSTs to `/api/config/settings` with `{task_routing: {...}}`
+**Fix:** `/api/config/settings` `allowed` set now includes `"task_routing"` (previously missing → silently dropped)
+
+---
+
+#### New API Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/audio/{filename}` | GET | Serve temp audio file (mp3/wav/ogg) with security checks |
+| `/api/claude-cli/status` | GET | `{installed, authenticated, path}` — runs ping test |
+| `/api/claude-cli/login` | POST | Install claude CLI if missing, then `Popen([claude_bin, "login"])` to open browser |
+
+**`_find_claude_bin_web()`:** Shared helper in `aion_web.py` (same search logic as `_find_claude()` in plugin).
+
+---
+
+#### Onboarding — Claude CLI Setup (Step 8)
+**What:** `onboarding.py` Step 8 (Advanced) now includes Claude CLI setup section.
+- Checks if installed (`_find_claude_bin()`)
+- Offers npm auto-install if missing
+- Runs `claude login` subprocess
+- Configures `task_routing` with sensible defaults or custom values
+- Step 9 System Check shows Claude CLI status
+- `completion_banner()` shows routing config
+
 ---
 
 ## Prior Improvements (2026-03-21 and earlier)
@@ -173,6 +429,7 @@ AION/
 │   ├── image_search/            # Image search (Openverse + Bing/Playwright)
 │   ├── docx_tool/               # Create Word documents
 │   ├── moltbook/                # Social platform moltbook.com
+│   ├── claude_cli_provider/     # Claude.ai subscription via CLI (ask_claude, claude_cli_login, task routing)
 │   └── heartbeat/               # Keep-alive + autonomous todo round every 30min
 ├── character.md                 # My personality (self-updating via update_character)
 ├── prompts/
@@ -368,8 +625,20 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 ### Audio Pipeline (`audio_pipeline.py`)
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `audio_transcribe_any` | `file_path: str` | Any audio file (ogg, mp3, m4a, wav) → text. Converts via ffmpeg, transcribes via Vosk (offline). |
-| `audio_tts` | `text: str`, `output_path?: str` | Text → WAV speech file, offline via pyttsx3/SAPI5. |
+| `audio_transcribe_any` | `file_path: str` | Any audio file (ogg, mp3, m4a, wav) → text. Converts via ffmpeg (auto-found via PATH or WinGet fallback), transcribes via Vosk (offline). |
+| `audio_tts` | `text: str`, `engine?: str`, `output_path?: str` | Text → speech file. Engines: `edge` (Microsoft Neural, online, best quality), `sapi5` (offline fallback). Config via `config.json: tts_engine + tts_voice`. |
+
+### Claude CLI Provider (`claude_cli_provider.py`)
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `ask_claude` | `prompt: str`, `model?: str`, `context_files?: list`, `task_type?: str` | Send task to Claude via `claude --print`. Reads `task_routing` for default model. `context_files` content is appended (max 30k chars each). |
+| `claude_cli_login` | — | Install Claude Code CLI via npm if missing, then open browser for OAuth login. |
+| `claude_cli_status` | — | Check if CLI is installed and authenticated. |
+| `get_task_routing` | — | Show current task routing config + whether CLI is available. |
+| `set_task_routing` | `coding?: str`, `browsing?: str`, `default?: str` | Update `task_routing` in `config.json`. Use `"remove"` to delete an entry. |
+
+**When to use `ask_claude`:** For all code writing, refactoring, review, algorithm, and architecture tasks. Do NOT use for web browsing or simple queries.
+**Workflow:** `file_read()` → `ask_claude(prompt, context_files=[...])` → `file_replace_lines()` or `file_write()`.
 
 ### Moltbook (`moltbook.py`)
 | Tool | Parameters | Description |
@@ -656,4 +925,4 @@ plugins/my_plugin.py             ❌ WRONG
 
 ---
 
-*Last updated: 2026-03-22 — Playwright browser automation (8 sync tools); Dynamic model failover with provider detection; Discord + Slack bots (multi-channel); Multi-agent routing; Docker containerization (Dockerfile + docker-compose.yml); Google OAuth for Gemini; Onboarding expanded to 9 steps (Channels + Advanced + System Check); Web UI redesign (black/white aesthetic) + missing settings (TTS, model_fallback); Tool call ordering fix (frontend DOM); All Co-Authored-By lines removed from commits*
+*Last updated: 2026-03-22 — Session 2 fixes: Browser hallucination prevention (rules.md CRITICAL block); Approval buttons (approval_pending flag in done event); switch_model signature fix (keyword args); ffmpeg WinGet PATH fallback (_find_ffmpeg); Screenshot pipeline Telegram fix (data: URL → multipart upload); Channel-filtered history (web channel isolation). Session 1: Playwright browser automation; Dynamic model failover; Discord + Slack bots; Multi-agent routing; Docker; Google OAuth; 9-step onboarding; Web UI redesign; Tool call ordering fix*
