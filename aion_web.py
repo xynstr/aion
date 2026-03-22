@@ -622,6 +622,87 @@ async def reset_exchanges():
     _session.exchange_count = 0
     return JSONResponse({"ok": True})
 
+@app.post("/api/config/settings")
+async def save_settings(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    cfg     = _load_config()
+    allowed = {"tts_engine", "tts_voice", "model_fallback", "browser_headless"}
+    for k, v in body.items():
+        if k in allowed:
+            cfg[k] = v
+    _save_config(cfg)
+    return JSONResponse({"ok": True})
+
+# ── Google OAuth ───────────────────────────────────────────────────────────────
+_GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
+_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+_GOOGLE_SCOPE     = "https://www.googleapis.com/auth/generative-language"
+_OAUTH_STATE: dict = {}
+
+@app.get("/api/oauth/google/start")
+async def google_oauth_start():
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    if not client_id:
+        return JSONResponse({"error": "GOOGLE_CLIENT_ID nicht gesetzt"}, status_code=400)
+    import secrets
+    state = secrets.token_urlsafe(16)
+    _OAUTH_STATE["state"] = state
+    redirect_uri = "http://localhost:7000/api/oauth/google/callback"
+    url = (
+        f"{_GOOGLE_AUTH_URL}?response_type=code"
+        f"&client_id={client_id}"
+        f"&redirect_uri={redirect_uri}"
+        f"&scope={_GOOGLE_SCOPE}"
+        f"&state={state}"
+        f"&access_type=offline"
+        f"&prompt=consent"
+    )
+    return JSONResponse({"url": url})
+
+@app.get("/api/oauth/google/callback")
+async def google_oauth_callback(code: str = "", state: str = "", error: str = ""):
+    close_script = "<script>setTimeout(()=>{window.opener?.postMessage(%s,'*');window.close()},200);</script>"
+    if error:
+        return HTMLResponse(f"<html><body>{close_script % repr('{\"error\":\"'+error+'\"}')}Fehler: {error}</body></html>")
+    if state != _OAUTH_STATE.get("state"):
+        return HTMLResponse(f"<html><body>{close_script % repr('{\"error\":\"invalid_state\"}')}Ungültiger State</body></html>")
+    client_id     = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+    redirect_uri  = "http://localhost:7000/api/oauth/google/callback"
+    import httpx
+    async with httpx.AsyncClient() as hc:
+        r = await hc.post(_GOOGLE_TOKEN_URL, data={
+            "code":          code,
+            "client_id":     client_id,
+            "client_secret": client_secret,
+            "redirect_uri":  redirect_uri,
+            "grant_type":    "authorization_code",
+        })
+    if r.status_code != 200:
+        return HTMLResponse(f"<html><body>{close_script % repr('{\"error\":\"token_failed\"}')}Token-Fehler: {r.text}</body></html>")
+    tokens        = r.json()
+    refresh_token = tokens.get("refresh_token", "")
+    if refresh_token:
+        env_file  = AION_DIR / ".env"
+        lines     = env_file.read_text(encoding="utf-8").splitlines() if env_file.is_file() else []
+        new_lines = []
+        updated   = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("GOOGLE_REFRESH_TOKEN="):
+                new_lines.append(f"GOOGLE_REFRESH_TOKEN={refresh_token}")
+                updated = True
+            else:
+                new_lines.append(line)
+        if not updated:
+            new_lines.append(f"GOOGLE_REFRESH_TOKEN={refresh_token}")
+        env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        os.environ["GOOGLE_REFRESH_TOKEN"] = refresh_token
+    return HTMLResponse("<html><body><script>setTimeout(()=>{window.opener?.postMessage({ok:true},'*');window.close()},200);</script><p style='font-family:monospace;padding:20px'>✓ Erfolgreich verbunden</p></body></html>")
+
 if __name__ == "__main__":
     has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip()) or \
               bool(os.environ.get("GEMINI_API_KEY", "").strip())
