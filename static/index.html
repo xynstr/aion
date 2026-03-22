@@ -725,6 +725,54 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="brain" style="width:13px;height:13px;stroke-width:1.75"></i> Thinking Level</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Wie viel AION vor jeder Antwort nachdenkt. <b>deep</b> = mehr Qualität, mehr Tokens. <b>off</b> = schnellster Modus.</div>
+            <div class="settings-row" style="margin-bottom:8px">
+              <span style="font-size:12px;color:var(--text2);min-width:70px">Global</span>
+              <select class="settings-select" id="thinkingLevelGlobal" style="max-width:180px">
+                <option value="off">off – kein Thinking</option>
+                <option value="minimal">minimal</option>
+                <option value="standard" selected>standard</option>
+                <option value="deep">deep</option>
+                <option value="extreme">extreme</option>
+              </select>
+              <button class="action-btn primary" onclick="saveThinkingLevel()">Speichern</button>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel-Override (leer = alle):</div>
+            <div class="settings-row" style="margin-bottom:4px">
+              <input type="text" id="thinkingOverrideChannel" class="settings-select"
+                style="max-width:160px;background:var(--bg4);font-family:monospace;font-size:12px"
+                placeholder="z.B. telegram*">
+              <select class="settings-select" id="thinkingOverrideLevel" style="max-width:140px">
+                <option value="off">off</option>
+                <option value="minimal">minimal</option>
+                <option value="standard">standard</option>
+                <option value="deep">deep</option>
+                <option value="extreme">extreme</option>
+              </select>
+              <button class="action-btn primary" onclick="saveThinkingOverride()">Hinzufügen</button>
+            </div>
+            <div id="thinkingOverridesList" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="list-filter" style="width:13px;height:13px;stroke-width:1.75"></i> Channel Allowlist</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Welche Channels AION antworten darf. Leer = alle erlaubt. Wildcards möglich (z.B. <code>telegram*</code>).</div>
+            <div class="settings-row" style="margin-bottom:6px">
+              <input type="text" id="allowlistNewChannel" class="settings-select"
+                style="max-width:220px;background:var(--bg4);font-family:monospace;font-size:12px"
+                placeholder="z.B. discord_* oder web"
+                onkeydown="if(event.key==='Enter')addAllowlistEntry()">
+              <button class="action-btn primary" onclick="addAllowlistEntry()">Hinzufügen</button>
+            </div>
+            <div id="allowlistEntries" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px"></div>
+            <div style="margin-top:8px;display:flex;gap:8px">
+              <button class="action-btn" onclick="saveAllowlist()">Speichern</button>
+              <button class="action-btn danger" onclick="clearAllowlist()">Alle entfernen (alle erlauben)</button>
+            </div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
             <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="terminal" style="width:13px;height:13px;stroke-width:1.75"></i> Aktionen</div>
             <div style="display:flex;flex-direction:column;gap:8px;max-width:380px">
               <button class="action-btn" onclick="resetExchanges()" style="display:flex;align-items:center;gap:5px"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke-width:1.75"></i> Gesprächszähler zurücksetzen</button>
@@ -1262,6 +1310,118 @@ async function applyPermPreset(preset) {
   } catch { showToast('Fehler', true); }
 }
 
+// ── THINKING LEVEL ────────────────────────────────────────────────────────────
+function _renderThinkingSettings(cfg) {
+  const sel = document.getElementById('thinkingLevelGlobal');
+  if (sel && cfg.thinking_level) sel.value = cfg.thinking_level;
+  const overrides = cfg.thinking_overrides || {};
+  const el = document.getElementById('thinkingOverridesList');
+  if (!el) return;
+  el.innerHTML = Object.entries(overrides).map(([ch, lv]) =>
+    `<span class="tag-chip" style="display:inline-flex;align-items:center;gap:4px;background:var(--bg4);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px;font-family:monospace;cursor:pointer" title="Klicken zum Entfernen" onclick="removeThinkingOverride('${esc(ch)}')">
+      ${esc(ch)}: <b>${esc(lv)}</b> <span style="opacity:.5;margin-left:2px">×</span>
+    </span>`
+  ).join('');
+}
+
+async function saveThinkingLevel() {
+  const level = document.getElementById('thinkingLevelGlobal')?.value;
+  if (!level) return;
+  try {
+    const r = await fetch('/api/config/thinking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({level}),
+    });
+    const d = await r.json();
+    if (d.ok) { showToast(`✓ Thinking Level: ${level}`); _renderThinkingSettings(d); }
+    else showToast(d.error || 'Fehler', true);
+  } catch { showToast('Fehler', true); }
+}
+
+async function saveThinkingOverride() {
+  const channel = document.getElementById('thinkingOverrideChannel')?.value.trim();
+  const level   = document.getElementById('thinkingOverrideLevel')?.value;
+  if (!channel) { showToast('Bitte Channel eingeben', true); return; }
+  try {
+    const r = await fetch('/api/config/thinking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({level, channel}),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(`✓ Override gespeichert: ${channel} → ${level}`);
+      document.getElementById('thinkingOverrideChannel').value = '';
+      _renderThinkingSettings(d);
+    } else showToast(d.error || 'Fehler', true);
+  } catch { showToast('Fehler', true); }
+}
+
+async function removeThinkingOverride(channel) {
+  try {
+    const r = await fetch('/api/config/thinking', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({channel, level: ''}),
+    });
+    const d = await r.json();
+    if (d.ok) { showToast(`✓ Override entfernt: ${channel}`); _renderThinkingSettings(d); }
+  } catch { showToast('Fehler', true); }
+}
+
+// ── CHANNEL ALLOWLIST ─────────────────────────────────────────────────────────
+let _allowlistEntries = [];
+
+function _renderAllowlistSettings(cfg) {
+  _allowlistEntries = cfg.channel_allowlist ? [...cfg.channel_allowlist] : [];
+  _refreshAllowlistUI();
+}
+
+function _refreshAllowlistUI() {
+  const el = document.getElementById('allowlistEntries');
+  if (!el) return;
+  if (_allowlistEntries.length === 0) {
+    el.innerHTML = '<span style="font-size:11px;color:var(--text3)">Leer — alle Channels erlaubt</span>';
+    return;
+  }
+  el.innerHTML = _allowlistEntries.map((ch, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg4);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px;font-family:monospace;cursor:pointer" title="Klicken zum Entfernen" onclick="removeAllowlistEntry(${i})">
+      ${esc(ch)} <span style="opacity:.5;margin-left:2px">×</span>
+    </span>`
+  ).join('');
+}
+
+function addAllowlistEntry() {
+  const inp = document.getElementById('allowlistNewChannel');
+  if (!inp) return;
+  const val = inp.value.trim();
+  if (!val) return;
+  if (!_allowlistEntries.includes(val)) _allowlistEntries.push(val);
+  inp.value = '';
+  _refreshAllowlistUI();
+}
+
+function removeAllowlistEntry(idx) {
+  _allowlistEntries.splice(idx, 1);
+  _refreshAllowlistUI();
+}
+
+async function saveAllowlist() {
+  try {
+    const r = await fetch('/api/config/allowlist', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({channels: _allowlistEntries}),
+    });
+    const d = await r.json();
+    if (d.ok) showToast(_allowlistEntries.length ? `✓ Allowlist gespeichert (${_allowlistEntries.length} Einträge)` : '✓ Allowlist geleert — alle Channels erlaubt');
+    else showToast(d.error || 'Fehler', true);
+  } catch { showToast('Fehler', true); }
+}
+
+async function clearAllowlist() {
+  _allowlistEntries = [];
+  _refreshAllowlistUI();
+  await saveAllowlist();
+}
+
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 async function loadSettings() {
   try {
@@ -1292,6 +1452,10 @@ async function loadSettings() {
       const el = document.getElementById(id);
       if (el && routing[key]) el.value = routing[key];
     }
+    // Thinking Level
+    _renderThinkingSettings(cfg);
+    // Channel Allowlist
+    _renderAllowlistSettings(cfg);
     // Claude CLI status
     _loadClaudeCliStatus();
     try {

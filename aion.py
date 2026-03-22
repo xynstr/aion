@@ -2262,9 +2262,116 @@ async def run():
             memory.record(category="tool_failure", summary="LLM-Fehler",
                           lesson=f"Fehler: {err_msg[:300]}", success=False)
 
+# ── CLI-Konfiguration ─────────────────────────────────────────────────────────
+
+def _cli_config_show():
+    """Zeigt die aktuelle config.json lesbar an."""
+    cfg = _load_config()
+    if not cfg:
+        print("config.json ist leer oder existiert nicht.")
+        return
+    print(json.dumps(cfg, ensure_ascii=False, indent=2))
+
+
+def _cli_config_set(args: list[str]):
+    """Setzt einen oder mehrere Konfigurationswerte via CLI.
+
+    Verwendung:
+      python aion.py --set thinking_level=deep
+      python aion.py --set channel_allowlist=telegram*,discord_*
+      python aion.py --set thinking_overrides.telegram*=extreme
+      python aion.py --set browser_headless=false
+    """
+    cfg = _load_config()
+    for arg in args:
+        if "=" not in arg:
+            print(f"Ungültiger --set Wert (kein '='): {arg}")
+            continue
+        key, _, raw_val = arg.partition("=")
+        key = key.strip()
+
+        # Punkt-Notation für nested keys: thinking_overrides.telegram*=deep
+        if "." in key:
+            parent, _, child = key.partition(".")
+            if parent not in cfg or not isinstance(cfg[parent], dict):
+                cfg[parent] = {}
+            if raw_val == "":
+                cfg[parent].pop(child, None)
+            else:
+                cfg[parent][child] = raw_val
+            print(f"  {parent}.{child} = {raw_val!r}")
+            continue
+
+        # Listen-Werte (kommagetrennt): channel_allowlist, model_fallback
+        LIST_KEYS = {"channel_allowlist", "model_fallback"}
+        if key in LIST_KEYS:
+            cfg[key] = [v.strip() for v in raw_val.split(",") if v.strip()]
+            print(f"  {key} = {cfg[key]}")
+            continue
+
+        # Bool-Werte
+        if raw_val.lower() in ("true", "false"):
+            cfg[key] = raw_val.lower() == "true"
+        # Int-Werte
+        elif raw_val.isdigit():
+            cfg[key] = int(raw_val)
+        else:
+            cfg[key] = raw_val
+        print(f"  {key} = {cfg[key]!r}")
+
+    _save_config(cfg)
+    print("config.json gespeichert.")
+
+
+def _cli_config_unset(keys: list[str]):
+    """Entfernt Schlüssel aus config.json."""
+    cfg = _load_config()
+    for key in keys:
+        if "." in key:
+            parent, _, child = key.partition(".")
+            if isinstance(cfg.get(parent), dict):
+                cfg[parent].pop(child, None)
+                print(f"  Entfernt: {parent}.{child}")
+        elif key in cfg:
+            del cfg[key]
+            print(f"  Entfernt: {key}")
+        else:
+            print(f"  Nicht gefunden: {key}")
+    _save_config(cfg)
+    print("config.json gespeichert.")
+
+
 # ── Einstiegspunkt ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # ── CLI-Konfigurationsmodus ──────────────────────────────────────────────
+    # python aion.py --config             → aktuelle config.json anzeigen
+    # python aion.py --set key=value ...  → Werte setzen
+    # python aion.py --unset key ...      → Werte entfernen
+    _args = sys.argv[1:]
+    if "--config" in _args and "--set" not in _args and "--unset" not in _args:
+        _cli_config_show()
+        sys.exit(0)
+    if "--set" in _args:
+        _set_idx = _args.index("--set")
+        _set_vals = _args[_set_idx + 1:]
+        if not _set_vals:
+            print("Fehler: --set braucht mindestens einen Wert (z.B. thinking_level=deep)")
+            sys.exit(1)
+        _cli_config_set(_set_vals)
+        if "--config" in _args:
+            print()
+            _cli_config_show()
+        sys.exit(0)
+    if "--unset" in _args:
+        _unset_idx = _args.index("--unset")
+        _unset_keys = _args[_unset_idx + 1:]
+        if not _unset_keys:
+            print("Fehler: --unset braucht mindestens einen Key")
+            sys.exit(1)
+        _cli_config_unset(_unset_keys)
+        sys.exit(0)
+
     if not os.environ.get("OPENAI_API_KEY"):
         print("Fehler: OPENAI_API_KEY nicht gesetzt.")
         sys.exit(1)

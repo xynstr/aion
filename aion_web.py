@@ -629,12 +629,76 @@ async def save_settings(request: Request):
     except Exception:
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     cfg     = _load_config()
-    allowed = {"tts_engine", "tts_voice", "model_fallback", "browser_headless", "task_routing"}
+    allowed = {
+        "tts_engine", "tts_voice", "model_fallback", "browser_headless", "task_routing",
+        "thinking_level", "thinking_overrides", "channel_allowlist",
+    }
     for k, v in body.items():
         if k in allowed:
             cfg[k] = v
     _save_config(cfg)
     return JSONResponse({"ok": True})
+
+# ── Thinking Level ──────────────────────────────────────────────────────────────
+
+@app.get("/api/config/thinking")
+async def get_thinking():
+    cfg = _load_config()
+    return JSONResponse({
+        "thinking_level":    cfg.get("thinking_level", "standard"),
+        "thinking_overrides": cfg.get("thinking_overrides", {}),
+    })
+
+@app.post("/api/config/thinking")
+async def save_thinking(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    level   = body.get("level", "").strip().lower()
+    channel = body.get("channel", "").strip()
+    valid   = {"off", "minimal", "standard", "deep", "extreme"}
+    if level and level not in valid:
+        return JSONResponse({"error": f"Ungültiger Level. Erlaubt: {', '.join(sorted(valid))}"}, status_code=400)
+    cfg = _load_config()
+    if channel:
+        if "thinking_overrides" not in cfg:
+            cfg["thinking_overrides"] = {}
+        if level:
+            cfg["thinking_overrides"][channel] = level
+        else:
+            cfg["thinking_overrides"].pop(channel, None)
+    elif level:
+        cfg["thinking_level"] = level
+    _save_config(cfg)
+    return JSONResponse({
+        "ok": True,
+        "thinking_level":     cfg.get("thinking_level", "standard"),
+        "thinking_overrides": cfg.get("thinking_overrides", {}),
+    })
+
+# ── Channel Allowlist ────────────────────────────────────────────────────────────
+
+@app.get("/api/config/allowlist")
+async def get_allowlist():
+    cfg = _load_config()
+    return JSONResponse({"channel_allowlist": cfg.get("channel_allowlist", [])})
+
+@app.post("/api/config/allowlist")
+async def save_allowlist(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+    channels = body.get("channels", None)
+    if channels is None:
+        return JSONResponse({"error": "'channels' fehlt"}, status_code=400)
+    if not isinstance(channels, list):
+        return JSONResponse({"error": "'channels' muss eine Liste sein"}, status_code=400)
+    cfg = _load_config()
+    cfg["channel_allowlist"] = [str(c).strip() for c in channels if str(c).strip()]
+    _save_config(cfg)
+    return JSONResponse({"ok": True, "channel_allowlist": cfg["channel_allowlist"]})
 
 # ── Audio File Serving ──────────────────────────────────────────────────────────
 
