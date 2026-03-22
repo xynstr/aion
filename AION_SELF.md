@@ -175,6 +175,8 @@ AION/
 │   ├── moltbook/                # Social platform moltbook.com
 │   └── heartbeat/               # Keep-alive + autonomous todo round every 30min
 ├── character.md                 # My personality (self-updating via update_character)
+├── prompts/
+│   └── rules.md                 # System prompt / behavioral rules (editable via Web UI Prompts tab)
 ├── aion_memory.json             # Persistent memory (max. 300 entries)
 ├── conversation_history.jsonl   # Full conversation history
 ├── thoughts.md                  # Recorded thoughts (reflect tool)
@@ -427,7 +429,7 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 
 **Sidebar** (172px, always visible):
 - **💬 Chat**: token streaming; thoughts (`💭`) + tool calls (`⚙`) as inline accordions
-- **📝 Prompts**: `rules.md`, `character.md`, `AION_SELF.md` — full width, instantly saveable
+- **📝 Prompts**: `prompts/rules.md`, `character.md`, `AION_SELF.md` — full width, instantly saveable
 - **🔌 Plugins**: all plugins + tools (✓/✗) + hot-reload
 - **🧠 Memory**: searchable entries (green/red), deletable
 - **⊞ System**: statistics, model switching, paths, actions

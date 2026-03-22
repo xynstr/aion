@@ -107,7 +107,7 @@ Opens automatically at `http://localhost:7000`
 
 **Sidebar** (172px, always visible):
 - **💬 Chat** — token streaming; thoughts + tool calls inline as expandable accordions (in correct order)
-- **📝 Prompts** — edit `rules.md`, `character.md`, `AION_SELF.md` directly in the browser
+- **📝 Prompts** — edit `prompts/rules.md`, `character.md`, `AION_SELF.md` directly in the browser
 - **🔌 Plugins** — all plugins with tools + status + hot-reload
 - **🧠 Memory** — search memory, color-coded, delete entries
 - **⊞ System** — statistics, model switching, TTS settings, model fallback, paths, actions
