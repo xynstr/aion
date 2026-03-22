@@ -80,7 +80,7 @@ async def _lifespan(app: FastAPI):
     if hasattr(_aion_module, "_build_client"):
         _aion_module.client = _aion_module._build_client(m)
     print(f"[AION] Startup-Modell: {m}")
-    await _session.load_history(num_entries=20)
+    await _session.load_history(num_entries=20, channel_filter="web")
     yield
 
 app = FastAPI(title="AION", lifespan=_lifespan)

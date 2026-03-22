@@ -16,7 +16,7 @@ _HEARTBEAT_LOG = Path(__file__).parent / "heartbeat.log"
 _TODO_FILE      = Path(__file__).parent.parent.parent / "todo.md"
 _INTERVAL_S     = 60          # Heartbeat-Takt
 _TODO_CHECK_MIN = 30          # Todos alle N Minuten prüfen
-_last_todo_check: datetime.datetime | None = None
+_last_todo_check: datetime.datetime = datetime.datetime.now()  # Erst nach _TODO_CHECK_MIN feuern
 _todo_worker_running = False
 _todo_worker_lock    = threading.Lock()
 
@@ -45,7 +45,7 @@ def _run_todo_session():
 
         async def _work():
             session = _aion.AionSession(channel="heartbeat")
-            await session.load_history(num_entries=10)
+            # Keine History laden — Todo-Worker arbeitet kontextfrei auf den Todos
             await session.turn(
                 "Schau dir todo.md an (todo_list). "
                 "Arbeite alle offenen Tasks der Reihe nach ab. "
@@ -78,10 +78,7 @@ def _heartbeat_loop():
             f.write(f"[{ts}] alive | todos_open={open_count}\n")
 
         # 2. Todo-Check alle _TODO_CHECK_MIN Minuten
-        should_check = (
-            _last_todo_check is None or
-            (now - _last_todo_check).total_seconds() >= _TODO_CHECK_MIN * 60
-        )
+        should_check = (now - _last_todo_check).total_seconds() >= _TODO_CHECK_MIN * 60
         if should_check and open_count > 0 and not _todo_worker_running:
             _last_todo_check = now
             with open(_HEARTBEAT_LOG, "a", encoding="utf-8") as f:
