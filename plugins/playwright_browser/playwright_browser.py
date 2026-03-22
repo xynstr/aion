@@ -2,8 +2,7 @@
 AION Plugin: Playwright Browser Control
 ========================================
 Steuert einen Chromium-Browser per AION-Tools.
-Läuft synchron (sync_playwright) in run_in_executor — kein Konflikt mit dem
-AION-Asyncio-Loop.
+Läuft asynchron (async_playwright) — kein Konflikt mit dem AION-Asyncio-Loop.
 
 Einmalige Einrichtung:
     pip install playwright
@@ -14,26 +13,25 @@ Konfiguration (config.json, optional):
 """
 
 import atexit
+import asyncio
 import base64
 import json
-import os
-import threading
 from pathlib import Path
 
 try:
-    from playwright.sync_api import sync_playwright, Browser, Page, Playwright
+    from playwright.async_api import async_playwright, Browser, Page, Playwright
     HAS_PLAYWRIGHT = True
 except ImportError:
     HAS_PLAYWRIGHT = False
 
 _BOT_DIR = Path(__file__).parent.parent.parent
 
-# ── Singleton Browser-State ────────────────────────────────────────────────────
+# ── Singleton Browser-State ─────────────────────────────────────────────────────
 
 _pw:      "Playwright | None" = None
 _browser: "Browser | None"   = None
 _page:    "Page | None"       = None
-_lock = threading.Lock()
+_lock = asyncio.Lock()
 
 
 def _is_headless() -> bool:
@@ -44,104 +42,112 @@ def _is_headless() -> bool:
         return True
 
 
-def _ensure_browser() -> "Page":
-    """Gibt immer eine gültige Page zurück. Thread-safe."""
+async def _ensure_browser() -> "Page":
+    """Gibt immer eine gültige Page zurück. Async-safe."""
     global _pw, _browser, _page
-    with _lock:
+    async with _lock:
         if _browser is None or not _browser.is_connected():
             if _pw is not None:
                 try:
-                    _pw.stop()
+                    await _pw.stop()
                 except Exception:
                     pass
-            _pw      = sync_playwright().start()
-            _browser = _pw.chromium.launch(headless=_is_headless())
+            _pw      = await async_playwright().start()
+            _browser = await _pw.chromium.launch(headless=_is_headless())
         if _page is None or _page.is_closed():
-            _page = _browser.new_page()
+            _page = await _browser.new_page()
     return _page
 
 
-def _shutdown():
+async def _async_shutdown():
     global _browser, _pw, _page
     try:
         if _page and not _page.is_closed():
-            _page.close()
+            await _page.close()
         if _browser:
-            _browser.close()
+            await _browser.close()
         if _pw:
-            _pw.stop()
+            await _pw.stop()
     except Exception:
         pass
     _page = _browser = _pw = None
 
 
-atexit.register(_shutdown)
+def _sync_shutdown():
+    """Atexit-kompatibler synchroner Wrapper für den async Shutdown."""
+    try:
+        asyncio.run(_async_shutdown())
+    except Exception:
+        pass
 
 
-# ── Tool-Funktionen (alle synchron) ────────────────────────────────────────────
+atexit.register(_sync_shutdown)
 
-def browser_open(url: str = "", **_) -> dict:
+
+# ── Tool-Funktionen (alle async) ────────────────────────────────────────────────
+
+async def browser_open(url: str = "", **_) -> dict:
     """Lädt eine URL im Browser. Gibt Titel und finale URL zurück."""
     if not url:
         return {"error": "Keine URL angegeben."}
     try:
-        page = _ensure_browser()
-        page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        return {"ok": True, "url": page.url, "title": page.title()}
+        page = await _ensure_browser()
+        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        return {"ok": True, "url": page.url, "title": await page.title()}
     except Exception as e:
         return {"error": str(e)}
 
 
-def browser_screenshot(**_) -> dict:
+async def browser_screenshot(**_) -> dict:
     """Screenshot der aktuellen Seite als base64-PNG."""
     try:
-        page = _ensure_browser()
-        data = page.screenshot(type="png")
+        page = await _ensure_browser()
+        data = await page.screenshot(type="png")
         b64  = base64.b64encode(data).decode()
         return {
             "ok":    True,
             "image": f"data:image/png;base64,{b64}",
             "url":   page.url,
-            "title": page.title(),
+            "title": await page.title(),
         }
     except Exception as e:
         return {"error": str(e)}
 
 
-def browser_click(selector: str = "", **_) -> dict:
+async def browser_click(selector: str = "", **_) -> dict:
     """Klickt ein Element per CSS-Selektor oder Text."""
     if not selector:
         return {"error": "Kein Selektor angegeben."}
     try:
-        page = _ensure_browser()
-        page.click(selector, timeout=10_000)
+        page = await _ensure_browser()
+        await page.click(selector, timeout=10_000)
         return {"ok": True, "clicked": selector, "url": page.url}
     except Exception as e:
         return {"error": str(e), "selector": selector}
 
 
-def browser_fill(selector: str = "", value: str = "", **_) -> dict:
+async def browser_fill(selector: str = "", value: str = "", **_) -> dict:
     """Befüllt ein Eingabefeld (Input/Textarea) per CSS-Selektor."""
     if not selector:
         return {"error": "Kein Selektor angegeben."}
     try:
-        page = _ensure_browser()
-        page.fill(selector, value, timeout=10_000)
+        page = await _ensure_browser()
+        await page.fill(selector, value, timeout=10_000)
         return {"ok": True, "selector": selector, "value": value}
     except Exception as e:
         return {"error": str(e)}
 
 
-def browser_get_text(**_) -> dict:
+async def browser_get_text(**_) -> dict:
     """Gibt den sichtbaren Textinhalt der aktuellen Seite zurück (max. 10.000 Zeichen)."""
     try:
-        page = _ensure_browser()
-        text = page.inner_text("body")
+        page = await _ensure_browser()
+        text = await page.inner_text("body")
         truncated = len(text) > 10_000
         return {
             "ok":        True,
             "url":       page.url,
-            "title":     page.title(),
+            "title":     await page.title(),
             "text":      text[:10_000],
             "truncated": truncated,
         }
@@ -149,13 +155,13 @@ def browser_get_text(**_) -> dict:
         return {"error": str(e)}
 
 
-def browser_evaluate(js: str = "", **_) -> dict:
+async def browser_evaluate(js: str = "", **_) -> dict:
     """Führt JavaScript auf der aktuellen Seite aus und gibt das Ergebnis zurück."""
     if not js:
         return {"error": "Kein JS angegeben."}
     try:
-        page   = _ensure_browser()
-        result = page.evaluate(js)
+        page   = await _ensure_browser()
+        result = await page.evaluate(js)
         try:
             serialized = json.dumps(result)
         except Exception:
@@ -165,18 +171,18 @@ def browser_evaluate(js: str = "", **_) -> dict:
         return {"error": str(e)}
 
 
-def browser_find(selector: str = "", **_) -> dict:
+async def browser_find(selector: str = "", **_) -> dict:
     """Sucht Elemente per CSS-Selektor. Gibt Anzahl + erste 5 Texte zurück."""
     if not selector:
         return {"error": "Kein Selektor angegeben."}
     try:
-        page     = _ensure_browser()
-        elements = page.query_selector_all(selector)
+        page     = await _ensure_browser()
+        elements = await page.query_selector_all(selector)
         count    = len(elements)
         samples  = []
         for el in elements[:5]:
             try:
-                samples.append(el.inner_text()[:200])
+                samples.append(await el.inner_text())
             except Exception:
                 samples.append("[kein Text]")
         return {"ok": True, "count": count, "selector": selector, "samples": samples}
@@ -184,20 +190,20 @@ def browser_find(selector: str = "", **_) -> dict:
         return {"error": str(e)}
 
 
-def browser_close(**_) -> dict:
+async def browser_close(**_) -> dict:
     """Schließt die aktuelle Browser-Seite."""
     global _page
     try:
-        with _lock:
+        async with _lock:
             if _page and not _page.is_closed():
-                _page.close()
+                await _page.close()
             _page = None
         return {"ok": True, "message": "Browser-Seite geschlossen."}
     except Exception as e:
         return {"error": str(e)}
 
 
-# ── Register ───────────────────────────────────────────────────────────────────
+# ── Register ────────────────────────────────────────────────────────────────────
 
 def register(api):
     if not HAS_PLAYWRIGHT:
