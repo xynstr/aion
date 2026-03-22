@@ -1,24 +1,49 @@
 """
 web_tools — Web-Suche und -Abruf (web_search, web_fetch)
 
-War früher hardcodiert in aion.py/_dispatch().
-Als Plugin hot-reloadbar per self_reload_tools.
+Suche: ddgs-Bibliothek (primär) → httpx-Scraping (Fallback)
+DuckDuckGo HTML-Endpoint blockiert Bot-Requests seit 2024; ddgs umgeht das korrekt.
 """
 
 
 def register(api):
 
     async def _web_search(query: str = "", max_results: int = 8, **_):
+        import asyncio
+
+        # Primär: ddgs-Bibliothek
+        try:
+            from ddgs import DDGS
+
+            def _sync_search():
+                with DDGS() as ddgs:
+                    return list(ddgs.text(query, max_results=int(max_results)))
+
+            raw = await asyncio.get_event_loop().run_in_executor(None, _sync_search)
+            results = [
+                {
+                    "title":   r.get("title", ""),
+                    "url":     r.get("href", ""),
+                    "snippet": r.get("body", ""),
+                }
+                for r in raw
+            ]
+            return {"results": results, "query": query}
+
+        except ImportError:
+            pass  # Fallback unten
+
+        # Fallback: httpx + BeautifulSoup (funktioniert nur noch eingeschränkt)
         import urllib.parse
         try:
             import httpx
         except ImportError:
-            return {"error": "httpx nicht installiert. Bitte: pip install httpx"}
+            return {"error": "Weder 'ddgs' noch 'httpx' installiert. Bitte: pip install ddgs"}
 
         ddg_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
         try:
             async with httpx.AsyncClient(
-                headers={"User-Agent": "Mozilla/5.0"},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
                 follow_redirects=True,
                 timeout=20.0,
             ) as hc:
@@ -41,6 +66,9 @@ def register(api):
             except ImportError:
                 pass
 
+            if not results:
+                return {"error": "Keine Ergebnisse. Bitte 'pip install ddgs' ausführen.", "query": query}
+
             return {"results": results, "query": query}
         except Exception as e:
             return {"error": str(e), "query": query}
@@ -53,7 +81,7 @@ def register(api):
 
         try:
             async with httpx.AsyncClient(
-                headers={"User-Agent": "Mozilla/5.0"},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
                 follow_redirects=True,
                 timeout=float(timeout),
             ) as hc:
@@ -69,7 +97,15 @@ def register(api):
             except ImportError:
                 pass
 
-            return {"url": url, "content": text[:8000], "status_code": r.status_code}
+            # Dynamisches Limit basierend auf aktivem Modell
+            try:
+                import sys
+                aion = sys.modules.get("aion")
+                limit = aion._get_read_limit() if aion and hasattr(aion, "_get_read_limit") else 20_000
+            except Exception:
+                limit = 20_000
+
+            return {"url": url, "content": text[:limit], "status_code": r.status_code}
         except Exception as e:
             return {"error": str(e), "url": url}
 
@@ -77,13 +113,16 @@ def register(api):
 
     api.register_tool(
         name="web_search",
-        description="Sucht im Internet via DuckDuckGo.",
+        description=(
+            "Sucht im Internet via DuckDuckGo. "
+            "Gibt Titel, URL und Snippet zurück. Nutze web_fetch für den vollen Seiteninhalt."
+        ),
         func=_web_search,
         input_schema={
             "type": "object",
             "properties": {
-                "query":       {"type": "string"},
-                "max_results": {"type": "integer"},
+                "query":       {"type": "string", "description": "Suchanfrage"},
+                "max_results": {"type": "integer", "description": "Anzahl Ergebnisse (default 8)"},
             },
             "required": ["query"],
         },
@@ -91,13 +130,13 @@ def register(api):
 
     api.register_tool(
         name="web_fetch",
-        description="Lädt den Textinhalt einer URL herunter.",
+        description="Lädt den Textinhalt einer URL herunter und gibt ihn bereinigt zurück.",
         func=_web_fetch,
         input_schema={
             "type": "object",
             "properties": {
-                "url":     {"type": "string"},
-                "timeout": {"type": "integer"},
+                "url":     {"type": "string", "description": "URL zum Abrufen"},
+                "timeout": {"type": "integer", "description": "Timeout in Sekunden (default 20)"},
             },
             "required": ["url"],
         },
