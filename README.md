@@ -255,9 +255,9 @@ Socket Mode — no public webhook needed. Responds to DMs and @aion mentions.
 AION controls a real Chromium browser via Playwright:
 
 ```
-"Open timerkelenz.de, take a screenshot and send it to Telegram"
+"Open example.com, take a screenshot and send it to Telegram"
 
-→ browser_open("https://timerkelenz.de")
+→ browser_open("https://example.com")
 → browser_screenshot()           ← image shown in chat + sent to Telegram
 → send_telegram_message(...)
 ```
