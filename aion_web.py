@@ -709,7 +709,11 @@ if __name__ == "__main__":
     if not has_key:
         print("Fehler: Kein API-Key gesetzt (OPENAI_API_KEY oder GEMINI_API_KEY fehlt).")
         sys.exit(1)
-    print(f"Starte AION Web UI auf http://localhost:7000")
+    _port = int(os.environ.get("AION_PORT", 7000))
+    _host = os.environ.get("AION_HOST", "127.0.0.1")
+    print(f"Starte AION Web UI auf http://{_host}:{_port}")
     print(f"Modell: {_aion_module.MODEL}")
+    if _host != "127.0.0.1":
+        print(f"Hinweis: Server erreichbar im Netzwerk (AION_HOST={_host}) — kein Passwortschutz aktiv.")
     print("Beenden: Strg+C\n")
-    uvicorn.run(app, host="0.0.0.0", port=7000, log_level="warning")
+    uvicorn.run(app, host=_host, port=_port, log_level="warning")

@@ -16,4 +16,5 @@ services:
       - ./aion_events.log:/app/aion_events.log
     environment:
       - PYTHONUNBUFFERED=1
+      - AION_HOST=0.0.0.0
     restart: unless-stopped
