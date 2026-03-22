@@ -1346,6 +1346,12 @@ class AionSession:
                                 elif isinstance(img, str) and img.startswith("http"):
                                     collected_images.append(img)
 
+                        # Base64-Bilder aus browser_screenshot (und ähnlichen Tools) sammeln
+                        if ok:
+                            img_data = result_data.get("image", "")
+                            if img_data and isinstance(img_data, str) and img_data.startswith("data:image"):
+                                collected_images.append(img_data)
+
                         tool_results.append({
                             "role":         "tool",
                             "tool_call_id": tc["id"],
