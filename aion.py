@@ -1164,7 +1164,8 @@ class AionSession:
                     pass
             _check_fail_streak = 0   # Zählt aufeinanderfolgende Check-Fehler
             _empty_resp_streak = 0   # Zählt aufeinanderfolgende leere LLM-Antworten
-            _stop_for_approval = False  # Gesetzt wenn Tool approval_required zurückgibt
+            _stop_for_approval = False   # Gesetzt wenn Tool approval_required zurückgibt
+            _approval_msg_for_history: str | None = None  # Approval-Text für History
             _tools_called_this_turn: list[str] = []   # Alle Tools die in diesem Turn aufgerufen wurden
             _task_check_done = False  # Task-Check läuft max. einmal pro Turn
             _fallback_list = _get_fallback_models(MODEL)
@@ -1309,6 +1310,7 @@ class AionSession:
                                 "tool_call_id": tc["id"],
                                 "content":      result_raw,
                             })
+                            _approval_msg_for_history = approval_msg
                             break  # Inneren Loop verlassen
 
                         # Bild-URLs aus image_search-Ergebnis sammeln
@@ -1332,6 +1334,10 @@ class AionSession:
 
                     # Approval ausstehend → äußeren Iterations-Loop ebenfalls verlassen
                     if _stop_for_approval:
+                        # Approval-Message als assistant in History schreiben,
+                        # damit der nächste Turn vollständigen Kontext hat.
+                        if _approval_msg_for_history:
+                            messages.append({"role": "assistant", "content": _approval_msg_for_history})
                         break
 
                 else:
@@ -1387,16 +1393,19 @@ class AionSession:
                                 messages=[
                                     {"role": "system", "content": (
                                         "You are a strict checker. Answer only YES or NO.\n"
-                                        "Question: Does the AI response announce, describe, or imply "
-                                        "an action that was NOT actually executed via a real tool call? "
-                                        "This includes:\n"
-                                        "- Announcing future action: 'I will now...', 'Ich beginne jetzt...', 'Let me...', 'Als nächstes...'\n"
-                                        "- Claiming completion without tool: 'I have deleted...', 'I posted...', 'Ich habe X gelöscht'\n"
-                                        "- Showing tool call as text/code block instead of executing it\n"
-                                        "- Starting a numbered step ('Schritt 1: ...') without calling a tool\n"
-                                        "Answer YES if the response describes or announces ANY action that still needs to be done. "
-                                        "Answer NO only if the response is purely informational (explanation, question, answer) "
-                                        "and no tool calls are needed."
+                                        "Question: Does the AI response announce an action that was NOT actually executed "
+                                        "via a real tool call AND that the user is still waiting for?\n"
+                                        "Answer YES ONLY for these cases:\n"
+                                        "- 'I will now do X' / 'Ich werde jetzt X tun' — future tense without tool call\n"
+                                        "- 'Let me do X' / 'Ich mache X jetzt' — commits to immediate action without tool call\n"
+                                        "- Showing code/commands as text block instead of calling the tool\n"
+                                        "- Starting a numbered plan ('Step 1: ...', 'Schritt 1: ...') without calling any tool\n"
+                                        "Answer NO for:\n"
+                                        "- Diagnosis / analysis / explanation of findings ('Das Problem ist...', 'I found that...')\n"
+                                        "- Asking the user a question or requesting confirmation\n"
+                                        "- Showing a diff/preview and waiting for user approval\n"
+                                        "- Purely informational responses (no action needed)\n"
+                                        "- Summaries of what was already done via tools"
                                     )},
                                     {"role": "user", "content": (
                                         f"User request: {user_text[:200]}\n"
