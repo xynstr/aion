@@ -60,7 +60,7 @@ TOOLS_DIR    = PLUGINS_DIR
 CHARACTER_FILE = BOT_DIR / "character.md"
 MAX_MEMORY          = 300
 MAX_TOOL_ITERATIONS = 50
-CHUNK_SIZE          = 40000
+CHUNK_SIZE          = 100000
 LOG_FILE            = BOT_DIR / "aion_events.log"
 LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
 
@@ -538,9 +538,9 @@ def _build_tool_schemas() -> list[dict]:
             "function": {
                 "name": "self_read_code",
                 "description": (
-                    "Liest AIONs eigenen Quellcode in Chunks. "
-                    "Ohne 'path': Dateiliste. Mit 'path' + 'chunk_index': liest Abschnitt. "
-                    "Gibt 'total_chunks' zurück — lies alle Chunks bevor du Änderungen machst!"
+                    "Liest AIONs eigenen Quellcode. "
+                    "Ohne 'path': Dateiliste. Mit 'path': liest die Datei (fast immer 1 Chunk). "
+                    "Bei sehr großen Dateien gibt 'total_chunks' > 1 zurück — dann alle Chunks lesen."
                 ),
                 "parameters": {
                     "type": "object",
@@ -696,8 +696,8 @@ async def _dispatch(name: str, inputs: dict) -> str:
             path = BOT_DIR / path
         try:
             content = path.read_text(encoding="utf-8", errors="replace")
-            return json.dumps({"path": str(path), "content": content[:20000],
-                               "truncated": len(content) > 20000})
+            return json.dumps({"path": str(path), "content": content[:100000],
+                               "truncated": len(content) > 100000})
         except Exception as e:
             return json.dumps({"error": str(e), "path": str(path)})
 
