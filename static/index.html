@@ -1564,12 +1564,12 @@ function handleEvent(ev) {
   switch (ev.type) {
     case 'thought':
       hideThinkingRow();
-      if (currentBubble && currentBubble.dataset.raw) { finalizeCurrentBubble(); awaitingNewBubble = true; }
+      if (currentBubble) { finalizeCurrentBubble(); awaitingNewBubble = true; }
       appendInlineThought(ev.text, ev.trigger);
       break;
     case 'token':
       hideThinkingRow();
-      if (awaitingNewBubble) { finalizeCurrentBubble(); currentBubble = appendAionBubble(); awaitingNewBubble = false; }
+      if (awaitingNewBubble) { currentBubble = appendAionBubble(); awaitingNewBubble = false; }
       if (!currentBubble) { currentBubble = appendAionBubble(); }
       currentBubble.dataset.raw = (currentBubble.dataset.raw || '') + ev.content;
       currentBubble.textContent = currentBubble.dataset.raw;
@@ -1578,7 +1578,7 @@ function handleEvent(ev) {
       break;
     case 'tool_call':
       hideThinkingRow();
-      if (currentBubble && currentBubble.dataset.raw) { finalizeCurrentBubble(); awaitingNewBubble = true; }
+      if (currentBubble) { finalizeCurrentBubble(); awaitingNewBubble = true; }
       appendInlineTool(ev.call_id, ev.tool, ev.args);
       break;
     case 'tool_result':
