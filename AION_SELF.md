@@ -12,62 +12,112 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
-## Latest Improvements (2026-03-21)
+## Latest Improvements (2026-03-22)
 
-### 1. Universal Provider Plugin Architecture
-**What:** AION now supports any LLM provider via a plugin-based registry. Each provider plugin calls `register_provider(prefix, build_fn, label, models)` at load time. `_build_client(model)` dispatches to the matching provider by prefix; OpenAI is the implicit fallback.
-**New provider plugins:**
-- `ollama_provider` — local Ollama server (`ollama/modelname`), no API key needed
-- `deepseek_provider` — DeepSeek API (`deepseek-chat`, `deepseek-reasoner`)
-- `grok_provider` — xAI Grok API (`grok-3`, `grok-3-mini`, `grok-2`)
-- `anthropic_provider` — Anthropic Claude via OpenAI-compat SDK (`claude-opus-4-6`, `claude-sonnet-4-6`, etc.)
-**Benefit:** Users are not limited to one endpoint. Any OpenAI-compatible API works. Adding a new provider = one plugin file.
+### 1. Browser Automation — Playwright Plugin
+**What:** AION can now control a web browser via the `playwright_browser` plugin (8 sync tools).
+**Tools:** `browser_open`, `browser_screenshot`, `browser_click`, `browser_fill`, `browser_get_text`, `browser_evaluate`, `browser_find`, `browser_close`
+**Features:**
+- Thread-safe singleton via `threading.Lock`
+- Configurable via `config.json: "browser_headless"` (default: true)
+- Auto-installed in onboarding (Step 9 System Check)
+- Graceful fallback if Playwright not available
+**Use cases:** Web automation, form filling, screenshot capture, page scraping, interaction testing.
 
-### 2. Unsupported File Message Utility (aion.py)
-**What:** `unsupported_file_message(label: str) -> str` in `aion.py` — single source of truth for response text when a file type cannot be processed.
-**Benefit:** Platform-agnostic. Telegram, Web UI, and all future platforms use the same message.
-**Behavior:** When AION receives a video, document, sticker, etc. via Telegram, it now replies with a helpful message offering to create a plugin for that file type (instead of silent ignore).
+### 2. Dynamic Model Failover
+**What:** When the primary model API fails, AION automatically tries fallback models from the provider registry.
+**How it works:**
+- `_get_fallback_models()` checks which providers have valid API keys (via `env_keys` in registry)
+- Falls back to `config.json: "model_fallback"` list as supplement
+- No hardcoded model names needed — auto-detects available providers
+- User sees `"Model 'X' nicht verfügbar — nutze Fallback 'Y'"` message
+**Benefit:** More reliable operation. If one provider is down, AION seamlessly continues.
 
-### 3. Expanded Onboarding (onboarding.py)
-**What:** Onboarding now has 7 steps and asks about all 6 providers. Users select their preferred model from a numbered list for each provider. All provider API keys are written to `.env`.
-**Providers covered:** Gemini, OpenAI, DeepSeek, Anthropic (Claude), Grok, Ollama
-**Latest models included** in each provider's selection list.
+### 3. Messaging Channel Plugins (Discord + Slack)
+**What:** AION now has bidirectional bots for Discord and Slack, alongside existing Telegram.
+**Discord:** Per-user sessions, responds to DMs + @mentions, slash command `/ask`, 1900-char message splitting
+**Slack:** Socket Mode, responds to `@aion` + DMs, per-user sessions via `slack_{user_id}` channel
+**Setup:** Both collected in onboarding Step 5 (Messaging Channels) with inline setup instructions
+**Requirements:** `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` in `.env`
+**Benefit:** Multi-platform presence. AION accessible via the user's preferred chat service.
 
-### 4. edge-tts Activated
-**What:** `config.json` now sets `"tts_engine": "edge"` and `"tts_voice": "de-DE-KatjaNeural"`. Microsoft Neural TTS — free, online, no API key required.
-**Benefit:** High-quality German voice in Telegram voice replies.
+### 4. Multi-Agent Routing Plugin
+**What:** AION can delegate tasks to sub-agents and manage multiple agent sessions.
+**Tools:** `delegate_to_agent`, `sessions_list`, `sessions_send`, `sessions_history`
+**Sub-agent IDs:** Format `subagent_{uuid8}` (8-char UUID)
+**Recursion guard:** Checks `_active_channel` prefix to prevent infinite loops
+**Use case:** Complex workflows requiring specialized agents or parallel task execution.
 
-### 5. Memory Pagination (aion_web.py + static/index.html)
-**What:** `/api/memory` now returns `has_more: bool` alongside entries. The Web UI shows a "Mehr laden" button and accumulates entries across pages via `_memOffset` state.
+### 5. Docker Support
+**What:** Full Docker containerization via `Dockerfile` + `docker-compose.yml`.
+**Includes:**
+- Python 3.12-slim base + ffmpeg
+- Automatic Playwright/Chromium install
+- Volume mounts for `.env`, `config.json`, all data files, logs
+- Health check via `/api/status`
+- `restart: unless-stopped` policy
+**Deploy:** `docker-compose up` — starts AION on port 7000 with all plugins ready
+**Benefit:** One-command deployment, isolation, no system Python contamination.
 
-### 6. Bug Fixes
-- **aion.py**: `check_raw is None` no longer raises — treated as NO (prevents "Completion-Check Fehler" accordion on Gemini)
-- **aion_web.py**: `(_load_character() or "")[:500]` — no crash when `character.md` is missing
-- **todo_tools**: removed substring-match bug in `todo_done` (partial task names no longer match)
-- **memory_plugin**: channel filter now uses `ch == filter or ch.startswith(filter + "_")` (was too loose)
-- **heartbeat**: `threading.Lock` prevents race condition in `_todo_worker_running` check+set
+### 6. Google OAuth for Gemini
+**What:** Users can sign in via their Google account to use their Gemini API subscription.
+**Backend:** `/api/oauth/google/start`, `/api/oauth/google/callback`
+**Frontend:** "Sign in with Google" button in Keys tab
+**Setup:** Requires `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` in `.env`
+**Note:** OpenAI/Anthropic do NOT support OAuth for subscriptions (API keys separate from accounts).
+**Benefit:** Streamlined onboarding for Google Cloud / Workspace users.
 
-### 7. Task-Completion Enforcer (aion.py)
-**What:** After tool calls, a second LLM check runs automatically (after the completion check).
-**Benefit:** Prevents incomplete tasks. When AION says "done" but steps are still missing (e.g., "plugin created" but not reloaded), the system forces continuation via a system message.
-**Behavior:** Fires at most once per turn, only when tools were called.
+### 7. Expanded Onboarding (9 Steps)
+**What:** Onboarding now has 9 comprehensive steps (was 7).
+**Step 5 - Messaging:** Telegram + Discord + Slack setup (combined)
+**Step 8 - Advanced:** Port, Browser mode (headless/visible), Docker info
+**Step 9 - System Check:** Playwright install/auto-install, API tests, plugins check
+**Features added:** All messaging channels, browser mode config, Docker awareness saved to `config.json`
+**Benefit:** Users configure every feature once, nothing surprises them later.
 
-### 8. Channel-Aware History (memory_plugin.py, aion.py, telegram_bot.py)
-**What:** Conversation history now stores the channel (web, telegram_CHATID, heartbeat, etc.). Filtering is available on load.
-**Benefit:**
-- Telegram sessions only load `telegram_CHATID` history → no web UI context bleed
-- New tool `memory_read_web_history` → load web history on user request ("What did we do in the web UI?")
-- Enables seamless transitions between channels without context mixing
+### 8. Web UI Redesign & Missing Settings
+**What:** Static/index.html redesigned to match AION logo aesthetic + missing settings added.
+**Visual:** Black background (#000), pure white text (#fff), minimal design, AION logo + "THINK. ACT. EVOLVE." tagline
+**New Settings in System Tab:**
+- TTS engine selector (`edge`, `sapi5`, `pyttsx3`)
+- TTS voice input (language-dependent)
+- `model_fallback` list editor (for manual fallback override)
+**Benefit:** All configurable options visible in UI. No blind settings.
 
-### 9. Plugin Subdirectory Enforcement (aion.py, create_plugin tool)
-**What:** `create_plugin` automatically enforces the correct structure `plugins/name/name.py`.
-**Benefit:** Prevents errors from incorrect paths. Auto-generated README.md in every plugin.
-**Behavior:** Regardless of what path is passed, the correct structure is created.
+### 9. Tool Call Ordering Fix (Web UI)
+**What:** Tool calls now appear in the correct DOM order, inline with messages.
+**Before:** Empty message bubble created early, tool calls appended, then message text filled in → text appears BEFORE tools visually
+**After:** Finalize/remove empty bubbles when tool calls arrive, append text in correct sequence
+**Behavior:** Frontend now shows `message → tool → tool → message → tool` in the order they actually occurred
+**Code:** Modified `handleEvent()` to finalize `currentBubble` on tool_call/thought events
 
-### 10. Voice Message Fix (telegram_bot.py)
-**What:** Unicode arrow (`→`) in a print statement was incompatible with Windows stdout → UnicodeEncodeError.
-**Benefit:** Voice messages now work reliably.
-**Behavior:** Print output now uses ASCII-compatible characters (`->`).
+### 10. Messaging Timestamp & Channel Features
+**What:** Web UI system tab now shows active messaging channels + current Web UI port.
+**Completion banner:** Displays all start commands (`aion`, `aion --cli`, `docker-compose up`, `aion --setup`)
+**History segregation:** Each channel (web, telegram_123, slack_456, discord_789, subagent_xyz) has isolated conversation history
+**Benefit:** Multi-channel clarity. Users know which services are active and how to restart.
+
+---
+
+## Prior Improvements (2026-03-21 and earlier)
+
+### Universal Provider Plugin Architecture
+**Providers:** Gemini, OpenAI, DeepSeek, Anthropic (Claude), Grok, Ollama — all via plugin registry.
+
+### Unsupported File Message Utility
+**Single source of truth** for file type responses across all channels.
+
+### edge-tts Activated
+Microsoft Neural TTS for high-quality voice replies.
+
+### Task-Completion Enforcer
+Forces completion check if tasks are incomplete.
+
+### Channel-Aware History
+Telegram/Web/Heartbeat histories isolated by channel.
+
+### Plugin Subdirectory Enforcement
+Prevents broken plugin structures automatically.
 
 ---
 
@@ -91,18 +141,22 @@ AION/
 │   ├── web_tools/               # web_search, web_fetch
 │   ├── pid_tool/                # get_own_pid
 │   ├── restart_tool/            # restart_with_approval
-│   ├── audio_pipeline/          # Universal audio: transcription (ffmpeg+Vosk) + TTS (pyttsx3)
+│   ├── audio_pipeline/          # Universal audio: transcription (ffmpeg+Vosk) + TTS (pyttsx3/edge-tts/sapi5)
 │   ├── audio_transcriber/       # WAV transcription via Vosk (base for audio_pipeline)
 │   │   └── vosk-model-small-de-0.15/   # Offline speech model (not in Git)
 │   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
 │   │   └── tasks.json           # scheduled tasks (auto-generated)
 │   ├── telegram_bot/            # Telegram bidirectional (text + images + voice messages)
+│   ├── discord_bot/             # Discord bot (DMs + @mentions + slash command /ask)
+│   ├── slack_bot/               # Slack bot (Socket Mode, DMs + @aion mentions)
+│   ├── playwright_browser/      # Browser automation (8 tools: open, screenshot, click, fill, get_text, evaluate, find, close)
+│   ├── multi_agent/             # Multi-agent routing (delegate_to_agent, sessions_list, sessions_send, sessions_history)
 │   ├── gemini_provider/         # Google Gemini provider (registers prefix "gemini")
 │   ├── anthropic_provider/      # Anthropic Claude (registers prefix "claude")
 │   ├── deepseek_provider/       # DeepSeek API (registers prefix "deepseek")
 │   ├── grok_provider/           # xAI Grok (registers prefix "grok")
 │   ├── ollama_provider/         # Local Ollama server (registers prefix "ollama/")
-│   ├── memory_plugin/           # Conversation history (JSONL)
+│   ├── memory_plugin/           # Conversation history (JSONL, channel-aware)
 │   ├── clio_reflection/         # DISABLED (_clio_reflection.py — had fake random values)
 │   ├── todo_tools/              # Task management
 │   ├── smart_patch/             # Fuzzy code patching
@@ -212,6 +266,62 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 - On user request: use the `memory_read_web_history` tool to load web entries
 - Enables seamless transitions between channels without context mixing
 
+### Discord (`discord_bot.py`)
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `send_discord_message` | `message: str` | Send a message to the Discord user (requires active session). |
+
+**Features:**
+- Per-user sessions (DMs + @mentions)
+- Slash command `/ask` for explicit requests
+- Auto-splits messages at 1900 chars (Discord limit 2000)
+- Requires `DISCORD_BOT_TOKEN` in `.env`
+- Requires `MESSAGE CONTENT INTENT` enabled in Discord Developer Portal
+
+### Slack (`slack_bot.py`)
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `send_slack_message` | `message: str` | Send a message to the Slack user (requires active session). |
+
+**Features:**
+- Socket Mode via slack-bolt
+- Responds to `@aion` mentions + DMs
+- Per-user sessions (`slack_{user_id}` channel)
+- Requires `SLACK_BOT_TOKEN` (xoxb-) + `SLACK_APP_TOKEN` (xapp-) in `.env`
+- Async wrapper uses `asyncio.new_event_loop()` for each message
+
+### Browser Automation (`playwright_browser.py`)
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `browser_open` | `url: str`, `headless?: bool` | Open a browser to a URL. |
+| `browser_screenshot` | `selector?: str` | Take a screenshot (full page or specific element). |
+| `browser_click` | `selector: str` | Click an element by CSS selector. |
+| `browser_fill` | `selector: str`, `value: str` | Fill an input/textarea/select element. |
+| `browser_get_text` | `selector: str` | Extract text from an element. |
+| `browser_evaluate` | `expression: str` | Execute JavaScript and return result. |
+| `browser_find` | `query: str` | Natural language element search. |
+| `browser_close` | — | Close the browser. |
+
+**Features:**
+- Thread-safe singleton via `threading.Lock`
+- Configurable headless mode via `config.json: "browser_headless"` (default: true)
+- Auto-installed in onboarding Step 9
+- Graceful fallback if Playwright not available
+
+### Multi-Agent Routing (`multi_agent.py`)
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `delegate_to_agent` | `prompt: str`, `steps: int`, `debug?: bool` | Delegate a task to a new sub-agent. Returns result + summary. |
+| `sessions_list` | — | List all active sub-agent sessions (ID, status, steps used). |
+| `sessions_send` | `session_id: str`, `message: str` | Send a message to a specific sub-agent. |
+| `sessions_history` | `session_id?: str` | Read conversation history of a sub-agent (or all sessions). |
+
+**Features:**
+- Sub-agent IDs: `subagent_{uuid8}` format
+- Recursion guard: checks `_active_channel` prefix to prevent infinite loops
+- Independent sessions with isolated memory
+- Useful for parallel complex tasks or specialized workflows
+
 ### Conversation History (`memory_plugin.py`)
 | Tool | Parameters | Description |
 |------|-----------|-------------|
@@ -281,6 +391,9 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 | GET | `/api/providers` | All registered LLM providers with their models and active model |
 | GET | `/api/config` | Configuration: model, paths, statistics |
 | POST | `/api/config/reset_exchanges` | Reset conversation counter |
+| POST | `/api/config/settings` | Update system settings (TTS engine/voice, model_fallback, browser_headless) |
+| GET | `/api/oauth/google/start` | Begin Google OAuth flow for Gemini subscription |
+| GET | `/api/oauth/google/callback` | OAuth callback handler (returns auth token) |
 
 ---
 
@@ -530,4 +643,4 @@ plugins/my_plugin.py             ❌ WRONG
 
 ---
 
-*Last updated: 2026-03-21 — Provider registry system + 5 new provider plugins (Anthropic, DeepSeek, Grok, Ollama, updated Gemini); unsupported_file_message utility; edge-tts activated; memory pagination; expanded onboarding (7 steps, all providers); multiple bug fixes (todo_tools, memory_plugin, heartbeat, aion.py, aion_web.py); /api/providers endpoint; Web UI model picker rebuilt from provider registry*
+*Last updated: 2026-03-22 — Playwright browser automation (8 sync tools); Dynamic model failover with provider detection; Discord + Slack bots (multi-channel); Multi-agent routing; Docker containerization (Dockerfile + docker-compose.yml); Google OAuth for Gemini; Onboarding expanded to 9 steps (Channels + Advanced + System Check); Web UI redesign (black/white aesthetic) + missing settings (TTS, model_fallback); Tool call ordering fix (frontend DOM); All Co-Authored-By lines removed from commits*
