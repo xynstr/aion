@@ -517,6 +517,46 @@ def step7_permissions() -> dict:
 
 # ── Step 8: Advanced Settings ─────────────────────────────────────────────────
 
+def _find_claude_bin() -> str | None:
+    """Sucht die claude CLI (für Onboarding-Check)."""
+    import glob as _glob
+    import shutil as _shutil
+    found = _shutil.which("claude")
+    if found:
+        return found
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
+        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude"),
+        os.path.join(home, ".claude", "local", "claude.exe"),
+        os.path.join(home, ".claude", "local", "claude"),
+        *_glob.glob(
+            os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                         "Microsoft", "WinGet", "Packages",
+                         "Anthropic.Claude*", "**", "claude.exe"),
+            recursive=True,
+        ),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return None
+
+
+def _claude_cli_logged_in(claude_bin: str) -> bool:
+    """Prüft ob claude CLI angemeldet ist (schneller Test-Aufruf)."""
+    import subprocess as _sp
+    try:
+        r = _sp.run(
+            [claude_bin, "--print", "--model", "claude-haiku-4-5-20251001", "ping"],
+            capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
 def step8_advanced() -> dict:
     section("Advanced settings", "Step 8/9:")
     print(f"  {_c(C_DIM, 'Fine-tune AION behavior. All settings can be changed later.')}")
@@ -546,13 +586,119 @@ def step8_advanced() -> dict:
     ok(f"Browser: {'headless' if result['browser_headless'] else 'visible'}.")
     print()
 
+    # ── Claude CLI (Subscription) ────────────────────────────────────────────
+    print(f"  {_c(C_CYAN, 'Claude Subscription (Claude Code CLI)')}")
+    print(f"  {_c(C_DIM, 'Use your Claude.ai subscription ($20/$200 plan) for coding tasks —')}")
+    print(f"  {_c(C_DIM, 'no API key needed. AION delegates complex code to Claude automatically.')}")
+    print()
+
+    import subprocess as _sp
+    claude_bin = _find_claude_bin()
+
+    if claude_bin:
+        ok(f"Claude CLI found: {claude_bin}")
+        logged_in = _claude_cli_logged_in(claude_bin)
+        if logged_in:
+            ok("Claude CLI is authenticated and ready.")
+            result["claude_cli"] = True
+        else:
+            warn("Claude CLI found but not logged in.")
+            print()
+            login_ans = ask("Run 'claude login' now to connect your subscription? (y/n)", "y")
+            if login_ans.lower() in ("y", "yes", "j", "ja", ""):
+                print()
+                info("Opening browser for Claude login...")
+                try:
+                    _sp.run([claude_bin, "login"], timeout=120)
+                    if _claude_cli_logged_in(claude_bin):
+                        ok("Claude CLI authenticated successfully.")
+                        result["claude_cli"] = True
+                    else:
+                        warn("Login may not have completed — verify with: claude --print 'hi'")
+                        result["claude_cli"] = False
+                except Exception as e:
+                    warn(f"Login failed: {e}")
+                    result["claude_cli"] = False
+            else:
+                info("Skipped — run 'claude login' later to activate.")
+                result["claude_cli"] = False
+    else:
+        print(f"  {_c(C_DIM, 'Claude CLI not installed.')}")
+        print()
+        install_ans = ask("Install Claude Code CLI now? (y/n)", "n")
+        if install_ans.lower() in ("y", "yes", "j", "ja"):
+            print()
+            info("Installing Claude Code via npm...")
+            import shutil as _shutil
+            npm = _shutil.which("npm")
+            if not npm:
+                warn("npm not found. Install Node.js first: https://nodejs.org")
+                info("Then run: npm install -g @anthropic-ai/claude-code && claude login")
+                result["claude_cli"] = False
+            else:
+                try:
+                    r = _sp.run(
+                        [npm, "install", "-g", "@anthropic-ai/claude-code"],
+                        capture_output=True, text=True, timeout=120,
+                    )
+                    if r.returncode == 0:
+                        ok("Claude Code CLI installed.")
+                        claude_bin = _find_claude_bin()
+                        if claude_bin:
+                            print()
+                            login_ans2 = ask("Run 'claude login' now to connect your subscription? (y/n)", "y")
+                            if login_ans2.lower() in ("y", "yes", "j", "ja", ""):
+                                _sp.run([claude_bin, "login"], timeout=120)
+                                if _claude_cli_logged_in(claude_bin):
+                                    ok("Claude CLI authenticated.")
+                                    result["claude_cli"] = True
+                                else:
+                                    warn("Run 'claude login' manually to finish setup.")
+                                    result["claude_cli"] = False
+                            else:
+                                info("Run 'claude login' later.")
+                                result["claude_cli"] = False
+                    else:
+                        warn(f"npm install failed: {r.stderr[:200]}")
+                        info("Manual install: npm install -g @anthropic-ai/claude-code")
+                        result["claude_cli"] = False
+                except Exception as e:
+                    warn(f"Install error: {e}")
+                    result["claude_cli"] = False
+        else:
+            info("Skipped — install later: npm install -g @anthropic-ai/claude-code")
+            result["claude_cli"] = False
+
+    # Task routing config
+    if result.get("claude_cli"):
+        print()
+        print(f"  {_c(C_DIM, 'Task routing — which model handles which task type:')}")
+        print(f"    {_c(C_WHITE, 'coding')}   → claude-opus-4-6  (best for writing/refactoring code)")
+        print(f"    {_c(C_WHITE, 'review')}   → claude-sonnet-4-6  (fast + good for code review)")
+        print(f"    {_c(C_WHITE, 'default')}  → your primary model  (everything else)")
+        print()
+        use_defaults = ask("Use these routing defaults? (y/n)", "y")
+        if use_defaults.lower() in ("y", "yes", "j", "ja", ""):
+            result["task_routing"] = {
+                "coding":  "claude-opus-4-6",
+                "review":  "claude-sonnet-4-6",
+                "default": "gemini-2.5-flash",
+            }
+            ok("Task routing configured.")
+        else:
+            coding_model  = ask("Model for coding tasks", "claude-opus-4-6")
+            default_model = ask("Default model (for everything else)", "gemini-2.5-flash")
+            result["task_routing"] = {
+                "coding":  coding_model,
+                "default": default_model,
+            }
+            ok("Task routing saved.")
+    print()
+
     # Docker
     print(f"  {_c(C_CYAN, 'Docker')}")
     print(f"  {_c(C_DIM, 'AION includes a Dockerfile and docker-compose.yml for containerized deployment.')}")
-    print(f"  {_c(C_DIM, 'You can use Docker instead of or alongside the native Python process.')}")
-    print()
     print(f"  {_c(C_DIM, 'To run via Docker:  docker-compose up')}")
-    print(f"  {_c(C_DIM, 'To build the image: docker build -t aion .')}")
     print()
     info("No Docker configuration needed here — uses the same .env and config.json.")
     print()
@@ -702,6 +848,18 @@ def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
         else:
             info("Skipped — run later: pip install playwright && playwright install chromium")
 
+    # 6. Claude CLI
+    info("Claude Code CLI (subscription provider) ...")
+    claude_bin = _find_claude_bin()
+    if claude_bin:
+        logged_in = _claude_cli_logged_in(claude_bin)
+        if logged_in:
+            ok("Claude CLI ready — ask_claude tool available")
+        else:
+            warn("Claude CLI found but not authenticated — run: claude login")
+    else:
+        info("Claude CLI not installed — ask_claude tool unavailable (optional)")
+
     return all_ok
 
 # ── Write Output ──────────────────────────────────────────────────────────────
@@ -757,6 +915,8 @@ def write_config(model: str, permissions: dict | None = None, advanced: dict | N
     if advanced:
         if "browser_headless" in advanced:
             cfg["browser_headless"] = advanced["browser_headless"]
+        if "task_routing" in advanced:
+            cfg["task_routing"] = advanced["task_routing"]
     config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     ok(f"config.json written ({config_path})")
 
@@ -827,6 +987,12 @@ def completion_banner(model: str, name: str, extra_count: int,
             active.append("Slack")
         if active:
             print(f"  {_c(C_DIM, 'Channels:  ')}{_c(C_CYAN, ', '.join(active))}")
+
+    # Show Claude CLI status
+    if advanced and advanced.get("claude_cli"):
+        routing = advanced.get("task_routing", {})
+        coding_model = routing.get("coding", "claude-opus-4-6")
+        print(f"  {_c(C_DIM, 'Claude:    ')}{_c(C_CYAN, f'ask_claude active — coding → {coding_model}')}")
 
     # Show port
     if advanced:

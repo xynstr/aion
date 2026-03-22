@@ -1159,6 +1159,7 @@ class AionSession:
         messages          = self.messages + [user_msg]
         final_text        = ""
         collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
+        collected_audio:  list[dict] = []  # {path, format} aus audio_tts
         _client           = self._get_client()
 
         # Channel in ContextVar setzen — damit _dispatch die richtigen Pending-Dicts nutzt
@@ -1357,6 +1358,16 @@ class AionSession:
                             img_data = result_data.get("image", "")
                             if img_data and isinstance(img_data, str) and img_data.startswith("data:image"):
                                 collected_images.append(img_data)
+
+                        # Audio-Pfade aus audio_tts sammeln → als abspielbarer Block im Web UI
+                        if ok and fn_name == "audio_tts":
+                            audio_path = result_data.get("path", "")
+                            audio_fmt  = result_data.get("format", "mp3")
+                            if audio_path and os.path.exists(audio_path):
+                                collected_audio.append({
+                                    "path":   audio_path,
+                                    "format": audio_fmt,
+                                })
 
                         # LLM braucht keine Base64-Bilddaten — entferne sie aus dem Tool-Result
                         # um Tokens zu sparen und Context-Overflow zu vermeiden
@@ -1655,15 +1666,23 @@ class AionSession:
             if self.exchange_count % 5 == 0:
                 asyncio.create_task(self._auto_character_update())
 
-            # Response-Blöcke: Text + Bilder als strukturierte Liste
+            # Response-Blöcke: Text + Bilder + Audio als strukturierte Liste
             response_blocks: list[dict] = []
             if final_text:
                 response_blocks.append({"type": "text", "content": final_text})
             for img_url in collected_images:
                 response_blocks.append({"type": "image", "url": img_url})
+            for audio in collected_audio:
+                fname = os.path.basename(audio["path"])
+                response_blocks.append({
+                    "type":   "audio",
+                    "url":    f"/api/audio/{fname}",
+                    "format": audio["format"],
+                    "path":   audio["path"],
+                })
 
             # Fallback: wenn nach der Schleife kein Text vorhanden, kurze Info ausgeben
-            if not final_text and not collected_images:
+            if not final_text and not collected_images and not collected_audio:
                 final_text = "✓"  # Minimales Signal damit die UI nicht leer bleibt
                 yield {"type": "token", "content": final_text}
 

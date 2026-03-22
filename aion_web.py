@@ -629,12 +629,132 @@ async def save_settings(request: Request):
     except Exception:
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     cfg     = _load_config()
-    allowed = {"tts_engine", "tts_voice", "model_fallback", "browser_headless"}
+    allowed = {"tts_engine", "tts_voice", "model_fallback", "browser_headless", "task_routing"}
     for k, v in body.items():
         if k in allowed:
             cfg[k] = v
     _save_config(cfg)
     return JSONResponse({"ok": True})
+
+# ── Audio File Serving ──────────────────────────────────────────────────────────
+
+@app.get("/api/audio/{filename}")
+async def serve_audio(filename: str):
+    """Serviert eine Temp-Audiodatei (erzeugt von audio_tts) für den Web UI Player."""
+    import tempfile
+    from fastapi.responses import FileResponse
+    # Sicherheit: nur erlaubte Endungen, kein Path-Traversal
+    allowed_ext = {".mp3", ".wav", ".ogg", ".m4a", ".opus"}
+    p = Path(filename)
+    if p.suffix.lower() not in allowed_ext or "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "invalid filename"}, status_code=400)
+    audio_path = Path(tempfile.gettempdir()) / filename
+    if not audio_path.exists():
+        return JSONResponse({"error": "not found"}, status_code=404)
+    mime_map = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",
+                ".m4a": "audio/mp4", ".opus": "audio/opus"}
+    mime = mime_map.get(p.suffix.lower(), "audio/mpeg")
+    return FileResponse(str(audio_path), media_type=mime)
+
+def _find_claude_bin_web():
+    """Hilfsfunktion: sucht claude CLI (wiederverwendet in mehreren Endpoints)."""
+    import shutil, glob as _glob
+    found = shutil.which("claude")
+    if found:
+        return found
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
+        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude"),
+        os.path.join(home, ".claude", "local", "claude.exe"),
+        *_glob.glob(os.path.join(os.environ.get("LOCALAPPDATA", ""),
+            "Microsoft", "WinGet", "Packages", "Anthropic.Claude*", "**", "claude.exe"),
+            recursive=True),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return None
+
+@app.get("/api/claude-cli/status")
+async def claude_cli_status():
+    """Prüft ob claude CLI installiert und authentifiziert ist."""
+    import subprocess
+    bin_path = _find_claude_bin_web()
+    if not bin_path:
+        return JSONResponse({"installed": False, "authenticated": False, "path": None})
+    try:
+        r = subprocess.run(
+            [bin_path, "--print", "--model", "claude-haiku-4-5-20251001", "ping"],
+            capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace",
+        )
+        authed = r.returncode == 0
+    except Exception:
+        authed = False
+    return JSONResponse({"installed": True, "authenticated": authed, "path": bin_path})
+
+_claude_login_proc = None  # laufender login-Prozess
+
+@app.post("/api/claude-cli/login")
+async def claude_cli_login():
+    """Startet 'claude login' — öffnet den Browser für die Anmeldung."""
+    import subprocess
+    global _claude_login_proc
+
+    bin_path = _find_claude_bin_web()
+    if not bin_path:
+        # Claude CLI nicht installiert → erst installieren via npm
+        import shutil
+        npm = shutil.which("npm") or shutil.which("npm.cmd")
+        if not npm:
+            return JSONResponse({
+                "ok": False,
+                "step": "no_npm",
+                "error": "npm nicht gefunden. Node.js installieren: https://nodejs.org",
+            })
+        # npm install in Background-Task
+        try:
+            r = subprocess.run(
+                [npm, "install", "-g", "@anthropic-ai/claude-code"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if r.returncode != 0:
+                return JSONResponse({"ok": False, "step": "install_failed", "error": r.stderr[:300]})
+            bin_path = _find_claude_bin_web()
+            if not bin_path:
+                return JSONResponse({"ok": False, "step": "install_failed",
+                                     "error": "Nach Installation nicht gefunden — Terminal neu starten."})
+        except Exception as e:
+            return JSONResponse({"ok": False, "step": "install_failed", "error": str(e)})
+
+    # Bereits angemeldet?
+    try:
+        chk = subprocess.run(
+            [bin_path, "--print", "--model", "claude-haiku-4-5-20251001", "ping"],
+            capture_output=True, text=True, timeout=8, encoding="utf-8", errors="replace",
+        )
+        if chk.returncode == 0:
+            return JSONResponse({"ok": True, "step": "already_authenticated",
+                                 "message": "Bereits angemeldet."})
+    except Exception:
+        pass
+
+    # Login starten (öffnet Browser)
+    try:
+        if sys.platform == "win32":
+            _claude_login_proc = subprocess.Popen(
+                [bin_path, "login"],
+                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP,
+            )
+        else:
+            _claude_login_proc = subprocess.Popen([bin_path, "login"])
+        return JSONResponse({
+            "ok": True,
+            "step": "browser_opened",
+            "message": "Browser wurde geöffnet. Melde dich mit deinem Claude-Konto an — danach 'Status prüfen' klicken.",
+        })
+    except Exception as e:
+        return JSONResponse({"ok": False, "step": "launch_failed", "error": str(e)})
 
 # ── Google OAuth ───────────────────────────────────────────────────────────────
 _GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
