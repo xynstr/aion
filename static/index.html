@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AION</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
 :root {
   --bg:      #000000;
@@ -82,7 +83,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   background: rgba(255,255,255,.06); color: #ffffff;
   border-left: 2px solid #ffffff; padding-left: 8px;
 }
-.snav-icon { font-size: 15px; flex-shrink: 0; }
+.snav-icon { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:18px; }
+.snav-icon svg { width:15px; height:15px; stroke-width:1.75; }
+/* Lucide icon sizing helper */
+.icon svg, i[data-lucide] { display:inline-block; vertical-align:middle; }
+.icon-sm svg { width:13px; height:13px; stroke-width:1.75; }
+.icon-md svg { width:16px; height:16px; stroke-width:1.75; }
+.icon-lg svg { width:20px; height:20px; stroke-width:1.5; }
+.iacc-icon svg { width:13px; height:13px; stroke-width:1.75; }
 .snav-label { flex: 1; }
 .snav-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; opacity: 0; transition: opacity .15s; }
 .snav-dot.visible { opacity: 1; }
@@ -271,7 +279,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .prompt-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 7px; cursor: pointer; border: none; border-left: 2px solid transparent; background: transparent; color: var(--text2); font-size: 13px; width: 100%; text-align: left; transition: all .15s; }
 .prompt-item:hover { background: var(--bg3); color: var(--text); }
 .prompt-item.active { background: rgba(255,255,255,.05); color: #ffffff; border-left-color: #ffffff; }
-.prompt-item .pi-icon { font-size: 15px; flex-shrink: 0; }
+.prompt-item .pi-icon { display:flex; align-items:center; flex-shrink:0; }
+.prompt-item .pi-icon svg { width:14px; height:14px; stroke-width:1.75; }
 .prompt-item .pi-label { flex: 1; }
 .prompt-item .pi-dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--yellow); flex-shrink: 0; opacity: 0; transition: opacity .15s; }
 .prompt-item .pi-dirty.visible { opacity: 1; }
@@ -433,28 +442,28 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       </div>
       <nav class="sidebar-nav">
         <button class="snav-btn active" id="snav-chat" onclick="switchSection('chat')">
-          <span class="snav-icon">💬</span>
+          <span class="snav-icon"><i data-lucide="message-square"></i></span>
           <span class="snav-label">Chat</span>
         </button>
         <button class="snav-btn" id="snav-prompts" onclick="switchSection('prompts')">
-          <span class="snav-icon">📝</span>
+          <span class="snav-icon"><i data-lucide="file-text"></i></span>
           <span class="snav-label">Prompts</span>
           <span class="snav-dot" id="snav-dirty-prompts"></span>
         </button>
         <button class="snav-btn" id="snav-plugins" onclick="switchSection('plugins')">
-          <span class="snav-icon">🔌</span>
+          <span class="snav-icon"><i data-lucide="puzzle"></i></span>
           <span class="snav-label">Plugins</span>
         </button>
         <button class="snav-btn" id="snav-memory" onclick="switchSection('memory')">
-          <span class="snav-icon">🧠</span>
+          <span class="snav-icon"><i data-lucide="database"></i></span>
           <span class="snav-label">Memory</span>
         </button>
         <button class="snav-btn" id="snav-keys" onclick="switchSection('keys')">
-          <span class="snav-icon">🔑</span>
+          <span class="snav-icon"><i data-lucide="key-round"></i></span>
           <span class="snav-label">Keys</span>
         </button>
         <button class="snav-btn" id="snav-settings" onclick="switchSection('settings')">
-          <span class="snav-icon">⊞</span>
+          <span class="snav-icon"><i data-lucide="sliders-horizontal"></i></span>
           <span class="snav-label">System</span>
         </button>
       </nav>
@@ -506,15 +515,15 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="prompt-body">
           <div class="prompt-file-nav">
             <button class="prompt-item active" id="pitem-rules" onclick="promptSwitch('rules')">
-              <span class="pi-icon">⚙</span><span class="pi-label">Regeln</span>
+              <span class="pi-icon"><i data-lucide="scroll-text"></i></span><span class="pi-label">Regeln</span>
               <span class="pi-dirty" id="pdirty-rules"></span>
             </button>
             <button class="prompt-item" id="pitem-character" onclick="promptSwitch('character')">
-              <span class="pi-icon">🌱</span><span class="pi-label">Charakter</span>
+              <span class="pi-icon"><i data-lucide="user-round"></i></span><span class="pi-label">Charakter</span>
               <span class="pi-dirty" id="pdirty-character"></span>
             </button>
             <button class="prompt-item" id="pitem-self_doc" onclick="promptSwitch('self_doc')">
-              <span class="pi-icon">📖</span><span class="pi-label">Selbst-Doku</span>
+              <span class="pi-icon"><i data-lucide="book-open"></i></span><span class="pi-label">Selbst-Doku</span>
               <span class="pi-dirty" id="pdirty-self_doc"></span>
             </button>
           </div>
@@ -536,12 +545,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="page-subtitle" id="pluginTotalBadge">…</div>
           </div>
           <div class="page-hdr-actions">
-            <button class="action-btn" id="pluginReloadBtn" onclick="reloadPlugins()">↺ Reload</button>
+            <button class="action-btn" id="pluginReloadBtn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Reload</button>
           </div>
         </div>
         <div class="page-scroll">
           <div id="pluginList">
-            <div class="memory-empty"><span style="font-size:28px;opacity:.2">🔌</span><span>Lade Plugins…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Plugins…</span></div>
           </div>
         </div>
       </div>
@@ -554,17 +563,17 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="page-subtitle" id="memoryTotalBadge">…</div>
           </div>
           <div class="page-hdr-actions">
-            <button class="action-btn danger" onclick="clearMemory()">🗑 Leeren</button>
+            <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Leeren</button>
           </div>
         </div>
         <div class="page-scroll">
           <div class="memory-search-wrap">
             <input type="text" class="memory-search" id="memorySearch"
-                   placeholder="🔍  Suchen…" oninput="debounceMemorySearch()">
+                   placeholder="Suchen…" oninput="debounceMemorySearch()">
             <button class="action-btn" onclick="loadMemory()">↺</button>
           </div>
           <div id="memoryList">
-            <div class="memory-empty"><span style="font-size:28px;opacity:.2">🧠</span><span>Lade Einträge…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Einträge…</span></div>
           </div>
         </div>
       </div>
@@ -590,7 +599,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider" id="googleOAuthDivider" style="display:none"></div>
           <div id="keysList">
-            <div class="memory-empty"><span style="font-size:28px;opacity:.2">🔑</span><span>Lade Keys…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Keys…</span></div>
           </div>
         </div>
       </div>
@@ -600,12 +609,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">System</div>
-            <div class="page-subtitle">AION-Konfiguration und Statistiken</div>
+            <div class="page-subtitle">Konfiguration & Statistiken</div>
           </div>
         </div>
         <div class="page-scroll">
           <div class="settings-group">
-            <div class="settings-label">Statistiken</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="bar-chart-2" style="width:13px;height:13px;stroke-width:1.75"></i> Statistiken</div>
             <div class="stat-grid">
               <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
               <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
@@ -615,7 +624,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">KI-Modell</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="cpu" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Modell</div>
             <div class="settings-row">
               <select class="settings-select" id="settingsModel">
                 <option value="">Lade Modelle…</option>
@@ -631,14 +640,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">Aktive Provider</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="plug" style="width:13px;height:13px;stroke-width:1.75"></i> Aktive Provider</div>
             <div id="providerList" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
               <span style="font-size:11px;color:var(--text3)">Lade…</span>
             </div>
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">Sprachausgabe (TTS)</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="volume-2" style="width:13px;height:13px;stroke-width:1.75"></i> Sprachausgabe (TTS)</div>
             <div class="settings-row" style="margin-bottom:6px">
               <span style="font-size:12px;color:var(--text2);min-width:60px">Engine</span>
               <select class="settings-select" id="ttsEngine" style="max-width:200px" onchange="saveTTSSettings()">
@@ -657,7 +666,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">Model Fallback</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="git-branch" style="width:13px;height:13px;stroke-width:1.75"></i> Fallback-Modelle</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Kommagetrennte Modelle als Fallback bei API-Fehler</div>
             <div class="settings-row">
               <input type="text" id="modelFallbackInput" class="settings-select"
@@ -668,26 +677,59 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">AION-Verzeichnis</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="route" style="width:13px;height:13px;stroke-width:1.75"></i> Task Routing</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+              Welches Modell AION für welche Aufgabe nutzt. Claude-Abo via Claude Code CLI — kein API-Key nötig.<br>
+              <span id="claudeCliStatus" style="margin-top:4px;display:inline-block"></span>
+            </div>
+            <div style="display:grid;grid-template-columns:80px 1fr;gap:6px 10px;align-items:center;max-width:480px">
+              <span style="font-size:11px;color:var(--text2)">Coding</span>
+              <input type="text" id="routingCoding" class="settings-select"
+                style="background:var(--bg4);font-family:monospace;font-size:12px"
+                placeholder="claude-opus-4-6">
+              <span style="font-size:11px;color:var(--text2)">Review</span>
+              <input type="text" id="routingReview" class="settings-select"
+                style="background:var(--bg4);font-family:monospace;font-size:12px"
+                placeholder="claude-sonnet-4-6">
+              <span style="font-size:11px;color:var(--text2)">Browsing</span>
+              <input type="text" id="routingBrowsing" class="settings-select"
+                style="background:var(--bg4);font-family:monospace;font-size:12px"
+                placeholder="gemini-2.5-flash">
+              <span style="font-size:11px;color:var(--text2)">Default</span>
+              <input type="text" id="routingDefault" class="settings-select"
+                style="background:var(--bg4);font-family:monospace;font-size:12px"
+                placeholder="gemini-2.5-pro">
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="action-btn primary" onclick="saveTaskRouting()">Speichern</button>
+              <button class="action-btn" id="claudeLoginBtn" onclick="claudeCliLogin()">Mit Claude anmelden</button>
+              <button class="action-btn" onclick="_loadClaudeCliStatus()">↺ Status prüfen</button>
+              <span id="routingSaveStatus" style="font-size:11px;color:var(--text3)"></span>
+            </div>
+            <div id="claudeLoginMsg" style="margin-top:8px;font-size:11px;display:none"></div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="folder" style="width:13px;height:13px;stroke-width:1.75"></i> Verzeichnis</div>
             <div class="settings-val" id="settingsBotDir">…</div>
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">Berechtigungen</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="shield-check" style="width:13px;height:13px;stroke-width:1.75"></i> Berechtigungen</div>
             <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-              <button class="action-btn" onclick="applyPermPreset('conservative')">🔒 Conservative</button>
-              <button class="action-btn" onclick="applyPermPreset('balanced')">⚖️ Balanced</button>
-              <button class="action-btn" onclick="applyPermPreset('autonomous')">🚀 Autonomous</button>
+              <button class="action-btn" onclick="applyPermPreset('conservative')" style="display:flex;align-items:center;gap:5px"><i data-lucide="shield" style="width:13px;height:13px;stroke-width:1.75"></i> Conservative</button>
+              <button class="action-btn" onclick="applyPermPreset('balanced')" style="display:flex;align-items:center;gap:5px"><i data-lucide="scale" style="width:13px;height:13px;stroke-width:1.75"></i> Balanced</button>
+              <button class="action-btn" onclick="applyPermPreset('autonomous')" style="display:flex;align-items:center;gap:5px"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> Autonomous</button>
             </div>
             <div id="permissionsList" style="display:flex;flex-direction:column;gap:4px"></div>
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
-            <div class="settings-label">Aktionen</div>
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="terminal" style="width:13px;height:13px;stroke-width:1.75"></i> Aktionen</div>
             <div style="display:flex;flex-direction:column;gap:8px;max-width:380px">
-              <button class="action-btn" onclick="resetExchanges()">↺ Gesprächszähler zurücksetzen</button>
-              <button class="action-btn danger" onclick="clearMemory()">🗑 Memory komplett leeren</button>
-              <button class="action-btn" onclick="reloadPlugins()">🔌 Alle Plugins neu laden</button>
+              <button class="action-btn" onclick="resetExchanges()" style="display:flex;align-items:center;gap:5px"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke-width:1.75"></i> Gesprächszähler zurücksetzen</button>
+              <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Memory komplett leeren</button>
+              <button class="action-btn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Alle Plugins neu laden</button>
             </div>
           </div>
         </div>
@@ -701,7 +743,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <div class="modal-overlay" id="toolModal" onclick="closeModal(event)">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <div class="modal-title" id="modalTitle">🔧 tool_name</div>
+      <div class="modal-title" id="modalTitle">tool_name</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
@@ -719,23 +761,36 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 // ═══════════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════════
+// Lucide icon names for tools
 const TOOL_ICONS = {
-  web_search:'🔍', web_fetch:'🌐', shell_exec:'🖥️', winget_install:'📦',
-  file_read:'📖', file_write:'📝', self_read_code:'👁️', self_patch_code:'🩹',
-  file_replace_lines:'✂️', self_modify_code:'✏️', install_package:'🐍',
-  create_plugin:'🔧', create_tool:'🔧', memory_record:'🧠', system_info:'ℹ️',
-  reflect:'💭', update_character:'🌱', switch_model:'🔄',
-  send_telegram_message:'✈️', continue_work:'⏩',
-  todo_add:'✅', todo_list:'📋', todo_done:'✅', todo_remove:'🗑️', smart_patch:'🔨',
-  schedule_add:'⏰', schedule_list:'📅', schedule_remove:'🗑️', schedule_toggle:'🔀',
-  image_search:'🖼️', create_docx:'📄', audio_tts:'🔊', audio_transcribe_any:'🎙️',
+  web_search:'search', web_fetch:'globe', shell_exec:'terminal', winget_install:'package',
+  file_read:'file', file_write:'file-pen', self_read_code:'eye', self_patch_code:'bandage',
+  file_replace_lines:'scissors', self_modify_code:'pencil', install_package:'package-plus',
+  create_plugin:'wrench', create_tool:'wrench', memory_record:'database', system_info:'info',
+  reflect:'brain', update_character:'user-pen', switch_model:'refresh-cw',
+  send_telegram_message:'send', continue_work:'fast-forward',
+  todo_add:'circle-plus', todo_list:'list-todo', todo_done:'circle-check', todo_remove:'trash-2',
+  smart_patch:'hammer', schedule_add:'clock', schedule_list:'calendar',
+  schedule_remove:'trash-2', schedule_toggle:'toggle-right',
+  image_search:'image', create_docx:'file-text', audio_tts:'volume-2',
+  audio_transcribe_any:'mic', browser_open:'globe', browser_screenshot:'camera',
+  browser_click:'mouse-pointer-click', browser_fill:'type', browser_get_text:'align-left',
+  browser_evaluate:'code', browser_find:'search', browser_close:'x-circle',
+  ask_claude:'bot', delegate_to_agent:'users', sessions_list:'layout-list',
+  sessions_send:'send', sessions_history:'history',
 };
+// Lucide icon names for plugins
 const PLUGIN_ICONS = {
-  core_tools:'🛠', reflection:'💭', shell_tools:'🖥️', web_tools:'🌐',
-  character_manager:'🌱', memory_plugin:'🧠', gemini_provider:'✨',
-  telegram_bot:'✈️', image_search:'🖼️', scheduler:'⏰', audio_pipeline:'🎙️',
-  audio_transcriber:'🔊', smart_patch:'🔨', todo_tools:'✅', heartbeat:'💓',
-  restart_tool:'↺', pid_tool:'🔢', docx_tool:'📄', moltbook:'📚',
+  core_tools:'settings-2', reflection:'brain', shell_tools:'terminal', web_tools:'globe',
+  character_manager:'user', memory_plugin:'database', gemini_provider:'sparkles',
+  anthropic_provider:'bot', deepseek_provider:'cpu', grok_provider:'activity',
+  ollama_provider:'hard-drive', openai_provider:'zap',
+  telegram_bot:'send', discord_bot:'message-circle', slack_bot:'hash',
+  image_search:'image', scheduler:'clock', audio_pipeline:'mic',
+  audio_transcriber:'volume-2', smart_patch:'hammer', todo_tools:'list-todo',
+  heartbeat:'heart-pulse', restart_tool:'rotate-ccw', pid_tool:'fingerprint',
+  docx_tool:'file-text', moltbook:'book-open', playwright_browser:'monitor',
+  multi_agent:'network', claude_cli_provider:'bot',
 };
 
 let isThinking        = false;
@@ -781,6 +836,7 @@ async function init() {
     syncModelSelects(s.model, document.getElementById('modelSelect'));
   } catch {}
   await loadHistory();
+  if (window.lucide) lucide.createIcons();
 }
 init();
 
@@ -811,6 +867,8 @@ function loadCurrentSection() {
   if (currentSection === 'memory')   loadMemory();
   if (currentSection === 'keys')     { loadKeys(); initGoogleOAuth(); }
   if (currentSection === 'settings') { loadSettings(); loadPermissions(); }
+  // Re-initialize icons for newly visible static HTML elements
+  if (window.lucide) lucide.createIcons();
 }
 
 // ── PROMPTS ───────────────────────────────────────────────────────────────────
@@ -888,7 +946,7 @@ function renderPlugins(data) {
   list.innerHTML = '';
   let html = '';
   for (const p of data.plugins) {
-    const icon   = PLUGIN_ICONS[p.name] || '🔌';
+    const picon  = pluginIcon(p.name);
     const cls    = p.loaded ? 'loaded' : 'unloaded';
     const cntCls = p.loaded ? 'loaded' : '';
     const toolsHtml = p.tools.map(t => `
@@ -900,7 +958,7 @@ function renderPlugins(data) {
     html += `
       <div class="plugin-card ${cls}" id="pc-${esc(p.name)}">
         <div class="plugin-hdr" onclick="togglePlugin('${esc(p.name)}')">
-          <span class="plugin-icon">${icon}</span>
+          <span class="plugin-icon">${picon}</span>
           <span class="plugin-name">${esc(p.name)}</span>
           <span class="plugin-count ${cntCls}">${p.tools.length} Tools</span>
           <span class="plugin-chevron">▶</span>
@@ -909,23 +967,24 @@ function renderPlugins(data) {
       </div>`;
   }
   if (data.orphan_tools && data.orphan_tools.length) {
-    const chips = data.orphan_tools.map(t => `<span class="orphan-chip">⚙ ${esc(t.name)}</span>`).join('');
+    const chips = data.orphan_tools.map(t => `<span class="orphan-chip">${icon('settings-2',11)} ${esc(t.name)}</span>`).join('');
     html += `<div class="orphan-section"><div class="orphan-label">Weitere Tools (ohne Plugin-Ordner)</div><div style="display:flex;flex-wrap:wrap">${chips}</div></div>`;
   }
   list.innerHTML = html || '<div class="memory-empty"><span style="opacity:.3">Keine Plugins gefunden</span></div>';
+  if (window.lucide) lucide.createIcons({rootNode: list});
 }
 
 function togglePlugin(name) { document.getElementById(`pc-${name}`).classList.toggle('open'); }
 
 async function reloadPlugins() {
   const btn = document.getElementById('pluginReloadBtn');
-  btn.disabled = true; btn.textContent = '⏳';
+  btn.disabled = true; btn.innerHTML = '<span class="mini-spinner"></span>';
   try {
     const data = await (await fetch('/api/plugins/reload', {method:'POST'})).json();
     if (data.ok) { showToast(`✓ ${data.count} Tools geladen`); loadPlugins(); loadSettings(); }
     else showToast('✗ ' + (data.error || 'Fehler'));
   } catch(e) { showToast('✗ ' + e.message); }
-  finally { btn.disabled = false; btn.textContent = '↺ Reload'; }
+  finally { btn.disabled = false; btn.textContent = 'Reload'; }
 }
 
 // ── MEMORY ────────────────────────────────────────────────────────────────────
@@ -954,7 +1013,7 @@ async function loadMemory(append = false) {
 
 function renderMemory(entries, hasMore = false) {
   const list = document.getElementById('memoryList');
-  if (!entries.length) { list.innerHTML = '<div class="memory-empty"><span style="font-size:24px;opacity:.2">🧠</span><span>Keine Einträge gefunden</span></div>'; return; }
+  if (!entries.length) { list.innerHTML = '<div class="memory-empty"><span style="opacity:.25;display:flex"><i data-lucide="database" style="width:22px;height:22px;stroke-width:1.5"></i></span><span>Keine Einträge gefunden</span></div>'; if (window.lucide) lucide.createIcons({rootNode: list}); return; }
   const cards = entries.map(e => {
     const ts  = e.timestamp ? e.timestamp.replace('T',' ').slice(0,16) : '';
     const cls = e.success === false ? 'failure' : 'success';
@@ -998,38 +1057,132 @@ async function loadKeys() {
   }
 }
 
+// URLs + Hinweise pro Provider
+const _KEY_META = {
+  GEMINI_API_KEY:      { url: 'https://aistudio.google.com/apikey', label: 'Key holen (AI Studio)', hint: 'Kostenlos mit Google-Account' },
+  OPENAI_API_KEY:      { url: 'https://platform.openai.com/api-keys', label: 'Key holen (OpenAI)', hint: 'Konto + Guthaben benötigt' },
+  ANTHROPIC_API_KEY:   { url: 'https://console.anthropic.com/settings/keys', label: 'Key holen (Anthropic)', hint: 'Oder Claude-Abo via CLI nutzen' },
+  DEEPSEEK_API_KEY:    { url: 'https://platform.deepseek.com/api_keys', label: 'Key holen (DeepSeek)', hint: 'Günstige Alternative' },
+  XAI_API_KEY:         { url: 'https://console.x.ai/', label: 'Key holen (xAI)', hint: 'Grok-Modelle' },
+  TELEGRAM_BOT_TOKEN:  { url: 'https://t.me/BotFather', label: 'Token via @BotFather', hint: 'Telegram öffnen → /newbot' },
+  DISCORD_BOT_TOKEN:   { url: 'https://discord.com/developers/applications', label: 'Token holen', hint: 'New App → Bot → Token kopieren' },
+  SLACK_BOT_TOKEN:     { url: 'https://api.slack.com/apps', label: 'Token holen', hint: 'New App → OAuth & Permissions' },
+};
+
 function renderKeys(data) {
   const el = document.getElementById('keysList');
   let html = '';
 
-  const makeRow = (k) => `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+  const makeRow = (k) => {
+    const meta = _KEY_META[k.key] || {};
+    const getLink = meta.url
+      ? `<a href="${esc(meta.url)}" target="_blank" class="action-btn" style="font-size:10px;padding:4px 8px;text-decoration:none">${esc(meta.label||'Key holen')} ↗</a>`
+      : '';
+    const hint = meta.hint
+      ? `<span style="font-size:10px;color:var(--text3);margin-left:4px">${esc(meta.hint)}</span>`
+      : '';
+    return `
+    <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
         <span class="key-name">${k.key}</span>
         <span class="key-badge ${k.set ? 'key-set' : 'key-missing'}">${k.set ? '✓ gesetzt' : '✗ fehlt'}</span>
-        ${k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace">${k.masked}</span>` : ''}
+        ${k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace">${esc(k.masked)}</span>` : hint}
+        ${getLink}
       </div>
       <div style="display:flex;gap:6px">
         <input type="password" class="key-input" id="key-${k.key}"
-               placeholder="${k.set ? 'Neuen Wert eingeben zum Überschreiben…' : 'Key hier eingeben…'}">
+               placeholder="${k.set ? 'Neuen Wert zum Überschreiben…' : 'Key hier einfügen…'}">
         <button class="action-btn primary" onclick="saveKey('${k.key}')">Speichern</button>
       </div>
     </div>`;
+  };
+
+  // Claude CLI Block — immer anzeigen
+  html += `<div class="settings-group">
+    <div class="settings-label">Claude (Abo — kein API-Key)</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+      Nutze dein Claude.ai-Abo ($20/$200) direkt — kein API-Key nötig.<br>
+      <span id="keysClaudeStatus" style="margin-top:3px;display:inline-block"></span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Mit Claude anmelden</button>
+      <button class="action-btn" onclick="checkClaudeStatusInKeys()">↺ Status</button>
+    </div>
+    <div id="keysClaudeMsg" style="margin-top:6px;font-size:11px;display:none"></div>
+  </div>
+  <div class="settings-divider"></div>`;
 
   for (const prov of data.providers) {
+    const allSet = prov.env_keys.every(k => k.set);
+    const statusDot = `<span style="width:7px;height:7px;border-radius:50%;background:${allSet?'var(--green)':'var(--danger,#e55)'};display:inline-block;margin-right:5px"></span>`;
     html += `<div class="settings-group">
-      <div class="settings-label">${prov.label}</div>`;
+      <div class="settings-label">${statusDot}${esc(prov.label)}</div>`;
     for (const k of prov.env_keys) html += makeRow(k);
     html += `</div><div class="settings-divider"></div>`;
   }
 
   if (data.other_keys && data.other_keys.length) {
-    html += `<div class="settings-group"><div class="settings-label">Sonstige</div>`;
+    html += `<div class="settings-group"><div class="settings-label">Sonstige Dienste</div>`;
     for (const k of data.other_keys) html += makeRow(k);
     html += `</div>`;
   }
 
   el.innerHTML = html || '<div class="memory-empty"><span style="opacity:.4">Keine Keys gefunden</span></div>';
+  if (window.lucide) lucide.createIcons({rootNode: el});
+  checkClaudeStatusInKeys();
+}
+
+async function checkClaudeStatusInKeys() {
+  const el = document.getElementById('keysClaudeStatus');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/claude-cli/status');
+    const d = await r.json();
+    if (!d.installed) {
+      el.innerHTML = '<span style="color:var(--text3)">CLI nicht installiert</span>';
+    } else if (!d.authenticated) {
+      el.innerHTML = '<span style="color:var(--yellow,#f5a623)">⚠ Installiert, aber nicht angemeldet</span>';
+    } else {
+      el.innerHTML = '<span style="color:var(--green)">✓ Angemeldet — ask_claude nutzbar</span>';
+    }
+  } catch { if (el) el.textContent = ''; }
+}
+
+async function claudeCliLoginFromKeys() {
+  const btn = document.getElementById('keysClaudeLoginBtn');
+  const msg = document.getElementById('keysClaudeMsg');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  if (msg) { msg.style.display = ''; msg.style.color = 'var(--text3)'; msg.textContent = 'Starte Login…'; }
+  try {
+    const r = await fetch('/api/claude-cli/login', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      if (d.step === 'already_authenticated') {
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Bereits angemeldet.'; }
+        checkClaudeStatusInKeys();
+      } else if (d.step === 'browser_opened') {
+        if (msg) { msg.style.color = 'var(--text2)'; msg.innerHTML = '🌐 Browser geöffnet — anmelden, dann "↺ Status" klicken.'; }
+        let polls = 0;
+        const iv = setInterval(async () => {
+          if (++polls > 30) { clearInterval(iv); return; }
+          try {
+            const s = await (await fetch('/api/claude-cli/status')).json();
+            if (s.authenticated) {
+              clearInterval(iv);
+              if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Anmeldung erfolgreich!'; }
+              checkClaudeStatusInKeys();
+            }
+          } catch {}
+        }, 4000);
+      }
+    } else {
+      if (msg) { msg.style.color = 'var(--red,#e55)'; msg.textContent = d.error || 'Fehler'; }
+    }
+  } catch(e) {
+    if (msg) { msg.style.color = 'var(--red,#e55)'; msg.textContent = e.message; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Mit Claude anmelden'; }
+  }
 }
 
 async function saveKey(envKey) {
@@ -1132,6 +1285,15 @@ async function loadSettings() {
       const inp = document.getElementById('modelFallbackInput');
       if (inp) inp.value = cfg.model_fallback.join(', ');
     }
+    // Task routing
+    const routing = cfg.task_routing || {};
+    const fields = {routingCoding:'coding', routingReview:'review', routingBrowsing:'browsing', routingDefault:'default'};
+    for (const [id, key] of Object.entries(fields)) {
+      const el = document.getElementById(id);
+      if (el && routing[key]) el.value = routing[key];
+    }
+    // Claude CLI status
+    _loadClaudeCliStatus();
     try {
       const pd = await (await fetch('/api/plugins')).json();
       document.getElementById('statPlugins').textContent = (pd.plugins || []).filter(p => p.loaded).length;
@@ -1144,6 +1306,7 @@ async function loadSettings() {
     _renderProviders(pv);
     _buildModelDropdown(pv);
   } catch {}
+  if (window.lucide) lucide.createIcons();
 }
 
 function _renderProviders(pv) {
@@ -1154,11 +1317,12 @@ function _renderProviders(pv) {
       ? '<span style="font-size:10px;color:var(--text3);margin-left:6px">default</span>'
       : '<span style="font-size:10px;color:var(--green);margin-left:6px">✓ active</span>';
     const modelCount = p.models?.length ? `<span style="font-size:10px;color:var(--text3);margin-left:4px">${p.models.length} models</span>` : '';
-    return `<div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text)">
-      <span>⚡</span><span>${esc(p.label)}</span>${modelCount}${badge}
+    return `<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text)">
+      <i data-lucide="cpu" style="width:12px;height:12px;stroke-width:1.75;flex-shrink:0"></i><span>${esc(p.label)}</span>${modelCount}${badge}
     </div>`;
   });
   el.innerHTML = rows.join('') || '<span style="font-size:11px;color:var(--text3)">No providers registered</span>';
+  if (window.lucide) lucide.createIcons({rootNode: el});
 }
 
 function _buildModelDropdown(pv) {
@@ -1226,7 +1390,11 @@ async function resetExchanges() {
 // ═══════════════════════════════════════════════════════════════════
 function esc(s)      { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtJson(o)  { try{return JSON.stringify(o,null,2)}catch{return String(o)} }
-function toolIcon(n) { return TOOL_ICONS[n] || '⚙️'; }
+function icon(name, size=13) {
+  return `<i data-lucide="${name}" style="width:${size}px;height:${size}px;display:inline-flex;align-items:center;flex-shrink:0;stroke-width:1.75"></i>`;
+}
+function toolIcon(n) { return icon(TOOL_ICONS[n] || 'square'); }
+function pluginIcon(n) { return icon(PLUGIN_ICONS[n] || 'puzzle', 14); }
 function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,130)+'px'; }
 function scrollChat()   { const m=document.getElementById('messages'); m.scrollTop=m.scrollHeight; }
 function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
@@ -1327,6 +1495,21 @@ function appendImageBlock(url) {
   m.appendChild(d); scrollChat();
 }
 
+function appendAudioBlock(url, format) {
+  const mime = format === 'wav' ? 'audio/wav' : format === 'ogg' ? 'audio/ogg' : 'audio/mpeg';
+  const m = document.getElementById('messages'), d = document.createElement('div');
+  d.className = 'msg aion';
+  d.innerHTML = `<div class="msg-label">AION</div>
+    <div class="msg-bubble" style="padding:10px 12px;min-width:280px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:6px">🔊 Sprachnachricht</div>
+      <audio controls style="width:100%;max-width:360px;border-radius:6px;outline:none;display:block">
+        <source src="${esc(url)}" type="${esc(mime)}">
+        <a href="${esc(url)}" download style="color:var(--text2);font-size:11px">Audio herunterladen</a>
+      </audio>
+    </div>`;
+  m.appendChild(d); scrollChat();
+}
+
 function copyMsg(btn) {
   const bubble = btn.closest('.msg').querySelector('.msg-bubble');
   if (!bubble) return;
@@ -1360,7 +1543,7 @@ function appendInlineThought(text, trigger) {
   d.className = 'inline-acc thought-acc';
   d.innerHTML = `
     <div class="inline-acc-hdr" onclick="toggleAcc(this)">
-      <span class="iacc-icon">💭</span>
+      <span class="iacc-icon">${icon('brain')}</span>
       <span class="iacc-preview">${esc(preview)}</span>
       ${trigger ? `<span class="iacc-badge">${esc(trigger)}</span>` : ''}
       <span class="iacc-toggle">▶</span>
@@ -1369,6 +1552,7 @@ function appendInlineThought(text, trigger) {
       <div class="thought-body-text">${esc(text)}</div>
     </div>`;
   document.getElementById('messages').appendChild(d);
+  if (window.lucide) lucide.createIcons({rootNode: d});
   scrollChat();
 }
 
@@ -1395,6 +1579,7 @@ function appendInlineTool(callId, toolName, args) {
       <div class="iacc-code result" id="taccr-${callId}"><span style="color:var(--text3);font-style:italic">läuft…</span></div>
     </div>`;
   document.getElementById('messages').appendChild(d);
+  if (window.lucide) lucide.createIcons({rootNode: d});
   scrollChat();
 }
 
@@ -1625,7 +1810,10 @@ function handleEvent(ev) {
     case 'done':
       hideThinkingRow(); finalizeCurrentBubble();
       if (!ev.approval_pending) { const oldBar = document.getElementById('approvalBar'); if (oldBar) oldBar.remove(); }
-      if (ev.response_blocks) for (const b of ev.response_blocks) if (b.type==='image' && b.url) appendImageBlock(b.url);
+      if (ev.response_blocks) for (const b of ev.response_blocks) {
+        if (b.type==='image' && b.url) appendImageBlock(b.url);
+        if (b.type==='audio' && b.url) appendAudioBlock(b.url, b.format);
+      }
       awaitingNewBubble = false; scrollChat();
       break;
     case 'error':
@@ -1684,6 +1872,95 @@ async function saveModelFallback() {
     if (d.ok) showToast('✓ Model Fallback gespeichert');
     else showToast('✗ ' + (d.error || 'Fehler'));
   } catch(e) { showToast('✗ ' + e.message); }
+}
+
+async function saveTaskRouting() {
+  const routing = {};
+  const fields = {routingCoding:'coding', routingReview:'review', routingBrowsing:'browsing', routingDefault:'default'};
+  for (const [id, key] of Object.entries(fields)) {
+    const v = (document.getElementById(id)?.value || '').trim();
+    if (v) routing[key] = v;
+  }
+  try {
+    const r = await fetch('/api/config/settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ task_routing: routing }),
+    });
+    const d = await r.json();
+    const el = document.getElementById('routingSaveStatus');
+    if (d.ok) {
+      showToast('✓ Task Routing gespeichert');
+      if (el) { el.textContent = '✓ gespeichert'; setTimeout(() => { if(el) el.textContent = ''; }, 3000); }
+    } else {
+      showToast('✗ ' + (d.error || 'Fehler'));
+      if (el) el.textContent = '✗ ' + (d.error || 'Fehler');
+    }
+  } catch(e) { showToast('✗ ' + e.message); }
+}
+
+async function claudeCliLogin() {
+  const btn = document.getElementById('claudeLoginBtn');
+  const msg = document.getElementById('claudeLoginMsg');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  if (msg) { msg.style.display = ''; msg.style.color = 'var(--text3)'; msg.textContent = 'Starte Login…'; }
+  try {
+    const r = await fetch('/api/claude-cli/login', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      if (d.step === 'already_authenticated') {
+        if (msg) { msg.style.color = 'var(--green)'; msg.textContent = '✓ Bereits angemeldet — ask_claude ist sofort nutzbar.'; }
+        showToast('✓ Claude CLI bereits angemeldet');
+      } else if (d.step === 'browser_opened') {
+        if (msg) {
+          msg.style.color = 'var(--text2)';
+          msg.innerHTML = '🌐 <b>Browser wurde geöffnet.</b> Melde dich mit deinem Claude-Konto an.<br>'
+            + 'Danach <b>"↺ Status prüfen"</b> klicken — fertig.';
+        }
+        // Auto-poll alle 4s für 2 Minuten
+        let polls = 0;
+        const interval = setInterval(async () => {
+          polls++;
+          if (polls > 30) { clearInterval(interval); return; }
+          try {
+            const sr = await fetch('/api/claude-cli/status');
+            const sd = await sr.json();
+            if (sd.authenticated) {
+              clearInterval(interval);
+              if (msg) { msg.style.color = 'var(--green)'; msg.innerHTML = '✓ <b>Anmeldung erfolgreich!</b> ask_claude ist jetzt nutzbar.'; }
+              showToast('✓ Claude CLI angemeldet');
+              _loadClaudeCliStatus();
+            }
+          } catch {}
+        }, 4000);
+      }
+    } else {
+      const errText = d.step === 'no_npm'
+        ? 'Node.js nicht gefunden. Installieren: <a href="https://nodejs.org" target="_blank" style="color:var(--text2)">nodejs.org</a>'
+        : ('Fehler: ' + (d.error || d.step || '?'));
+      if (msg) { msg.style.color = 'var(--red,#e55)'; msg.innerHTML = errText; }
+      showToast('✗ ' + (d.error || 'Login fehlgeschlagen'));
+    }
+  } catch(e) {
+    if (msg) { msg.style.color = 'var(--red,#e55)'; msg.textContent = 'Fehler: ' + e.message; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Mit Claude anmelden'; }
+  }
+}
+
+async function _loadClaudeCliStatus() {
+  const el = document.getElementById('claudeCliStatus');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/claude-cli/status');
+    const d = await r.json();
+    if (!d.installed) {
+      el.innerHTML = '<span style="color:var(--text3)">Claude CLI nicht installiert</span>';
+    } else if (!d.authenticated) {
+      el.innerHTML = '<span style="color:var(--yellow,#f5a623)">⚠ Installiert, aber nicht angemeldet</span> — Terminal: <code style="background:var(--bg4);padding:1px 4px;border-radius:3px">claude login</code>';
+    } else {
+      el.innerHTML = `<span style="color:var(--green)">✓ Claude CLI bereit</span> — <span style="font-size:10px;color:var(--text3)">${esc(d.path||'')}</span>`;
+    }
+  } catch { el.textContent = ''; }
 }
 
 // ── GOOGLE OAUTH ───────────────────────────────────────────────────────────────
