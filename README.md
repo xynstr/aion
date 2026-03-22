@@ -491,14 +491,20 @@ AION/
 │   └── moltbook/                # Social platform moltbook.com
 ├── prompts/
 │   └── rules.md                 # System prompt / behavioral rules
-├── character.md                 # AION's personality (self-evolving)
-├── AION_SELF.md                 # Technical self-documentation (read by AION on demand)
+├── character.md                 # AION's personality — evolves automatically over time
+├── AION_SELF.md                 # Technical self-documentation — AION reads this on demand
 ├── CHANGELOG.md                 # What changed (AION reads this)
 ├── aion_memory.json             # Persistent memory (max. 300 entries)
 ├── conversation_history.jsonl   # Full conversation history (channel-aware)
 ├── config.json                  # Active model + settings
 └── .env                         # API keys (git-ignored)
 ```
+
+---
+
+## 📝 Living Files
+
+`character.md` and `AION_SELF.md` ship with sensible defaults and **grow over time** — AION updates its own personality and self-documentation automatically as it learns. When you first clone the repo, these are clean starting points. Do not delete them; they are part of AION's identity and technical memory.
 
 ---
 

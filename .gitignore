@@ -139,3 +139,6 @@ log/
 *.temp
 tmp/
 temp/
+
+# AION persönliche To-do-Liste
+todo.md
