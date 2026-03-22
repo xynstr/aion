@@ -319,8 +319,8 @@ def _build_client(model: str):
     return _GeminiAdapter(model)
 
 
-def _switch_model(params: dict) -> dict:
-    model = params.get("model", "").strip()
+def _switch_model(model: str = "", **kwargs) -> dict:
+    model = model.strip()
     if not model:
         return {"error": "No model specified."}
     _aion_module.MODEL = model

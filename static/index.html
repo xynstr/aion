@@ -1624,7 +1624,7 @@ function handleEvent(ev) {
       break;
     case 'done':
       hideThinkingRow(); finalizeCurrentBubble();
-      const oldBar = document.getElementById('approvalBar'); if (oldBar) oldBar.remove();
+      if (!ev.approval_pending) { const oldBar = document.getElementById('approvalBar'); if (oldBar) oldBar.remove(); }
       if (ev.response_blocks) for (const b of ev.response_blocks) if (b.type==='image' && b.url) appendImageBlock(b.url);
       awaitingNewBubble = false; scrollChat();
       break;

@@ -1672,7 +1672,8 @@ class AionSession:
                 "response": final_text[:300],
                 "images": len(collected_images),
             })
-            yield {"type": "done", "full_response": final_text, "response_blocks": response_blocks}
+            yield {"type": "done", "full_response": final_text, "response_blocks": response_blocks,
+                   "approval_pending": _stop_for_approval}
 
         except Exception as exc:
             import traceback
