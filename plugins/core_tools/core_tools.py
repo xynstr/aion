@@ -51,14 +51,18 @@ def register(api):
         return json.dumps({"error": "AION_SELF.md nicht gefunden."})
 
     def _system_info(**_):
-        # Runtime-State aus dem laufenden AION-Prozess holen
+        # Runtime-State aus dem laufenden AION-Prozess holen.
+        # __main__ ist aion_web wenn der Web-Server läuft — dann über _aion_module auf aion zugreifen.
         main = sys.modules.get("__main__")
+        aion_mod = sys.modules.get("aion") or main
 
         # MODEL: Runtime-Wert bevorzugen, sonst config.json lesen
         model = "unknown"
-        if main and hasattr(main, "MODEL"):
-            model = main.MODEL
-        else:
+        for src in (aion_mod, main):
+            if src and hasattr(src, "MODEL"):
+                model = src.MODEL
+                break
+        if model == "unknown":
             try:
                 cfg = json.loads((BOT_DIR / "config.json").read_text(encoding="utf-8"))
                 model = cfg.get("model", "unknown")
@@ -67,21 +71,30 @@ def register(api):
 
         # Memory-Einträge: aus Runtime oder Datei zählen
         memory_entries = -1
-        if main and hasattr(main, "memory"):
-            memory_entries = len(main.memory._entries)
-        else:
+        for src in (aion_mod, main):
+            if src and hasattr(src, "memory"):
+                memory_entries = len(src.memory._entries)
+                break
+        if memory_entries == -1:
             try:
                 entries = json.loads((BOT_DIR / "aion_memory.json").read_text(encoding="utf-8"))
                 memory_entries = len(entries)
             except Exception:
                 pass
 
-        # Plugin-Tools aus Runtime
+        # Plugin-Tools aus Runtime — aion_mod hat _plugin_tools, aion_web hat _aion_module
         plugin_tools: list = []
-        if main and hasattr(main, "_plugin_tools"):
-            plugin_tools = [k for k in main._plugin_tools if not k.startswith("__")]
+        for src in (aion_mod, main):
+            if src and hasattr(src, "_plugin_tools"):
+                plugin_tools = [k for k in src._plugin_tools if not k.startswith("__")]
+                break
+            if src and hasattr(src, "_aion_module"):
+                inner = src._aion_module
+                if inner and hasattr(inner, "_plugin_tools"):
+                    plugin_tools = [k for k in inner._plugin_tools if not k.startswith("__")]
+                    break
 
-        chunk_size = getattr(main, "CHUNK_SIZE", 40000) if main else 40000
+        chunk_size = getattr(aion_mod, "CHUNK_SIZE", None) or getattr(main, "CHUNK_SIZE", 40000)
 
         return {
             "platform":       platform.platform(),
