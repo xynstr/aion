@@ -75,6 +75,7 @@ def register(api):
         build_fn=_build_client,
         label="Ollama (local)",
         models=KNOWN_MODELS,
+        context_window=32_000,  # konservativ — lokale Modelle variieren stark
     )
 
     api.register_tool(

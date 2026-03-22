@@ -3,8 +3,10 @@ import re
 from datetime import datetime, UTC
 from pathlib import Path
 
-# BOT_DIR ist das Verzeichnis, in dem aion.py liegt (Elternverzeichnis von plugins/)
-BOT_DIR = Path(__file__).parent.parent
+# BOT_DIR ist das Verzeichnis, in dem aion.py liegt.
+# __file__ = .../AION/plugins/memory_plugin/memory_plugin.py
+# .parent = memory_plugin/, .parent.parent = plugins/, .parent.parent.parent = AION/
+BOT_DIR = Path(__file__).parent.parent.parent
 
 HISTORY_FILE  = BOT_DIR / "conversation_history.jsonl"
 HISTORY_MAX   = 1000  # Maximale Einträge — älteste werden entfernt

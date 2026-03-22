@@ -124,22 +124,42 @@ client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 _provider_registry: list[dict] = []
 
 
-def register_provider(prefix: str, build_fn, label: str = "", models: list | None = None, env_keys: list | None = None):
+def register_provider(prefix: str, build_fn, label: str = "", models: list | None = None,
+                      env_keys: list | None = None, context_window: int = 0):
     """Register an LLM provider. Called by provider plugins.
 
-    prefix   — model-name prefix that routes to this provider (e.g. "ollama/", "claude-")
-    build_fn — callable(model: str) → OpenAI-compatible client
-    label    — human-readable name shown in Web UI / System tab
-    models   — optional list of known model names for switch_model hints
-    env_keys — optional list of env var names required by this provider (e.g. ["GEMINI_API_KEY"])
+    prefix          — model-name prefix that routes to this provider (e.g. "ollama/", "claude-")
+    build_fn        — callable(model: str) → OpenAI-compatible client
+    label           — human-readable name shown in Web UI / System tab
+    models          — optional list of known model names for switch_model hints
+    env_keys        — optional list of env var names required by this provider (e.g. ["GEMINI_API_KEY"])
+    context_window  — context window in tokens (used to compute dynamic read limits)
     """
     _provider_registry.append({
-        "prefix":   prefix,
-        "build_fn": build_fn,
-        "label":    label or prefix,
-        "models":   models or [],
-        "env_keys": env_keys or [],
+        "prefix":         prefix,
+        "build_fn":       build_fn,
+        "label":          label or prefix,
+        "models":         models or [],
+        "env_keys":       env_keys or [],
+        "context_window": context_window,
     })
+
+
+def _get_read_limit() -> int:
+    """Returns safe single-file read limit in chars based on the active model's context window.
+
+    Uses 15% of the context window (converted to chars at ~4 chars/token).
+    Floor: 100_000 chars. Ceiling: 800_000 chars.
+    Falls back to 100_000 if the provider has no context_window registered.
+    """
+    for entry in _provider_registry:
+        if MODEL.startswith(entry["prefix"]):
+            ctx = entry.get("context_window", 0)
+            if ctx > 0:
+                return min(800_000, max(20_000, int(ctx * 4 * 0.15)))
+    # OpenAI fallback: gpt-4o hat 128k Tokens → ~76k chars safe; gpt-4.1 hat 1M → cap bei 800k
+    # Wir nehmen 100k als sicheren Mittelwert für unbekannte OpenAI-Modelle
+    return 100_000  # OpenAI-Fallback
 
 
 def _build_client(model: str):
@@ -696,8 +716,9 @@ async def _dispatch(name: str, inputs: dict) -> str:
             path = BOT_DIR / path
         try:
             content = path.read_text(encoding="utf-8", errors="replace")
-            return json.dumps({"path": str(path), "content": content[:100000],
-                               "truncated": len(content) > 100000})
+            limit = _get_read_limit()
+            return json.dumps({"path": str(path), "content": content[:limit],
+                               "truncated": len(content) > limit})
         except Exception as e:
             return json.dumps({"error": str(e), "path": str(path)})
 
@@ -729,10 +750,11 @@ async def _dispatch(name: str, inputs: dict) -> str:
         try:
             content      = path.read_text(encoding="utf-8", errors="replace")
             total_len    = len(content)
-            total_chunks = max(1, (total_len + CHUNK_SIZE - 1) // CHUNK_SIZE)
+            chunk_size   = _get_read_limit()
+            total_chunks = max(1, (total_len + chunk_size - 1) // chunk_size)
             chunk_index  = max(0, min(chunk_index, total_chunks - 1))
-            start        = chunk_index * CHUNK_SIZE
-            chunk        = content[start:start + CHUNK_SIZE]
+            start        = chunk_index * chunk_size
+            chunk        = content[start:start + chunk_size]
             # Zeilennummer des ersten Zeichens im Chunk berechnen
             first_line   = content[:start].count("\n") + 1
             last_line    = first_line + chunk.count("\n")

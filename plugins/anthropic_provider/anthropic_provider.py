@@ -70,6 +70,7 @@ def register(api):
         label="Anthropic Claude",
         models=KNOWN_MODELS,
         env_keys=["ANTHROPIC_API_KEY"],
+        context_window=200_000,
     )
 
     print(f"[Plugin] anthropic_provider loaded — models: {', '.join(KNOWN_MODELS[:3])} …")

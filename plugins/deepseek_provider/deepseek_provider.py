@@ -52,6 +52,7 @@ def register(api):
         label="DeepSeek",
         models=KNOWN_MODELS,
         env_keys=["DEEPSEEK_API_KEY"],
+        context_window=64_000,
     )
 
     print(f"[Plugin] deepseek_provider loaded — models: {', '.join(KNOWN_MODELS)}")
