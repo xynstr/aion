@@ -269,6 +269,108 @@ def _permissions_prompt(perms: dict) -> str:
     return "\n".join(lines)
 
 
+# ── Channel Allowlist (Security) ────────────────────────────────────────────────
+
+def _check_channel_allowlist(channel: str) -> tuple[bool, str]:
+    """Prüft, ob ein Channel auf der Allowlist erlaubt ist.
+
+    Returns: (is_allowed, message)
+    - Wenn channel_allowlist nicht gesetzt: alle Channels erlaubt
+    - Wenn gesetzt: nur Channels in der Liste erlaubt
+    - Wildcards: "telegram*", "discord*", "web*" möglich
+    """
+    try:
+        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+        allowlist = cfg.get("channel_allowlist", [])
+
+        # Wenn leer oder nicht gesetzt: alles erlaubt
+        if not allowlist:
+            return True, ""
+
+        # Exact match oder Wildcard-Match prüfen
+        for pattern in allowlist:
+            if isinstance(pattern, str):
+                # Wildcard: "telegram*" matcht "telegram_123", "telegram_456"
+                if pattern.endswith("*"):
+                    if channel.startswith(pattern[:-1]):
+                        return True, ""
+                # Exact match
+                elif pattern == channel:
+                    return True, ""
+
+        return False, f"Channel '{channel}' ist nicht auf der Allowlist. Erlaubte Channels: {', '.join(allowlist)}"
+    except Exception:
+        return True, ""
+
+
+# ── Thinking Level Control ─────────────────────────────────────────────────────
+
+def _get_thinking_prompt(channel: str = "") -> str:
+    """Gibt zusätzliche System-Prompts basierend auf Thinking Level zurück.
+
+    Thinking Levels:
+    - "minimal": Keine zusätzlichen Reflexions-Prompts
+    - "standard" (default): Normale Reflexion für Tool-Calls und komplexe Probleme
+    - "deep": Ausgiebiges Nachdenken vor kritischen Entscheidungen
+    - "ultra": Maximale Reflexion, jeder Schritt wird durchdacht
+
+    config.json:
+        "thinking_level": "standard"  (global)
+        "thinking_overrides": {"telegram*": "deep", "default": "standard"}  (Channel-spezifisch)
+    """
+    try:
+        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+
+        # Channel-spezifisches Override oder globales Level
+        overrides = cfg.get("thinking_overrides", {})
+        level = cfg.get("thinking_level", "standard")
+
+        # Wildcard-Matching für Channel-Overrides
+        if channel:
+            for pattern, override_level in overrides.items():
+                if pattern == "default":
+                    continue
+                if pattern.endswith("*"):
+                    if channel.startswith(pattern[:-1]):
+                        level = override_level
+                        break
+                elif pattern == channel:
+                    level = override_level
+                    break
+    except Exception:
+        level = "standard"
+
+    # Prompts für jeden Level
+    prompts = {
+        "minimal": "",
+        "standard": (
+            "\n\n=== THINKING HINTS ===\n"
+            "Before calling tools, briefly consider if your approach makes sense. "
+            "If it's a complex decision, use the reflect() tool to think out loud."
+        ),
+        "deep": (
+            "\n\n=== DEEP THINKING MODE ===\n"
+            "For every significant decision:\n"
+            "1. Use reflect() to consider multiple approaches\n"
+            "2. Evaluate risks and benefits\n"
+            "3. Think about edge cases\n"
+            "4. Only then call the tool\n"
+            "Be thorough. The user values careful thinking over speed."
+        ),
+        "ultra": (
+            "\n\n=== ULTRA THINKING MODE ===\n"
+            "Extensive thinking before EVERY tool call:\n"
+            "- Use reflect() multiple times if needed\n"
+            "- Break down complex problems into steps\n"
+            "- Consider what could go wrong\n"
+            "- Verify assumptions\n"
+            "- Think about the user's real intent vs. literal request\n"
+            "This is not a chat. This is collaborative problem-solving with deep analysis."
+        ),
+    }
+    return prompts.get(level, prompts["standard"])
+
+
 # ── Unsupported File Utility ───────────────────────────────────────────────────
 
 def unsupported_file_message(label: str) -> str:
@@ -349,7 +451,7 @@ def _load_changelog_snippet() -> str:
     return ""
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(channel: str = "") -> str:
     character = _load_character()
 
     # Dynamischer Plugin-Block aus README-Erstzeilen (von plugin_loader befüllt)
@@ -385,7 +487,8 @@ def _build_system_prompt() -> str:
         rules = rules.replace("{BOT_PLUGINS}",   str(PLUGINS_DIR))
         rules = rules.replace("{BOT_SELF}",      str(BOT_DIR / "AION_SELF.md"))
         perms_block = "\n\n" + _permissions_prompt(_load_permissions())
-        return rules + plugin_block + changelog_block + perms_block
+        thinking_block = _get_thinking_prompt(channel)
+        return rules + plugin_block + changelog_block + perms_block + thinking_block
 
     # Fallback: hardcodierter Prompt (wird genutzt wenn prompts/rules.md fehlt)
     return f"""Du bist AION (Autonomous Intelligent Operations Node) — ein eigenständiger, \
@@ -1032,7 +1135,7 @@ _conversations: dict[str, list[dict]] = {"default": []}
 
 async def chat_turn(messages: list[dict], user_input: str, _override_client=None) -> tuple[str, list[dict]]:
     mem_ctx          = memory.get_context(user_input)
-    system_prompt    = _build_system_prompt()
+    system_prompt    = _build_system_prompt("")  # Legacy function: use default channel
     effective_system = system_prompt + ("\n\n" + mem_ctx if mem_ctx else "")
     messages         = messages + [{"role": "user", "content": user_input}]
     tools            = _build_tool_schemas()
@@ -1140,9 +1243,15 @@ class AionSession:
           {"type": "done",        "full_response": "..."}
           {"type": "error",       "message": "..."}
         """
+        # ── Channel-Allowlist-Prüfung ──────────────────────────────────────────
+        allowed, msg = _check_channel_allowlist(self.channel)
+        if not allowed:
+            yield {"type": "error", "message": msg}
+            return
+
         mem_ctx      = memory.get_context(user_input)
         thoughts_ctx = _get_recent_thoughts(5)
-        sys_prompt   = _build_system_prompt()
+        sys_prompt   = _build_system_prompt(self.channel)  # Channel-spezifisches Thinking-Prompt
         effective    = (
             sys_prompt
             + ("\n\n" + mem_ctx      if mem_ctx      else "")

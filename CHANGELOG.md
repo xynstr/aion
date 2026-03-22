@@ -5,6 +5,38 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ---
 
+## 2026-03-23 (5) — Security & Control Features (Phase 3 Complete)
+
+### Neu: Channel Allowlist (`config.json → "channel_allowlist"`)
+- Sperrt/erlaubt bestimmte Kanäle: z.B. nur Telegram erlauben, Discord/Slack sperren
+- Syntax: `["default", "web", "telegram*"]` (exakte Matches + Wildcards)
+- Prüfung: `AionSession.stream()` am Anfang → Fehler wenn nicht in Allowlist
+- Flexibilität: Wenn nicht gesetzt → alle Kanäle erlaubt
+
+### Neu: Thinking Level Control (`config.json → "thinking_level"` + `"thinking_overrides"`)
+- 4 Level: `minimal` (schnell) → `standard` (normal) → `deep` (ausgiebig) → `ultra` (maximal)
+- Global: `"thinking_level": "standard"` für alle Kanäle
+- Channel-Override: `"thinking_overrides": {"telegram*": "deep", "discord*": "minimal"}`
+- Implementierung: Fügt System-Prompts hinzu (reflect-Tool nutzen ja/nein, wie intensiv)
+
+### Implementation Details
+- `_check_channel_allowlist(channel)` — Wildcard-Matching mit Exact-Match Fallback
+- `_get_thinking_prompt(channel)` — Channel-spezifische Thinking-Level Prompts
+- `_build_system_prompt(channel)` — Jetzt Channel-aware für Thinking-Level Overrides
+- Keine Regressions: Legacy `chat_turn()` nutzt Default-Channel
+
+### Phase 3 Summary
+✅ Browser Automation (Playwright) — 8 Tools
+✅ Model Failover — Auto-Retry bei API-Fehler
+✅ Discord Bot — Bidirektional, per-User Sessions
+✅ Slack Bot — Socket Mode, Thread-Support
+✅ Multi-Agent Router — Custom Routing
+✅ Docker Support — Deployment-ready
+✅ Security: Allowlist
+✅ Control: Thinking Level
+
+---
+
 ## 2026-03-22 (4) — Claude Abo-Integration + Audio Web UI + Keys Tab + Public README
 
 ### Neu: Claude CLI Provider Plugin (`plugins/claude_cli_provider/`)

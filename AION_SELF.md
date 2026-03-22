@@ -925,4 +925,52 @@ plugins/my_plugin.py             ❌ WRONG
 
 ---
 
-*Last updated: 2026-03-22 — Session 2 fixes: Browser hallucination prevention (rules.md CRITICAL block); Approval buttons (approval_pending flag in done event); switch_model signature fix (keyword args); ffmpeg WinGet PATH fallback (_find_ffmpeg); Screenshot pipeline Telegram fix (data: URL → multipart upload); Channel-filtered history (web channel isolation). Session 1: Playwright browser automation; Dynamic model failover; Discord + Slack bots; Multi-agent routing; Docker; Google OAuth; 9-step onboarding; Web UI redesign; Tool call ordering fix*
+## Security & Control Features (2026-03-23)
+
+### Channel Allowlist
+**Purpose:** Restrict bot access to specific channels (e.g., allow only Telegram, block Discord/Slack).
+
+**Config (`config.json`):**
+```json
+{
+  "channel_allowlist": ["default", "web", "telegram*"]
+}
+```
+
+**Behavior:**
+- If `channel_allowlist` not set: all channels allowed (default)
+- If set: only channels matching the list are permitted
+- Supports wildcards: `"telegram*"` matches `telegram_123`, `telegram_456`, etc.
+- Exact match: `"default"`, `"web"` match exactly
+- Denied channels get error: `{"type": "error", "message": "Channel '...' ist nicht auf der Allowlist"}`
+
+**Where it's checked:** `AionSession.stream()` at the beginning — before any processing.
+
+### Thinking Level Control
+**Purpose:** Adjust how deeply AION thinks before acting (helps with accuracy vs. speed tradeoff).
+
+**Config (`config.json`):**
+```json
+{
+  "thinking_level": "standard",
+  "thinking_overrides": {
+    "telegram*": "deep",
+    "discord*": "minimal",
+    "default": "standard"
+  }
+}
+```
+
+**Levels:**
+| Level | Behavior |
+|-------|----------|
+| `minimal` | No extra reflection prompts; fast responses |
+| `standard` | Use `reflect()` tool for complex decisions (default) |
+| `deep` | Extensive thinking before each tool call; consider multiple approaches |
+| `ultra` | Maximum reflection; every decision is deeply analyzed |
+
+**Implementation:** Added to system prompt via `_get_thinking_prompt(channel)` — channel-specific overrides take precedence.
+
+---
+
+*Last updated: 2026-03-23 — Session 3: Channel allowlist security; Thinking level control; Phase 3 complete. Session 2: Browser hallucination prevention; Approval buttons; ffmpeg fallback; Screenshot fixes. Session 1: Playwright browser automation; Dynamic model failover; Discord + Slack bots; Multi-agent routing; Docker; Google OAuth; Onboarding; Web UI redesign*
