@@ -1,39 +1,35 @@
 # AION — Autonomous Intelligent Operations Node
 
-An autonomous AI agent for Windows. Runs as a Python process, communicates via the Google Gemini or OpenAI API, executes tools, learns, and can modify itself.
+An autonomous AI agent. Runs as a Python process, communicates via LLM APIs, executes tools, learns, and can modify itself.
 
 ---
 
 ## Features
 
 - **Autonomous operation** — up to 50 tool iterations without waiting for the user, with automatic completion check + task enforcer
-  - **Completion Check** — after tool calls: "did AION announce an action but not carry it out?"
-  - **Task Enforcer** — after tool calls: "is the task truly complete, or are steps still missing?" → force-continues if incomplete
 - **Scheduled tasks** — scheduler with fixed times (`06:00`) and intervals (`every 5m`) — runs fully autonomously
 - **Self-modification** — reads, patches, and overwrites its own code; creates new plugins
 - **Web UI** — live stream of responses, thoughts, and tool calls; persistent sidebar navigation (Chat / Prompts / Plugins / Memory / System)
-- **CLI mode** — fully without browser/server: `start_cli.bat` or `python aion_cli.py`; color terminal output with tool/thought display
-- **Telegram** — bidirectional: text, images, and voice messages (OGG → Vosk transcription, TTS reply)
-  - Channel-isolated history: only Telegram chats load Telegram history (no web context bleed)
-  - `memory_read_web_history` tool: load Web UI history on request and carry over context
+- **CLI mode** — fully without browser/server: `aion --cli`; color terminal output with tool/thought display
+- **Multi-provider** — Gemini, OpenAI, Anthropic Claude, DeepSeek, Grok, Ollama (local) — any OpenAI-compatible API works via a simple plugin
+- **Model Failover** — if the primary model API fails, AION automatically tries available fallback models
+- **Telegram** — bidirectional: text, images, voice messages (OGG → Vosk transcription, TTS reply)
+- **Discord** — per-user sessions, DMs + @mentions + `/ask` slash command
+- **Slack** — Socket Mode, DMs + @aion mentions, per-user sessions
+- **Amazon Alexa** — Alexa Skill endpoint (`POST /api/alexa`) for voice control
+- **Browser automation** — Playwright plugin: open pages, click, fill forms, screenshot, evaluate JS
+- **Multi-agent routing** — delegate subtasks to isolated sub-agents
 - **Memory** — persistent JSON memory + conversation history (JSONL) with channel filtering
-- **Personality** — `character.md` evolves through conversations; LLM analysis with pattern recognition every 5 conversations
-- **Multi-provider** — Universal provider plugin architecture: Gemini, OpenAI, Anthropic Claude, DeepSeek, Grok, Ollama (local) — any OpenAI-compatible API works via a simple plugin
-  - New providers = one plugin file, no core changes needed
-  - `/api/providers` endpoint returns all registered providers with their models
-- **Plugin system** — `plugins/<name>/<name>.py` is loaded automatically; READMEs are injected as plugin overviews
-  - **create_plugin tool** enforces correct subdirectory structure (even when AION passes incorrect paths)
-  - Auto-generated README.md in every new plugin
-- **Audio pipeline** — any audio format → transcription (ffmpeg + Vosk, offline) + TTS (edge-tts neural / pyttsx3/SAPI5, offline)
-  - edge-tts: Microsoft Neural TTS, free, online, no API key (`de-DE-KatjaNeural` default)
-- **Moltbook** — social presence: read feed, create posts, comment
+- **Personality** — `character.md` evolves through conversations; auto-updates every 5 conversations
+- **Plugin system** — `plugins/<name>/<name>.py` loaded automatically; custom HTTP routes without touching core
+- **Audio pipeline** — any audio format → transcription (ffmpeg + Vosk, offline) + TTS (edge-tts / pyttsx3)
+- **Docker** — one-command deployment via `docker-compose up`
 
 ---
 
 ## Requirements
 
 - Python 3.10+
-- Windows (for `shell_exec`, `winget_install`)
 - At least one API key: Gemini, OpenAI, Anthropic, DeepSeek, or Grok — or a local Ollama server
 
 ---
@@ -42,6 +38,24 @@ An autonomous AI agent for Windows. Runs as a Python process, communicates via t
 
 ```bash
 pip install -r requirements.txt
+pip install -e .          # installs the 'aion' command globally
+```
+
+Or use the guided setup:
+
+```bash
+aion --setup
+```
+
+---
+
+## Starting
+
+```bash
+aion                      # Web server + opens browser (port 7000)
+aion --cli                # Interactive CLI (no browser)
+aion --setup              # Guided onboarding wizard
+docker-compose up         # Docker deployment
 ```
 
 ---
@@ -52,38 +66,22 @@ Create a `.env` file in the project directory:
 
 ```env
 GEMINI_API_KEY=AIza...              # Google Gemini
-OPENAI_API_KEY=sk-...               # OpenAI (default fallback)
+OPENAI_API_KEY=sk-...               # OpenAI
 ANTHROPIC_API_KEY=sk-ant-...        # Anthropic Claude
 DEEPSEEK_API_KEY=sk-...             # DeepSeek
 XAI_API_KEY=xai-...                 # xAI Grok
 # Ollama: no key needed — local server at localhost:11434
 TELEGRAM_BOT_TOKEN=1234...:AAE...   # optional
 TELEGRAM_CHAT_ID=123456789          # optional
+DISCORD_BOT_TOKEN=...               # optional
+SLACK_BOT_TOKEN=xoxb-...            # optional
+SLACK_APP_TOKEN=xapp-...            # optional
 AION_MODEL=gemini-2.5-flash         # optional, default: gpt-4.1
 AION_PORT=7000                      # optional, default: 7000
+AION_HOST=127.0.0.1                 # optional, default: 127.0.0.1 (use 0.0.0.0 for LAN access)
 ```
 
 The active model is stored in `config.json` and restored on the next start.
-
-**Tip:** Run `python onboarding.py` for a guided setup that asks about all providers and their models.
-
----
-
-## Starting / Stopping
-
-```bash
-start.bat        # Starts web server + opens browser (kills old instances)
-start_cli.bat    # Starts interactive CLI mode (no browser needed)
-stop.bat         # Stops all AION processes cleanly
-restart.bat      # Stop + Start
-status.bat       # Shows whether the server is running
-```
-
-Or manually:
-```bash
-python aion_web.py   # Web server (port 7000)
-python aion_cli.py   # CLI mode (interactive terminal)
-```
 
 ---
 
@@ -100,76 +98,119 @@ Opens automatically at `http://localhost:7000`
 │ 📝 Prompts   (switches based on sidebar selection)            │
 │ 🔌 Plugins                                                     │
 │ 🧠 Memory│   Chat: token streaming, thoughts + tool calls     │
-│ ⊞ System │         as inline accordions (centered)            │
+│ ⊞ System │         as inline accordions (correct order)       │
 │          │                                                     │
 │          ├─────────────────────────────────────────────────────┤
 │          │   [Input…]                                [▶]       │
 └──────────┴─────────────────────────────────────────────────────┘
 ```
 
-**Sidebar** (172px, always visible — no toggle):
-- **💬 Chat** — main chat; thoughts + tool calls inline as expandable accordions
-- **📝 Prompts** — edit `rules.md`, `character.md`, `AION_SELF.md` directly in the browser (full width)
-- **🔌 Plugins** — all plugins with tools + status (✓/✗) + reload
-- **🧠 Memory** — search memory, color-coded (green/red), delete entries
-- **⊞ System** — statistics, switch model, paths, actions
+**Sidebar** (172px, always visible):
+- **💬 Chat** — token streaming; thoughts + tool calls inline as expandable accordions (in correct order)
+- **📝 Prompts** — edit `rules.md`, `character.md`, `AION_SELF.md` directly in the browser
+- **🔌 Plugins** — all plugins with tools + status + hot-reload
+- **🧠 Memory** — search memory, color-coded, delete entries
+- **⊞ System** — statistics, model switching, TTS settings, model fallback, paths, actions
+
+---
 
 ## CLI Mode
 
 ```
-> start_cli.bat
+aion --cli
 
   ╔══════════════════════════════════════╗
   ║  AION  —  CLI Mode                   ║
   ╚══════════════════════════════════════╝
 
-  Initializing AION… ✓
-  Model: gemini-2.5-flash  |  Tools: 32
+  Initializing AION… OK
+  Model: gemini-2.5-flash  |  Tools: 56
 
 You  › list the files in the project directory
-  ⚙  shell_exec({'command': 'dir /b'})  → ✓ aion.py aion_web.py aion_cli.py ...
+  ⚙  shell_exec({'command': 'dir /b'})  → OK aion.py aion_web.py ...
 AION › Here are the files in the directory: ...
 
 You  › exit
-  Session ended. Goodbye! 👋
+  Session ended. Goodbye!
 ```
 
 - Thoughts appear as `💭 …` in purple
-- Tool calls as `⚙ tool(args) → ✓/✗ result` in yellow/gray
+- Tool calls as `⚙ tool(args) → OK/ERR result` in yellow/gray
 - Responses as `AION › …` live-streamed in cyan
 - Internal commands: `/help`, `/clear`, `/model`
 
 ---
 
-## Scheduled Tasks (Scheduler)
+## Messaging Channels
 
-AION can execute tasks at fixed times **or at intervals** autonomously:
+### Telegram
+1. Create a bot via [@BotFather](https://t.me/BotFather) → token
+2. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`
+3. Start AION — Telegram polling starts automatically
+
+### Discord
+1. Create a bot at [discord.com/developers](https://discord.com/developers)
+2. Enable **MESSAGE CONTENT INTENT** in the bot settings
+3. Set `DISCORD_BOT_TOKEN` in `.env`
+
+### Slack
+1. Create a Slack App with **Socket Mode** enabled
+2. Add `app_mentions:read`, `im:history`, `chat:write` scopes
+3. Set `SLACK_BOT_TOKEN` (xoxb-) and `SLACK_APP_TOKEN` (xapp-) in `.env`
+
+Each channel has isolated conversation history (no cross-channel context bleed).
+
+---
+
+## Browser Automation
+
+AION can control a Chromium browser via the `playwright_browser` plugin:
 
 ```
-"Schedule daily at 06:00: Read my emails, extract appointments and add them to the calendar."
-"Schedule on weekdays at 08:00: Send me a short daily summary via Telegram."
+browser_open        → open a URL
+browser_screenshot  → capture page or element
+browser_click       → click by CSS selector
+browser_fill        → fill input fields
+browser_get_text    → extract text
+browser_evaluate    → run JavaScript
+browser_find        → natural language element search
+browser_close       → close browser
+```
+
+Setup (one-time, handled automatically in onboarding):
+```bash
+pip install playwright
+python -m playwright install chromium
+```
+
+Configure headless mode in `config.json`: `"browser_headless": true`
+
+---
+
+## Scheduled Tasks
+
+```
+"Schedule daily at 06:00: Read my emails, extract appointments."
 "Send me a Telegram message every 5 minutes with the current status."
 "Remind me every hour to drink water."
 ```
 
 **Interval syntax:** `"5m"`, `"30s"`, `"1h"`, `"2h30m"`, `"every 10 minutes"`
 
-Manage by voice or directly:
+Manage directly:
 - `schedule_list` — show all tasks
 - `schedule_remove` — delete a task
 - `schedule_toggle` — enable/disable a task
 
 ---
 
-## Telegram
+## Docker
 
-1. Create a bot via [@BotFather](https://t.me/BotFather) → token
-2. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`
-3. Start AION — Telegram polling starts automatically
+```bash
+docker-compose up
+```
 
-AION will message you on its own when:
-- A scheduler task completes
-- You tell it `"Message me via Telegram when X is done"`
+Mounts `.env`, `config.json`, memory, logs, and plugins as volumes. Playwright/Chromium pre-installed. Restarts automatically unless stopped.
 
 ---
 
@@ -196,15 +237,12 @@ def register(api):
     )
 ```
 
-**Important:** `def fn(param: str = "", **_)` — no `input: dict` parameters!
+**Important:** Use keyword args `def fn(param: str = "", **_)` — not `def fn(input: dict)`.
 
-### Plugin with Custom Web Endpoints
-
-Plugins can also provide their own HTTP routes — without touching `aion_web.py`:
+Plugins can also provide HTTP routes without touching `aion_web.py`:
 
 ```python
 from fastapi import APIRouter
-
 router = APIRouter()
 
 @router.get("/api/myplugin/status")
@@ -212,11 +250,10 @@ async def status():
     return {"ok": True}
 
 def register(api):
-    api.register_tool(...)                              # LLM tool as usual
-    api.register_router(router, tags=["myplugin"])     # custom HTTP routes
+    api.register_tool(...)
+    api.register_router(router, tags=["myplugin"])
 ```
 
-New plugins are loaded immediately — no restart needed (except for changes to `aion.py`).
 AION can also create plugins at runtime via the `create_plugin` tool.
 
 ---
@@ -230,59 +267,62 @@ AION can also create plugins at runtime via the `create_plugin` tool.
 | POST | `/api/model` | Switch model |
 | GET | `/api/plugins` | All plugins with tools + load status |
 | POST | `/api/plugins/reload` | Hot-reload plugins |
-| GET | `/api/memory` | Memory entries (`?search=`, `?limit=`, `?offset=`) — paginated |
+| GET | `/api/memory` | Memory entries (`?search=`, `?limit=`, `?offset=`) |
 | DELETE | `/api/memory` | Clear memory |
 | GET | `/api/providers` | All registered LLM providers + active model |
 | GET | `/api/config` | Configuration + statistics |
+| POST | `/api/config/settings` | Update settings (TTS, model_fallback, browser_headless) |
 | GET | `/api/prompt/{name}` | Read prompt (`rules`, `character`, `self`) |
 | POST | `/api/prompt/{name}` | Save prompt |
+| GET | `/api/oauth/google/start` | Begin Google OAuth flow for Gemini |
+| GET | `/api/oauth/google/callback` | OAuth callback |
+| POST | `/api/alexa` | Amazon Alexa Skill endpoint |
 
 ---
 
-## File System
+## File Structure
 
 ```
 AION/
 ├── aion.py                      # Core logic: memory, tools, LLM loop, AionSession
 ├── aion_web.py                  # Web server (FastAPI + SSE), port 7000
 ├── aion_cli.py                  # CLI mode: interactive terminal without browser
+├── onboarding.py                # Guided setup wizard (aion --setup)
 ├── plugin_loader.py             # Loads plugins + register_router support
 ├── static/index.html            # Web UI (Vanilla JS, persistent sidebar)
+├── Dockerfile                   # Docker image
+├── docker-compose.yml           # Docker Compose config
 ├── plugins/
 │   ├── core_tools/              # continue_work, read_self_doc, system_info, memory_record
-│   ├── reflection/              # reflect (inner monologue → thoughts.md)
-│   ├── character_manager/       # update_character (update character.md)
 │   ├── shell_tools/             # shell_exec, winget_install, install_package
 │   ├── web_tools/               # web_search, web_fetch
-│   ├── pid_tool/                # get_own_pid
-│   ├── restart_tool/            # restart_with_approval
-│   ├── audio_pipeline/          # Any audio format → text (ffmpeg+Vosk) + TTS (pyttsx3)
-│   ├── audio_transcriber/       # WAV → text via Vosk (base transcription)
-│   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
-│   ├── moltbook/                # Social platform moltbook.com (feed, posts, comments)
-│   ├── telegram_bot/            # Telegram: text + images + voice messages
+│   ├── scheduler/               # Cron scheduler
+│   ├── telegram_bot/            # Telegram: text + images + voice
+│   ├── discord_bot/             # Discord: DMs + @mentions + /ask
+│   ├── slack_bot/               # Slack: Socket Mode, DMs + mentions
+│   ├── alexa_plugin/            # Amazon Alexa Skill endpoint
+│   ├── playwright_browser/      # Browser automation (8 tools)
+│   ├── multi_agent/             # Sub-agent delegation (4 tools)
 │   ├── gemini_provider/         # Google Gemini (prefix "gemini")
 │   ├── anthropic_provider/      # Anthropic Claude (prefix "claude")
 │   ├── deepseek_provider/       # DeepSeek (prefix "deepseek")
 │   ├── grok_provider/           # xAI Grok (prefix "grok")
 │   ├── ollama_provider/         # Local Ollama (prefix "ollama/")
-│   ├── memory_plugin/           # Conversation history (JSONL)
+│   ├── memory_plugin/           # Conversation history (JSONL, channel-aware)
+│   ├── audio_pipeline/          # Audio transcription + TTS
+│   ├── heartbeat/               # Keep-alive + autonomous todo processing
 │   ├── todo_tools/              # Task management
 │   ├── smart_patch/             # Fuzzy code patching
 │   ├── image_search/            # Image search (Openverse + Bing)
 │   ├── docx_tool/               # Create Word documents
-│   └── heartbeat/               # Keep-alive + autonomous todo processing (every 30min)
-├── character.md                 # Personality (self-updating via update_character)
+│   └── moltbook/                # Social platform moltbook.com
+├── character.md                 # Personality (self-updating)
 ├── AION_SELF.md                 # Technical self-documentation for AION
 ├── aion_memory.json             # Persistent memory (max. 300 entries)
+├── conversation_history.jsonl   # Full conversation history
 ├── thoughts.md                  # Recorded thoughts
 ├── .env                         # API keys (not in Git)
-├── config.json                  # Active model + conversation counter
-├── start.bat                    # Starts web server + browser
-├── start_cli.bat                # Starts CLI mode (no browser)
-├── stop.bat                     # Stops all AION processes
-├── restart.bat                  # Restart
-└── status.bat                   # Check server status
+└── config.json                  # Active model + settings
 ```
 
 ---
@@ -291,7 +331,7 @@ AION/
 
 | Provider | Model | Notes |
 |----------|-------|-------|
-| Google Gemini | `gemini-2.5-pro` | ★ Best quality |
+| Google Gemini | `gemini-2.5-pro` | Best quality |
 | Google Gemini | `gemini-2.5-flash` | Fast & affordable |
 | Google Gemini | `gemini-2.5-flash-lite` | Lightweight |
 | Google Gemini | `gemini-2.0-flash` | Stable |
@@ -300,7 +340,7 @@ AION/
 | OpenAI | `gpt-4o` | Multimodal |
 | OpenAI | `o3` | Reasoning |
 | OpenAI | `o4-mini` | Fast reasoning |
-| Anthropic | `claude-opus-4-6` | ★ Most capable Claude |
+| Anthropic | `claude-opus-4-6` | Most capable Claude |
 | Anthropic | `claude-sonnet-4-6` | Balanced |
 | Anthropic | `claude-haiku-4-5-20251001` | Fastest Claude |
 | DeepSeek | `deepseek-chat` | Efficient & affordable |
@@ -315,27 +355,24 @@ Switch via Web UI (System tab → model dropdown) or by voice: `"Switch to claud
 
 ---
 
-## Provider Plugins
+## Security
 
-AION uses a registry-based provider system. Each provider is a plugin in `plugins/<name>/`.
-Add any provider by creating a plugin that calls `register_provider(prefix, build_fn, label, models)`.
-
-| Plugin | `.env` Key | Prefix |
-|--------|------------|--------|
-| `gemini_provider` | `GEMINI_API_KEY` | `gemini` |
-| `anthropic_provider` | `ANTHROPIC_API_KEY` | `claude` |
-| `deepseek_provider` | `DEEPSEEK_API_KEY` | `deepseek` |
-| `grok_provider` | `XAI_API_KEY` | `grok` |
-| `ollama_provider` | _(none)_ | `ollama/` |
-| _(fallback)_ | `OPENAI_API_KEY` | _(any)_ |
-
-Providers with missing API keys are skipped silently at startup.
+- `.env` is in `.gitignore` — never commit API keys
+- Web server binds to `127.0.0.1` by default (LAN access: set `AION_HOST=0.0.0.0`)
+- `shell_exec` runs arbitrary shell commands — use only on trusted systems
+- `self_modify_code` / `self_patch_code` — AION asks for confirmation before making code changes
+- Scheduler tasks run with full AION permissions — formulate tasks carefully
 
 ---
 
-## Security Notice
+## Troubleshooting
 
-- `.env` is in `.gitignore` — never commit API keys
-- `shell_exec` runs arbitrary Windows commands — use only on trusted systems
-- `self_modify_code` / `self_patch_code` — AION asks for confirmation before making code changes
-- Scheduler tasks run with full AION permissions — formulate tasks carefully
+**Plugin not loading:** Check `aion_events.log` for the error. Common cause: missing dependency (`pip install <package>`).
+
+**Provider not available:** Check `.env` for the correct API key variable name.
+
+**Discord / Slack bot silent:** Confirm the token is set in `.env` and the bot has the required permissions/intents.
+
+**Playwright not found:** Run `python -m playwright install chromium`.
+
+**Port already in use:** Set `AION_PORT=7001` in `.env`.

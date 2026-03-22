@@ -192,4 +192,4 @@ def register(api):
         },
     )
 
-    print("[multi_agent] ✓ 4 Multi-Agent-Tools registriert.")
+    print("[multi_agent] 4 Multi-Agent-Tools registriert.")

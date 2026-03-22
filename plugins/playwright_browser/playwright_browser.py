@@ -285,4 +285,4 @@ def register(api):
         input_schema={"type": "object", "properties": {}},
     )
 
-    print("[playwright_browser] ✓ 8 Browser-Tools registriert.")
+    print("[playwright_browser] 8 Browser-Tools registriert.")

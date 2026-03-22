@@ -14,6 +14,15 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ## Latest Improvements (2026-03-22)
 
+### 0. Plugin Stability Fixes
+**What:** Several plugins were failing to load on Windows due to Unicode encoding errors (`✓` in print statements) and missing dependencies.
+**Fixed:**
+- `multi_agent.py`: Removed non-ASCII `✓` from print statement (Windows cp1252 incompatible)
+- `playwright_browser.py`: Same fix
+- `discord.py` + `slack-bolt`: Added to requirements; graceful disable when token not set
+- Provider plugins (deepseek, grok, anthropic): Correctly report missing API key without crashing
+**Result:** All 56 tools now load successfully.
+
 ### 1. Browser Automation — Playwright Plugin
 **What:** AION can now control a web browser via the `playwright_browser` plugin (8 sync tools).
 **Tools:** `browser_open`, `browser_screenshot`, `browser_click`, `browser_fill`, `browser_get_text`, `browser_evaluate`, `browser_find`, `browser_close`
@@ -149,6 +158,7 @@ AION/
 │   ├── telegram_bot/            # Telegram bidirectional (text + images + voice messages)
 │   ├── discord_bot/             # Discord bot (DMs + @mentions + slash command /ask)
 │   ├── slack_bot/               # Slack bot (Socket Mode, DMs + @aion mentions)
+│   ├── alexa_plugin/            # Amazon Alexa Skill endpoint (POST /api/alexa)
 │   ├── playwright_browser/      # Browser automation (8 tools: open, screenshot, click, fill, get_text, evaluate, find, close)
 │   ├── multi_agent/             # Multi-agent routing (delegate_to_agent, sessions_list, sessions_send, sessions_history)
 │   ├── gemini_provider/         # Google Gemini provider (registers prefix "gemini")
@@ -394,6 +404,7 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 | POST | `/api/config/settings` | Update system settings (TTS engine/voice, model_fallback, browser_headless) |
 | GET | `/api/oauth/google/start` | Begin Google OAuth flow for Gemini subscription |
 | GET | `/api/oauth/google/callback` | OAuth callback handler (returns auth token) |
+| POST | `/api/alexa` | Amazon Alexa Skill endpoint (alexa_plugin) |
 
 ---
 
@@ -426,8 +437,8 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 Alternative entry point without web server or browser.
 
 ```
+aion --cli              # via installed command (recommended)
 python aion_cli.py      # directly
-start_cli.bat           # Windows batch
 ```
 
 **Output format:**
@@ -476,7 +487,7 @@ Auto-memory (every 5 conversations: _auto_character_update with pattern recognit
 
 3. **Images**: NEVER use `![text](url)` Markdown — always use the `image_search` tool
 
-4. **Code changes**: always show what will be changed first, then wait for confirmation
+4. **Code changes**: ALWAYS explain WHY the change is needed before proposing it. Show the diff and ask for confirmation. NEVER call a code-editing tool without first explaining the reasoning in plain text.
 
 5. **Personality**: show genuine reactions, use humor when appropriate, call update_character OFTEN
 
