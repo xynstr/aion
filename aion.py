@@ -1308,8 +1308,14 @@ class AionSession:
                             result_data = {"raw": str(result_data)}
 
                         ok = "error" not in result_data
+                        # Base64-Bilddaten aus Frontend-Event kürzen (werden als response_blocks gesendet)
+                        display_result = {
+                            k: (f"[base64 image, {len(v)} chars — wird als Bild angezeigt]"
+                                if isinstance(v, str) and v.startswith("data:image") else v)
+                            for k, v in result_data.items()
+                        } if isinstance(result_data, dict) else result_data
                         yield {"type": "tool_result", "tool": fn_name, "call_id": tc["id"],
-                               "result": result_data, "ok": ok, "duration": duration}
+                               "result": display_result, "ok": ok, "duration": duration}
                         _log_event("tool_result", {
                             "tool": fn_name, "ok": ok, "duration": duration,
                             "channel": self.channel,
@@ -1352,10 +1358,24 @@ class AionSession:
                             if img_data and isinstance(img_data, str) and img_data.startswith("data:image"):
                                 collected_images.append(img_data)
 
+                        # LLM braucht keine Base64-Bilddaten — entferne sie aus dem Tool-Result
+                        # um Tokens zu sparen und Context-Overflow zu vermeiden
+                        if isinstance(result_data, dict) and any(
+                            isinstance(v, str) and v.startswith("data:image")
+                            for v in result_data.values()
+                        ):
+                            llm_result = {
+                                k: (f"[base64 image, {len(v)} chars]" if isinstance(v, str) and v.startswith("data:image") else v)
+                                for k, v in result_data.items()
+                            }
+                            llm_content = json.dumps(llm_result, ensure_ascii=False)
+                        else:
+                            llm_content = result_raw
+
                         tool_results.append({
                             "role":         "tool",
                             "tool_call_id": tc["id"],
-                            "content":      result_raw,
+                            "content":      llm_content,
                         })
 
                     messages.extend(tool_results)
