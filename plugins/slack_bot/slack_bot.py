@@ -81,29 +81,74 @@ def _send_reply(client, channel: str, text: str, thread_ts: str = None):
 
 
 def _run_session(channel_key: str, text: str, client, channel: str, thread_ts: str = None):
-    """Synchroner Wrapper: führt session.turn() in eigenem Event-Loop aus."""
+    """Synchroner Wrapper: führt session.stream() in eigenem Event-Loop aus."""
     sess = _get_session(channel_key)
+    response = ""
+    response_blocks = []
 
     async def _inner():
-        return await sess.turn(text)
+        nonlocal response, response_blocks
+        async for event in sess.stream(text):
+            t = event.get("type")
+            if t == "done":
+                response = event.get("full_response", response)
+                response_blocks = event.get("response_blocks", [])
+            elif t == "token":
+                response += event.get("content", "")
+            elif t == "error":
+                response = f"Fehler: {event.get('message', '?')}"
 
     loop = asyncio.new_event_loop()
     try:
-        reply = loop.run_until_complete(_inner())
+        loop.run_until_complete(_inner())
     except Exception as e:
-        reply = f"Fehler: {e}"
+        response = f"Fehler: {e}"
     finally:
         loop.close()
 
-    _send_reply(client, channel, reply, thread_ts)
+    # Response senden: Text und Bilder
+    if response_blocks:
+        import base64 as _b64
+        for block in response_blocks:
+            if block.get("type") == "text":
+                _send_reply(client, channel, block.get("content", "").strip(), thread_ts)
+            elif block.get("type") == "image":
+                url = block.get("url", "")
+                if url.startswith("data:"):
+                    try:
+                        header, b64data = url.split(",", 1)
+                        mime = header.split(":")[1].split(";")[0]
+                        ext = "png" if "png" in mime else "jpg"
+                        img_bytes = _b64.b64decode(b64data)
+                        # Versuche files_upload_v2 (neuere Slack SDK), Fallback auf files_upload
+                        try:
+                            client.files_upload_v2(
+                                channel=channel,
+                                content=img_bytes,
+                                filename=f"screenshot.{ext}",
+                                title="Screenshot",
+                            )
+                        except AttributeError:
+                            client.files_upload(
+                                channels=channel,
+                                content=img_bytes,
+                                filename=f"screenshot.{ext}",
+                                title="Screenshot",
+                            )
+                    except Exception as img_e:
+                        print(f"[Slack] Bild-Upload fehlgeschlagen: {img_e}")
+                elif url.startswith("http"):
+                    _send_reply(client, channel, url, thread_ts)
+    else:
+        _send_reply(client, channel, response or "…", thread_ts)
 
 
 def _start_bot_thread(bot_token: str, app_token: str):
-    global _bot_started
     with _start_lock:
-        if _bot_started:
-            return
-        _bot_started = True
+        for t in threading.enumerate():
+            if t.name == "slack-bot" and t.is_alive():
+                print("[Slack] Bot-Thread läuft bereits — kein zweiter Start.")
+                return
 
     def _run():
         app = App(token=bot_token)

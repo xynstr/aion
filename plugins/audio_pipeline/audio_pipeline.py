@@ -228,7 +228,12 @@ def _tts_edge(text: str, output_path: str, voice: str = "de-DE-KatjaNeural") -> 
         return {"ok": False, "error": "edge-tts nicht installiert: pip install edge-tts"}
 
     # edge-tts speichert nativ als MP3 — wir nutzen .mp3 als Output
-    mp3_path = output_path.replace(".wav", ".mp3") if output_path.endswith(".wav") else output_path + ".mp3"
+    if output_path.endswith(".mp3"):
+        mp3_path = output_path
+    elif output_path.endswith(".wav"):
+        mp3_path = output_path.replace(".wav", ".mp3")
+    else:
+        mp3_path = output_path + ".mp3"
     try:
         async def _run():
             communicate = edge_tts.Communicate(text, voice)
