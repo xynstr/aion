@@ -153,6 +153,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .msg:hover .msg-actions { opacity: 1; }
 .copy-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text3); padding: 3px 9px; border-radius: 5px; font-size: 10px; cursor: pointer; transition: all .15s; letter-spacing: .3px; }
 .copy-btn:hover { border-color: var(--text2); color: var(--text2); background: rgba(255,255,255,.04); }
+.approval-bar { display: flex; gap: 8px; margin-top: 10px; padding: 10px 14px; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: 8px; align-items: center; }
+.approval-bar-label { font-size: 11px; color: var(--text2); flex: 1; }
+.approval-btn { padding: 6px 18px; border-radius: 6px; border: 1px solid; font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: .4px; transition: all .15s; background: transparent; }
+.approval-btn.confirm { border-color: var(--green); color: var(--green); }
+.approval-btn.confirm:hover { background: rgba(0,230,118,.12); }
+.approval-btn.cancel  { border-color: var(--red); color: var(--red); }
+.approval-btn.cancel:hover  { background: rgba(255,77,77,.12); }
+.approval-btn:disabled { opacity: .4; cursor: default; }
 
 /* ── Inline Accordions (Thoughts + Tools) ─────────────────────────────── */
 .inline-acc {
@@ -1281,6 +1289,27 @@ function finalizeCurrentBubble() {
   currentBubble = null;
 }
 
+function appendApprovalButtons() {
+  const bar = document.createElement('div');
+  bar.className = 'approval-bar';
+  bar.id = 'approvalBar';
+  bar.innerHTML = `
+    <span class="approval-bar-label">Warte auf Bestätigung</span>
+    <button class="approval-btn confirm" onclick="sendApproval(true)">Bestätigen</button>
+    <button class="approval-btn cancel"  onclick="sendApproval(false)">Abbrechen</button>`;
+  document.getElementById('messages').appendChild(bar);
+  scrollChat();
+}
+
+function sendApproval(confirmed) {
+  const bar = document.getElementById('approvalBar');
+  if (bar) {
+    bar.querySelectorAll('.approval-btn').forEach(b => b.disabled = true);
+    bar.querySelector('.approval-bar-label').textContent = confirmed ? 'Bestätigt' : 'Abgebrochen';
+  }
+  sendMsg(confirmed ? 'ja' : 'nein');
+}
+
 function appendHistoryAionMsg(text) {
   removeWelcome();
   const m=document.getElementById('messages'), d=document.createElement('div');
@@ -1530,6 +1559,9 @@ async function send() {
   let text  = input.value.trim();
   if (!text && !pendingImages.length && !pendingTextFiles.length) return;
   if (isThinking) return;
+  // Remove any pending approval bar when user sends a new message
+  const oldBar = document.getElementById('approvalBar');
+  if (oldBar) oldBar.remove();
   // Append text file contents to message
   if (pendingTextFiles.length) {
     const fileContext = pendingTextFiles.map(f => `\`\`\`${f.name}\n${f.content}\n\`\`\``).join('\n\n');
@@ -1585,8 +1617,14 @@ function handleEvent(ev) {
       updateInlineTool(ev.call_id, ev.result, ev.ok);
       showThinkingRow();
       break;
+    case 'approval':
+      hideThinkingRow(); finalizeCurrentBubble();
+      appendApprovalButtons();
+      awaitingNewBubble = false;
+      break;
     case 'done':
       hideThinkingRow(); finalizeCurrentBubble();
+      const oldBar = document.getElementById('approvalBar'); if (oldBar) oldBar.remove();
       if (ev.response_blocks) for (const b of ev.response_blocks) if (b.type==='image' && b.url) appendImageBlock(b.url);
       awaitingNewBubble = false; scrollChat();
       break;
