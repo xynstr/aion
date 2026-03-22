@@ -930,12 +930,22 @@ plugins/my_plugin.py             ❌ WRONG
 ### Channel Allowlist
 **Purpose:** Restrict bot access to specific channels (e.g., allow only Telegram, block Discord/Slack).
 
-**Config (`config.json`):**
+**Configuration Methods:**
+
+1. **Direct Config** (`config.json`):
 ```json
 {
   "channel_allowlist": ["default", "web", "telegram*"]
 }
 ```
+
+2. **CLI Tool** (available immediately):
+- `set_channel_allowlist(channels)` — Update allowlist dynamically
+  - Example: `set_channel_allowlist(["default", "telegram*"])` → Only allow these
+  - Example: `set_channel_allowlist([])` → Allow all channels (clear allowlist)
+- `get_control_settings()` — Check current configuration
+
+3. **WebUI** (planned): System tab will show Allowlist controls
 
 **Behavior:**
 - If `channel_allowlist` not set: all channels allowed (default)
@@ -949,17 +959,27 @@ plugins/my_plugin.py             ❌ WRONG
 ### Thinking Level Control
 **Purpose:** Adjust how deeply AION thinks before acting (helps with accuracy vs. speed tradeoff).
 
-**Config (`config.json`):**
+**Configuration Methods:**
+
+1. **Direct Config** (`config.json`):
 ```json
 {
   "thinking_level": "standard",
   "thinking_overrides": {
     "telegram*": "deep",
-    "discord*": "minimal",
-    "default": "standard"
+    "discord*": "minimal"
   }
 }
 ```
+
+2. **CLI Tools** (available immediately):
+- `set_thinking_level(level, channel_override)` — Set global or per-channel
+  - Example: `set_thinking_level("deep", "telegram*")` → Deep thinking for Telegram only
+  - Example: `set_thinking_level("standard")` → Set global to standard
+  - Levels: `"minimal"`, `"standard"`, `"deep"`, `"ultra"`
+- `get_control_settings()` — Check current configuration (both allowlist + thinking level)
+
+3. **WebUI** (planned): System tab will show Thinking Level + Allowlist controls
 
 **Levels:**
 | Level | Behavior |

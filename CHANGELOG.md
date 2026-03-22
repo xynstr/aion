@@ -5,19 +5,24 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ---
 
-## 2026-03-23 (5) — Security & Control Features (Phase 3 Complete)
+## 2026-03-23 (5) — Security & Control Features (Phase 3 Complete) + CLI Tools
 
 ### Neu: Channel Allowlist (`config.json → "channel_allowlist"`)
 - Sperrt/erlaubt bestimmte Kanäle: z.B. nur Telegram erlauben, Discord/Slack sperren
 - Syntax: `["default", "web", "telegram*"]` (exakte Matches + Wildcards)
 - Prüfung: `AionSession.stream()` am Anfang → Fehler wenn nicht in Allowlist
 - Flexibilität: Wenn nicht gesetzt → alle Kanäle erlaubt
+- **CLI-Tool:** `set_channel_allowlist(["default", "telegram*"])`
 
 ### Neu: Thinking Level Control (`config.json → "thinking_level"` + `"thinking_overrides"`)
 - 4 Level: `minimal` (schnell) → `standard` (normal) → `deep` (ausgiebig) → `ultra` (maximal)
 - Global: `"thinking_level": "standard"` für alle Kanäle
 - Channel-Override: `"thinking_overrides": {"telegram*": "deep", "discord*": "minimal"}`
 - Implementierung: Fügt System-Prompts hinzu (reflect-Tool nutzen ja/nein, wie intensiv)
+- **CLI-Tools:**
+  - `set_thinking_level("deep", "telegram*")` — Pro-Channel Override
+  - `set_thinking_level("standard")` — Global setzen
+  - `get_control_settings()` — Aktuelle Konfiguration checken
 
 ### Implementation Details
 - `_check_channel_allowlist(channel)` — Wildcard-Matching mit Exact-Match Fallback

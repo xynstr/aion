@@ -785,6 +785,60 @@ def _build_tool_schemas() -> list[dict]:
                 "parameters": {"type": "object", "properties": {}},
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "set_thinking_level",
+                "description": (
+                    "Setzt das Thinking Level global oder pro Channel. "
+                    "Level: 'minimal' (schnell) → 'standard' (normal) → 'deep' (ausgiebig) → 'ultra' (maximal). "
+                    "Ohne channel_override: setzt global 'thinking_level'. "
+                    "Mit channel_override: setzt 'thinking_overrides[pattern]' (z.B. 'telegram*' → 'deep')."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "level": {"type": "string", "enum": ["minimal", "standard", "deep", "ultra"]},
+                        "channel_override": {"type": "string", "description": "Optional: Channel-Pattern wie 'telegram*', 'discord_*'"},
+                    },
+                    "required": ["level"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "set_channel_allowlist",
+                "description": (
+                    "Setzt die Channel-Allowlist. Nur diese Channels dürfen Anfragen verarbeiten. "
+                    "Format: Liste von Strings mit exakten Matches oder Wildcards ('telegram*'). "
+                    "Leer = alle Channels erlaubt. "
+                    "Beispiel: ['default', 'web', 'telegram*'] — nur diese erlauben, Discord/Slack sperren."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "channels": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Liste erlaubter Channel-Patterns. Leer = alle erlauben."
+                        },
+                    },
+                    "required": ["channels"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_control_settings",
+                "description": (
+                    "Gibt aktuelle Einstellungen für Channel Allowlist und Thinking Level zurück. "
+                    "Nützlich zum Überprüfen der aktuellen Konfiguration."
+                ),
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
     ]
 
     existing_names = {t["function"]["name"] for t in builtins}
@@ -1104,6 +1158,61 @@ async def _dispatch(name: str, inputs: dict) -> str:
                 "note": "Plugins neu geladen. aion.py-Aenderungen wirken erst nach self_restart."})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
+
+    elif name == "set_thinking_level":
+        level = inputs.get("level", "standard")
+        channel_override = inputs.get("channel_override", "")
+
+        if level not in ["minimal", "standard", "deep", "ultra"]:
+            return json.dumps({"error": f"Ungültiges Level: {level}. Erlaubt: minimal, standard, deep, ultra"})
+
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+
+            if channel_override:
+                # Channel-spezifisches Override setzen
+                if "thinking_overrides" not in cfg:
+                    cfg["thinking_overrides"] = {}
+                cfg["thinking_overrides"][channel_override] = level
+                msg = f"Thinking Level für Channel '{channel_override}' auf '{level}' gesetzt."
+            else:
+                # Global setzen
+                cfg["thinking_level"] = level
+                msg = f"Thinking Level global auf '{level}' gesetzt."
+
+            CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+            return json.dumps({"ok": True, "message": msg, "config": cfg})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    elif name == "set_channel_allowlist":
+        channels = inputs.get("channels", [])
+        if not isinstance(channels, list):
+            return json.dumps({"error": "'channels' muss eine Liste sein."})
+
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+            cfg["channel_allowlist"] = channels
+            CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            if not channels:
+                msg = "Channel-Allowlist geleert. Alle Channels sind jetzt erlaubt."
+            else:
+                msg = f"Channel-Allowlist gesetzt: {', '.join(channels)}"
+            return json.dumps({"ok": True, "message": msg, "channels": channels})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    elif name == "get_control_settings":
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+            return json.dumps({
+                "thinking_level": cfg.get("thinking_level", "standard"),
+                "thinking_overrides": cfg.get("thinking_overrides", {}),
+                "channel_allowlist": cfg.get("channel_allowlist", []),
+            })
+        except Exception as e:
+            return json.dumps({"error": str(e)})
 
     elif name in _plugin_tools and not name.startswith("__"):
         try:
