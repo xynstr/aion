@@ -66,8 +66,21 @@ def _get_tts_config() -> tuple[str, str]:
 
 # ── Interne Helfer ───────────────────────────────────────────────────────────
 
+def _find_ffmpeg() -> str | None:
+    """Gibt den Pfad zur ffmpeg-Binary zurück oder None wenn nicht gefunden."""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    # WinGet-Fallback: Gyan.FFmpeg installiert in AppData\Local\Microsoft\WinGet\Packages
+    import glob, os
+    winget_base = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages")
+    matches = glob.glob(os.path.join(winget_base, "Gyan.FFmpeg*", "**", "ffmpeg.exe"), recursive=True)
+    if matches:
+        return matches[0]
+    return None
+
 def _ffmpeg_ok() -> bool:
-    return shutil.which("ffmpeg") is not None
+    return _find_ffmpeg() is not None
 
 
 def _convert_to_wav(input_path: str) -> str:
@@ -75,7 +88,8 @@ def _convert_to_wav(input_path: str) -> str:
     Gibt den Pfad zur temporären WAV-Datei zurück.
     Caller ist für das Löschen der Datei zuständig.
     """
-    if not _ffmpeg_ok():
+    ffmpeg_bin = _find_ffmpeg()
+    if not ffmpeg_bin:
         if sys.platform == "win32":
             hint = "winget install Gyan.FFmpeg"
         elif sys.platform == "darwin":
@@ -86,7 +100,7 @@ def _convert_to_wav(input_path: str) -> str:
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
     cmd = [
-        "ffmpeg", "-y", "-i", input_path,
+        ffmpeg_bin, "-y", "-i", input_path,
         "-ar", "16000",       # 16 kHz Abtastrate (optimal für Vosk)
         "-ac", "1",           # Mono
         "-sample_fmt", "s16", # 16-bit PCM

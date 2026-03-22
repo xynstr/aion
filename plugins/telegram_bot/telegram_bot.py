@@ -286,8 +286,10 @@ async def _telegram_worker(token: str):
 
                 # ffmpeg: WAV → OGG OPUS (Telegram-kompatibel für sendVoice)
                 ogg_tmp = wav_tmp.replace(".wav", "_tg.ogg")
+                _ap = _get_audio_pipeline()
+                _ffmpeg = (_ap._find_ffmpeg() if _ap and hasattr(_ap, "_find_ffmpeg") else None) or "ffmpeg"
                 cmd = [
-                    "ffmpeg", "-y", "-i", wav_tmp,
+                    _ffmpeg, "-y", "-i", wav_tmp,
                     "-c:a", "libopus", "-b:a", "64k",
                     ogg_tmp,
                 ]
@@ -735,8 +737,10 @@ def send_telegram_voice(path: str = "", **_) -> dict:
         if not path.lower().endswith(".ogg"):
             fd, ogg_tmp = tempfile.mkstemp(suffix="_tg.ogg")
             os.close(fd)
+            _ap2 = _get_audio_pipeline()
+            _ffmpeg2 = (_ap2._find_ffmpeg() if _ap2 and hasattr(_ap2, "_find_ffmpeg") else None) or "ffmpeg"
             proc = subprocess.run(
-                ["ffmpeg", "-y", "-i", path, "-c:a", "libopus", "-b:a", "64k", ogg_tmp],
+                [_ffmpeg2, "-y", "-i", path, "-c:a", "libopus", "-b:a", "64k", ogg_tmp],
                 capture_output=True, timeout=30,
             )
             if proc.returncode != 0:
