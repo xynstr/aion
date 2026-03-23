@@ -21,7 +21,7 @@ SLACK_APP_TOKEN=xapp-...
 
 ## Features
 
-- Antwortet auf @Mentions in Kanälen (antwortet im selben Thread)
+- Responds to @mentions in channels (antwortet im selben Thread)
 - Antwortet auf Direktnachrichten
 - Pro User eigene AION-Session (`slack_{user_id}`)
 - Nachrichten automatisch gesplittet bei 3000 Zeichen

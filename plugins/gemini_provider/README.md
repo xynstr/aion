@@ -11,7 +11,7 @@ Integriert Google's Gemini-Modelle als Alternative zu OpenAI. Erlaubt AION, zwis
 **Parameter:**
 - `model` (string): Modellname
 
-**Verfügbare Gemini-Modelle:**
+**Available Gemini models:**
 - `gemini-2.5-pro` (beste Qualität)
 - `gemini-2.5-flash` (schnell & günstig)
 - `gemini-2.5-flash-lite`

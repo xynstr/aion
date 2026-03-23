@@ -1,6 +1,6 @@
 # Plugin: clio_reflection
 
-**CLIO-Reflexionszyklus für strukturiertes Denken**
+**CLIO reflection cycle for structured thinking**
 
 ## Funktion
 
@@ -10,12 +10,12 @@ Implementiert die CLIO-Methode (Confidence, Logic, Information, Outcome) zur Kon
 
 **Parameter:**
 - `nutzerfrage` (string): Die aktuelle Aufgabe
-- `letzte_antwort` (string, optional): Falls AION schon antwortete, zur Überprüfung
+- `last_response` (string, optional): If AION already answered, for verification
 - `force` (boolean, optional): Zyklus erzwingen
 
 **Ausgabe:**
 - `konfidenz`: 0-100, wie sicher AION ist
-- `clio`: Lösungsansatz + Begründung
+- `clio`: Solution approach + reasoning
 - `meta`: Meta-Check und kritische Annahmen
 - `next`: Weiter mit continue_work oder direkt answer?
 
@@ -23,7 +23,7 @@ Implementiert die CLIO-Methode (Confidence, Logic, Information, Outcome) zur Kon
 
 1. Ansatz formulieren
 2. Konfidenz bewerten (40-95%)
-3. Begründung erklären
-4. Meta-Check: Welche Annahmen könnten falsch sein?
+3. Explain reasoning
+4. Meta-check: Which assumptions could be wrong?
 
 Wenn Konfidenz < 70% → AION recherchiert mehr. Wenn ≥ 70% → antwortet direkt.

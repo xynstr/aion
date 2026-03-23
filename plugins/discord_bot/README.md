@@ -1,6 +1,6 @@
 # discord_bot
 
-Bidirectional Discord-Bot für AION. Per-User-Sessions, @Mention + DM-Support, Slash-Commands.
+Bidirectional Discord bot for AION. Per-user sessions, @mention + DM support, slash commands.
 
 ## Einrichtung
 
@@ -16,7 +16,7 @@ Bidirectional Discord-Bot für AION. Per-User-Sessions, @Mention + DM-Support, S
 
 ## Features
 
-- Antwortet auf @Mentions in Kanälen
+- Responds to @mentions in channels
 - Antwortet auf Direktnachrichten
 - Slash-Command `/ask <frage>`
 - Bildverarbeitung via Attachment-URLs

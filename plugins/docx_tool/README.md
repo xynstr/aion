@@ -4,12 +4,12 @@
 
 ## Funktion
 
-Erlaubt AION, Word-Dokumente (.docx) zu erstellen und zu speichern. Nützlich für Reports, Briefe, Dokumentation und alle Aufgaben, die formatierte Textausgabe benötigen.
+Allows AION to create and save Word documents (.docx). Nützlich für Reports, Briefe, Dokumentation und alle Aufgaben, die formatierte Textausgabe benötigen.
 
 ## Tool: `create_docx`
 
 **Parameter:**
-- `path` (string, erforderlich): Vollständiger Pfad zur neuen .docx-Datei
+- `path` (string, erforderlich): Full path to the new .docx file
 - `content` (string, optional): Textinhalt als Paragraph
 
 **Ausgabe:**
@@ -20,7 +20,7 @@ Erlaubt AION, Word-Dokumente (.docx) zu erstellen und zu speichern. Nützlich f�
 ## Funktionsweise
 
 1. Neues Word-Dokument erstellen
-2. Inhalt als Paragraph hinzufügen
+2. Add content as paragraph
 3. Unter dem angegebenen Pfad speichern
 
 ## Installation

@@ -1,15 +1,15 @@
 # audio_pipeline
 
-Universelles Audio-Ein/Ausgabe-Plugin. Wandelt beliebige Audiodateien in Text um und erzeugt gesprochene Sprache — vollständig offline, keine Cloud-Dependency.
+Universal audio input/output plugin. Converts any audio files to text and generates spoken language — completely offline, no cloud dependency.
 
 ## Zweck
 
-Dieses Plugin ist die zentrale Audio-Infrastruktur für AION. Andere Plugins (Telegram, WhatsApp, Discord, ...) importieren es direkt, um Sprachnachrichten zu verarbeiten oder Sprachausgaben zu erzeugen.
+This plugin is the central audio infrastructure for AION. Other plugins (Telegram, WhatsApp, Discord, ...) import it directly to process voice messages or generate audio output.
 
 ## Tools
 
-- `audio_transcribe_any(file_path)` — Konvertiert beliebige Audiodateien (ogg, mp3, m4a, wav, ...) via ffmpeg in WAV und transkribiert mit Vosk (offline, Deutsch). Gibt `{ok, text, converted}` zurück.
-- `audio_tts(text, output_path?)` — Wandelt Text in gesprochene Sprache um (WAV-File). Nutzt pyttsx3 mit Windows SAPI5, bevorzugt deutsche Stimme. Gibt `{ok, path}` zurück.
+- `audio_transcribe_any(file_path)` — Converts any audio files (ogg, mp3, m4a, wav, ...) to WAV via ffmpeg and transcribes with Vosk (offline, German). Gibt `{ok, text, converted}` zurück.
+- `audio_tts(text, output_path?)` — Converts text to spoken language (WAV file). Uses pyttsx3 with Windows SAPI5, prefers German voice. Gibt `{ok, path}` zurück.
 
 ## Dependencyen
 
