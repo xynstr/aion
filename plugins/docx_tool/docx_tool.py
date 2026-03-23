@@ -1,7 +1,7 @@
 from docx import Document
 
 def create_docx_func(path, content="", memory=None):
-    """Erstellt eine neue .docx-Datei mit dem angegebenen Inhalt."""
+    """Creates eine neue .docx-File mit dem angegebenen Inhalt."""
     if not path:
         return {'error': 'Path is required'}
 
@@ -21,11 +21,11 @@ def register(api):
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Der vollständige Pfad zur neuen .docx-Datei."
+                "description": "Der vollständige Pfad zur neuen .docx-File."
             },
             "content": {
                 "type": "string",
-                "description": "Der Textinhalt der Datei."
+                "description": "Der Textinhalt der File."
             }
         },
         "required": ["path"]
@@ -33,7 +33,7 @@ def register(api):
     
     api.register_tool(
         name="create_docx",
-        description="Erstellt eine neue .docx-Datei mit dem angegebenen Inhalt.",
+        description="Erstellt eine neue .docx-File mit dem angegebenen Inhalt.",
         func=create_docx_func,
         input_schema=input_schema
     )

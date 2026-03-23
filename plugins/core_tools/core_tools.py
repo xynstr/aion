@@ -12,13 +12,13 @@ import uuid
 from datetime import datetime, UTC
 from pathlib import Path
 
-# AION-Root-Verzeichnis (plugins/core_tools/ → plugins/ → AION/)
+# AION-Root-Directory (plugins/core_tools/ → plugins/ → AION/)
 BOT_DIR = Path(__file__).parent.parent.parent
 
 
 def _record_memory(category: str, summary: str, lesson: str,
                    success: bool = True, hint: str = "") -> None:
-    """Standalone-Memory-Write: liest Datei, appendiert, speichert."""
+    """Standalone-Memory-Write: liest File, appendiert, speichert."""
     memory_file = BOT_DIR / "aion_memory.json"
     try:
         entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
@@ -69,7 +69,7 @@ def register(api):
             except Exception:
                 pass
 
-        # Memory-Einträge: aus Runtime oder Datei zählen
+        # Memory-Einträge: aus Runtime oder File zählen
         memory_entries = -1
         for src in (aion_mod, main):
             if src and hasattr(src, "memory"):
@@ -121,9 +121,9 @@ def register(api):
         name="continue_work",
         description=(
             "Signalisiere dass du noch arbeitest und direkt weitermachst — "
-            "OHNE auf den Nutzer zu warten. "
+            "OHNE auf den User zu warten. "
             "Nutze dies IMMER wenn nach einem Tool-Ergebnis noch weitere Schritte folgen. "
-            "Beispiel: nach winget_install → continue_work → shell_exec zum Prüfen. "
+            "Example: nach winget_install → continue_work → shell_exec zum Prüfen. "
             "Nutze es NICHT wenn die Aufgabe vollständig erledigt ist. "
             "Gibt sofort {ok: true} zurück."
         ),
@@ -144,7 +144,7 @@ def register(api):
         name="read_self_doc",
         description=(
             "Liest AION_SELF.md — die vollständige Selbst-Dokumentation mit allen Tools, "
-            "Plugins, Funktionsweisen und Konfiguration. Beim Start oder bei Bedarf aufrufen."
+            "Plugins, Functionsweisen und Configuration. Beim Start oder bei Bedarf aufrufen."
         ),
         func=_read_self_doc,
         input_schema={"type": "object", "properties": {}},
@@ -159,7 +159,7 @@ def register(api):
 
     api.register_tool(
         name="memory_record",
-        description="Speichert eine Erkenntnis im persistenten Gedächtnis.",
+        description="Speichert eine Erkenntnis im persistenten Memory.",
         func=_memory_record,
         input_schema={
             "type": "object",

@@ -5,10 +5,10 @@ Nutzt die installierte claude CLI (Claude Code) für hochwertige Aufgaben —
 kein API-Key nötig, läuft über dein bestehendes Claude-Abo.
 
 Workflow:
-  AION (Gemini/GPT) koordiniert → liest Dateien → übergibt an Claude →
+  AION (Gemini/GPT) koordiniert → liest Fileen → übergibt an Claude →
   Claude denkt nach → AION schreibt Ergebnis zurück
 
-Einrichtung:
+Setup:
   1. Claude Code installieren: https://claude.ai/download
   2. Mit Abo anmelden: claude login (einmalig im Terminal)
   3. Verifizieren: claude --print "Hallo" → gibt Antwort aus
@@ -33,7 +33,7 @@ import sys
 # ── claude CLI finden ─────────────────────────────────────────────────────────
 
 def _find_claude() -> str | None:
-    """Sucht die claude-CLI in PATH und bekannten WinGet/npm-Pfaden."""
+    """Searches die claude-CLI in PATH und bekannten WinGet/npm-Pfaden."""
     found = shutil.which("claude")
     if found:
         return found
@@ -85,7 +85,7 @@ def claude_cli_login(**_) -> dict:
     """
     claude_bin = _find_claude()
 
-    # Noch nicht installiert → npm install
+    # Noch not installed → npm install
     if not claude_bin:
         npm = shutil.which("npm") or shutil.which("npm.cmd")
         if not npm:
@@ -133,14 +133,14 @@ def claude_cli_login(**_) -> dict:
 
 
 def claude_cli_status(**_) -> dict:
-    """Prüft ob claude CLI installiert und angemeldet ist."""
+    """Checks ob claude CLI installiert und angemeldet ist."""
     claude_bin = _find_claude()
     if not claude_bin:
         return {
             "ok": False,
             "installed": False,
             "authenticated": False,
-            "message": "Claude CLI nicht installiert. claude_cli_login() aufrufen.",
+            "message": "Claude CLI not installed. claude_cli_login() aufrufen.",
         }
     authed = _claude_authenticated()
     return {
@@ -153,7 +153,7 @@ def claude_cli_status(**_) -> dict:
 
 
 def _load_task_routing() -> dict:
-    """Liest task_routing aus config.json."""
+    """Reads task_routing aus config.json."""
     try:
         cfg_path = os.path.join(os.path.dirname(__file__), "..", "..", "config.json")
         with open(cfg_path, "r", encoding="utf-8") as f:
@@ -177,7 +177,7 @@ def ask_claude(
 
     - prompt: Die Aufgabe/Frage
     - model: z.B. "claude-opus-4-6" (default aus task_routing oder claude-opus-4-6)
-    - context_files: Liste von Dateipfaden — Inhalt wird automatisch angehängt
+    - context_files: Liste von Filepfaden — Inhalt wird automatisch angehängt
     - task_type: "coding" / "review" / "analysis" (optional, für Logging)
     """
     claude_bin = _find_claude()
@@ -196,19 +196,19 @@ def ask_claude(
         routing = _load_task_routing()
         model = routing.get(task_type or "coding") or routing.get("default") or "claude-opus-4-6"
 
-    # Dateien an Prompt anhängen
+    # Fileen an Prompt anhängen
     full_prompt = prompt
     if context_files:
         for path in context_files:
             try:
                 with open(path, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
-                # Nur erste 30.000 Zeichen pro Datei (Claude-Kontextlimit beachten)
+                # Nur erste 30.000 Zeichen pro File (Claude-Kontextlimit beachten)
                 if len(content) > 30_000:
-                    content = content[:30_000] + "\n\n[... Datei gekürzt ...]"
-                full_prompt += f"\n\n=== Datei: {path} ===\n{content}\n"
+                    content = content[:30_000] + "\n\n[... File gekürzt ...]"
+                full_prompt += f"\n\n=== File: {path} ===\n{content}\n"
             except Exception as e:
-                full_prompt += f"\n[Fehler beim Lesen von {path}: {e}]\n"
+                full_prompt += f"\n[Error beim Lesen von {path}: {e}]\n"
 
     try:
         result = subprocess.run(
@@ -221,7 +221,7 @@ def ask_claude(
         )
         if result.returncode != 0:
             err = result.stderr.strip() or f"Exit-Code {result.returncode}"
-            # Häufiger Fehler: nicht angemeldet
+            # Häufiger Error: nicht angemeldet
             if "login" in err.lower() or "auth" in err.lower() or "token" in err.lower():
                 err += "\n→ Tipp: 'claude login' im Terminal ausführen um das Abo zu verknüpfen."
             return {"ok": False, "error": err}
@@ -249,7 +249,7 @@ def ask_claude(
 
 
 def get_task_routing(**_) -> dict:
-    """Zeigt die aktuelle Task-Routing-Konfiguration."""
+    """Zeigt die aktuelle Task-Routing-Configuration."""
     routing = _load_task_routing()
     claude_bin = _find_claude()
     return {
@@ -272,7 +272,7 @@ def set_task_routing(
     **_,
 ) -> dict:
     """
-    Setzt die Task-Routing-Konfiguration in config.json.
+    Setzt die Task-Routing-Configuration in config.json.
     Leere Strings = nicht ändern. Verwende 'remove' um einen Eintrag zu löschen.
     """
     try:
@@ -307,10 +307,10 @@ def register(api):
         description=(
             "Sendet eine Aufgabe an Claude (via Claude Code CLI) — nutzt dein Claude-Abo, kein API-Key nötig. "
             "Optimal für: komplexen Code schreiben/refaktorieren, Code-Review, Algorithmen, Architektur-Entscheidungen. "
-            "Workflow: 1) file_read() für relevante Dateien, 2) ask_claude(prompt, context_files=[...]), "
+            "Workflow: 1) file_read() für relevante Fileen, 2) ask_claude(prompt, context_files=[...]), "
             "3) Ergebnis via file_replace_lines() oder file_write() anwenden. "
             "task_type='coding' | 'review' | 'analysis' — steuert das Routing-Modell aus config.json. "
-            "HINWEIS: Prüfe task_routing-Konfiguration via get_task_routing() falls unklar welches Modell."
+            "HINWEIS: Prüfe task_routing-Configuration via get_task_routing() falls unklar welches Modell."
         ),
         func=ask_claude,
         input_schema={
@@ -332,8 +332,8 @@ def register(api):
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Optionale Dateipfade — Inhalt wird automatisch an den Prompt angehängt. "
-                        "Beispiel: ['plugins/aion.py', 'config.json']"
+                        "Optionale Filepfade — Inhalt wird automatisch an den Prompt angehängt. "
+                        "Example: ['plugins/aion.py', 'config.json']"
                     ),
                 },
                 "task_type": {
@@ -348,7 +348,7 @@ def register(api):
     api.register_tool(
         name="get_task_routing",
         description=(
-            "Zeigt die aktuelle Task-Routing-Konfiguration: welches Modell für welche Aufgabe verwendet wird. "
+            "Zeigt die aktuelle Task-Routing-Configuration: welches Modell für welche Aufgabe verwendet wird. "
             "Zeigt auch ob claude CLI verfügbar ist."
         ),
         func=get_task_routing,
@@ -359,7 +359,7 @@ def register(api):
         name="set_task_routing",
         description=(
             "Konfiguriert Task-Routing in config.json: welches Modell für coding/browsing/default verwendet wird. "
-            "Beispiel: set_task_routing(coding='claude-opus-4-6', default='gemini-2.5-flash'). "
+            "Example: set_task_routing(coding='claude-opus-4-6', default='gemini-2.5-flash'). "
             "Verwende 'remove' als Wert um einen Eintrag zu löschen."
         ),
         func=set_task_routing,
@@ -389,7 +389,7 @@ def register(api):
             "Startet den Claude-Login — öffnet den Browser zur Anmeldung mit dem Claude-Abo ($20/$200). "
             "Installiert Claude Code CLI automatisch via npm falls noch nicht vorhanden. "
             "Nach dem Login im Browser ist ask_claude sofort nutzbar. "
-            "Aufrufen wenn: Nutzer sagt 'melde mich bei Claude an', 'Claude Login', 'Claude CLI einrichten'."
+            "Aufrufen wenn: User sagt 'melde mich bei Claude an', 'Claude Login', 'Claude CLI einrichten'."
         ),
         func=claude_cli_login,
         input_schema={"type": "object", "properties": {}, "required": []},

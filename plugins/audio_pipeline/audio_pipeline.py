@@ -19,7 +19,7 @@ Engine-Priorität:
   3. Fallback: "sapi5"
 
 Andere Plugins (Telegram, WhatsApp, Discord, ...) können dieses Plugin direkt
-importieren — keine API-Keys, keine Cloud-Abhängigkeiten.
+importieren — keine API-Keys, keine Cloud-Dependencyen.
 
 Benötigt:
   - ffmpeg im PATH  (winget install Gyan.FFmpeg)
@@ -52,7 +52,7 @@ _vosk_model = None
 # ── Config-Helfer ─────────────────────────────────────────────────────────────
 
 def _get_tts_config() -> tuple[str, str]:
-    """Liest tts_engine + tts_voice aus config.json. Fallback: sapi5 / de-DE-KatjaNeural."""
+    """Reads tts_engine + tts_voice aus config.json. Fallback: sapi5 / de-DE-KatjaNeural."""
     try:
         if _CONFIG_FILE.exists():
             cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
@@ -67,7 +67,7 @@ def _get_tts_config() -> tuple[str, str]:
 # ── Interne Helfer ───────────────────────────────────────────────────────────
 
 def _find_ffmpeg() -> str | None:
-    """Gibt den Pfad zur ffmpeg-Binary zurück oder None wenn nicht gefunden."""
+    """Returns den Pfad zur ffmpeg-Binary zurück oder None wenn nicht gefunden."""
     found = shutil.which("ffmpeg")
     if found:
         return found
@@ -84,9 +84,9 @@ def _ffmpeg_ok() -> bool:
 
 
 def _convert_to_wav(input_path: str) -> str:
-    """Konvertiert beliebige Audiodatei → WAV (mono, 16 kHz, 16-bit) via ffmpeg.
-    Gibt den Pfad zur temporären WAV-Datei zurück.
-    Caller ist für das Löschen der Datei zuständig.
+    """Converts beliebige Audiodatei → WAV (mono, 16 kHz, 16-bit) via ffmpeg.
+    Gibt den Pfad zur temporären WAV-File zurück.
+    Caller ist für das Löschen der File zuständig.
     """
     ffmpeg_bin = _find_ffmpeg()
     if not ffmpeg_bin:
@@ -110,20 +110,20 @@ def _convert_to_wav(input_path: str) -> str:
     if result.returncode != 0:
         os.unlink(tmp.name)
         raise RuntimeError(
-            f"ffmpeg Fehler (exit {result.returncode}): "
+            f"ffmpeg Error (exit {result.returncode}): "
             f"{result.stderr.decode(errors='replace')[:400]}"
         )
     return tmp.name
 
 
 def _transcribe_wav(wav_path: str) -> str:
-    """Transkribiert eine WAV-Datei via Vosk. Gibt erkannten Text zurück."""
+    """Transkribiert eine WAV-File via Vosk. Gibt erkannten Text zurück."""
     global _vosk_model
     try:
         from vosk import Model, KaldiRecognizer
         import wave
     except ImportError:
-        raise RuntimeError("vosk nicht installiert: pip install vosk")
+        raise RuntimeError("vosk not installed: pip install vosk")
 
     if not _MODEL_PATH.exists():
         raise RuntimeError(
@@ -147,7 +147,7 @@ def _transcribe_wav(wav_path: str) -> str:
     return json.loads(rec.FinalResult()).get("text", "")
 
 
-# ── Öffentliche Tool-Funktionen ───────────────────────────────────────────────
+# ── Öffentliche Tool-Functionen ───────────────────────────────────────────────
 
 def audio_transcribe_any(file_path: str) -> dict:
     """Transkribiert beliebige Audiodateien (ogg, mp3, m4a, wav, ...) in Text.
@@ -160,7 +160,7 @@ def audio_transcribe_any(file_path: str) -> dict:
     input_path = str(file_path)
 
     if not os.path.exists(input_path):
-        return {"ok": False, "error": f"Datei nicht gefunden: {input_path}"}
+        return {"ok": False, "error": f"File nicht gefunden: {input_path}"}
 
     wav_path = None
     try:
@@ -193,7 +193,7 @@ def _tts_sapi5(text: str, output_path: str) -> dict:
     try:
         import pyttsx3
     except ImportError:
-        return {"ok": False, "error": "pyttsx3 nicht installiert: pip install pyttsx3"}
+        return {"ok": False, "error": "pyttsx3 not installed: pip install pyttsx3"}
     try:
         eng = pyttsx3.init()
         for v in eng.getProperty("voices"):
@@ -207,7 +207,7 @@ def _tts_sapi5(text: str, output_path: str) -> dict:
         eng.save_to_file(text, output_path)
         eng.runAndWait()
         if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-            return {"ok": False, "error": "SAPI5 erzeugte leere Datei"}
+            return {"ok": False, "error": "SAPI5 erzeugte leere File"}
         return {"ok": True, "path": output_path, "engine": "sapi5", "format": "wav"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -225,7 +225,7 @@ def _tts_edge(text: str, output_path: str, voice: str = "de-DE-KatjaNeural") -> 
     try:
         import edge_tts
     except ImportError:
-        return {"ok": False, "error": "edge-tts nicht installiert: pip install edge-tts"}
+        return {"ok": False, "error": "edge-tts not installed: pip install edge-tts"}
 
     # edge-tts speichert nativ als MP3 — wir nutzen .mp3 als Output
     if output_path.endswith(".mp3"):
@@ -253,10 +253,10 @@ def _tts_edge(text: str, output_path: str, voice: str = "de-DE-KatjaNeural") -> 
             asyncio.run(_run())
 
         if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
-            return {"ok": False, "error": "edge-tts erzeugte leere Datei"}
+            return {"ok": False, "error": "edge-tts erzeugte leere File"}
         return {"ok": True, "path": mp3_path, "engine": "edge", "voice": voice, "format": "mp3"}
     except Exception as e:
-        return {"ok": False, "error": f"edge-tts Fehler: {e}"}
+        return {"ok": False, "error": f"edge-tts Error: {e}"}
 
 
 def audio_tts(text: str, engine: str = "", output_path: str = "") -> dict:
@@ -266,7 +266,7 @@ def audio_tts(text: str, engine: str = "", output_path: str = "") -> dict:
             "sapi5" (offline, Fallback) |
             "" → liest aus config.json "tts_engine"
 
-    Konfiguration via config.json:
+    Configuration via config.json:
         {"tts_engine": "edge", "tts_voice": "de-DE-KatjaNeural"}
 
     Kann direkt von anderen Plugins importiert werden:
@@ -339,7 +339,7 @@ def register(api):
                 },
                 "output_path": {
                     "type": "string",
-                    "description": "Optionaler Ausgabepfad. Leer = temporäre Datei.",
+                    "description": "Optionaler Ausgabepfad. Leer = temporäre File.",
                 },
             },
             "required": ["text"],

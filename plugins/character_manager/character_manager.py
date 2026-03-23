@@ -1,5 +1,5 @@
 """
-character_manager — Charakter-Updates (update_character)
+character_manager — Character-Updates (update_character)
 
 War früher hardcodiert in aion.py/_dispatch().
 Als Plugin hot-reloadbar per self_reload_tools.
@@ -14,10 +14,10 @@ from pathlib import Path
 BOT_DIR        = Path(__file__).parent.parent.parent
 CHARACTER_FILE = BOT_DIR / "character.md"
 
-_DEFAULT_CHARACTER = "# AION — Charakter & Persönlichkeit\n"
+_DEFAULT_CHARACTER = "# AION — Character & Personality\n"
 
 _SECTION_MAP = {
-    "nutzer":          "## Was ich bisher über meinen Nutzer weiß",
+    "nutzer":          "## Was ich bisher über meinen User weiß",
     "erkenntnisse":    "## Meine bisherigen Erkenntnisse über mich selbst",
     "verbesserungen":  "## Dinge, die ich verbessern will",
     "auftreten":       "## Wie ich auftreten will",
@@ -25,8 +25,8 @@ _SECTION_MAP = {
     "stil":            "## Mein Humor & Stil",
     "eigenheiten":     "## Meine Eigenheiten & Vorlieben",
     "vorlieben":       "## Meine Eigenheiten & Vorlieben",
-    "persönlichkeit":  "## Meine Persönlichkeit",
-    "persoenlichkeit": "## Meine Persönlichkeit",
+    "persönlichkeit":  "## Meine Personality",
+    "persoenlichkeit": "## Meine Personality",
 }
 
 
@@ -38,7 +38,7 @@ def _load_character() -> str:
 
 
 def _record_memory(category: str, summary: str, lesson: str, success: bool = True) -> None:
-    """Standalone-Memory-Write: liest Datei, appendiert, speichert."""
+    """Standalone-Memory-Write: liest File, appendiert, speichert."""
     memory_file = BOT_DIR / "aion_memory.json"
     try:
         entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
@@ -84,9 +84,9 @@ def register(api):
 
         _record_memory(
             category="self_improvement",
-            summary=f"Charakter aktualisiert: {section}",
+            summary=f"Character aktualisiert: {section}",
             lesson=(
-                f"AION hat seinen Charakter weiterentwickelt "
+                f"AION hat seinen Character weiterentwickelt "
                 f"(Abschnitt: {section}). Grund: {reason}"
             ),
             success=True,
@@ -96,8 +96,8 @@ def register(api):
     api.register_tool(
         name="update_character",
         description=(
-            "Aktualisiert die character.md — AIONs sich entwickelnde Persönlichkeit. "
-            "Nutze dies wenn du etwas Neues über dich selbst oder deinen Nutzer lernst. "
+            "Aktualisiert die character.md — AIONs sich entwickelnde Personality. "
+            "Nutze dies wenn du etwas Neues über dich selbst oder deinen User lernst. "
             "Du kannst einzelne Abschnitte ersetzen oder neue hinzufügen. "
             "Die character.md entwickelt sich dadurch organisch über Zeit."
         ),

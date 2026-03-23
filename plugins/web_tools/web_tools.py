@@ -77,7 +77,7 @@ def register(api):
         try:
             import httpx
         except ImportError:
-            return {"error": "httpx nicht installiert. Bitte: pip install httpx"}
+            return {"error": "httpx not installed. Bitte: pip install httpx"}
 
         try:
             async with httpx.AsyncClient(

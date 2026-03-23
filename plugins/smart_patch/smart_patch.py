@@ -6,7 +6,7 @@ def register(api):
         path = Path(path)
         context_lines = int(context_lines)
         if not path.is_file():
-            return {'ok': False, 'error': f'Datei nicht gefunden: {path}'}
+            return {'ok': False, 'error': f'File nicht gefunden: {path}'}
         orig = path.read_text(encoding='utf-8', errors='replace')
         orig_lines = orig.splitlines(keepends=True)
 

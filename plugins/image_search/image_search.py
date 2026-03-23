@@ -10,7 +10,7 @@ import urllib.parse
 
 
 def search_images(query: str, count: int = 1, **_) -> dict:
-    """Sucht Bilder. Primär: Openverse API. Fallback: Bing via Playwright."""
+    """Searches Bilder. Primär: Openverse API. Fallback: Bing via Playwright."""
 
     # Primär: Openverse (freie CC-Bilder, kein API-Key, kein Browser)
     try:
@@ -72,7 +72,7 @@ def register(api):
         name="image_search",
         description=(
             "Sucht Bilder zu einem Begriff und gibt direkte Bild-URLs zurück. "
-            "Nutze dieses Tool IMMER wenn der Nutzer ein Bild, Foto, Logo oder "
+            "Nutze dieses Tool IMMER wenn der User ein Bild, Foto, Logo oder "
             "visuelle Inhalte sehen möchte. Englische Suchbegriffe empfohlen. "
             "Schreibe KEINE Markdown-Bild-Syntax — das System zeigt die Bilder automatisch."
         ),

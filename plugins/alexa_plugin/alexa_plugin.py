@@ -42,7 +42,7 @@ async def handle_alexa_request(request: Request):
                 .get("value", "")
             )
             if not query:
-                return build_alexa_response("Ich habe deinen Befehl nicht verstanden.")
+                return build_alexa_response("Ich habe deinen Command nicht verstanden.")
 
             try:
                 import aion
@@ -57,19 +57,19 @@ async def handle_alexa_request(request: Request):
                 if not response_text:
                     response_text = "Ich habe die Aufgabe erledigt."
             except Exception as e:
-                logger.error(f"AionSession Fehler: {e}", exc_info=True)
-                response_text = "Entschuldigung, ein interner Fehler ist aufgetreten."
+                logger.error(f"AionSession Error: {e}", exc_info=True)
+                response_text = "Entschuldigung, ein interner Error ist aufgetreten."
 
             return build_alexa_response(response_text)
 
         elif intent_name == "AMAZON.HelpIntent":
-            return build_alexa_response("Sage zum Beispiel: Frage AION, wie das Wetter wird.")
+            return build_alexa_response("Sage zum Example: Frage AION, wie das Wetter wird.")
 
         elif intent_name in ("AMAZON.CancelIntent", "AMAZON.StopIntent"):
             return build_alexa_response("Auf Wiedersehen.", should_end_session=True)
 
         else:
-            return build_alexa_response("Diesen Befehl kenne ich nicht.")
+            return build_alexa_response("Diesen Command kenne ich nicht.")
 
     elif request_type == "SessionEndedRequest":
         return Response(status_code=200)

@@ -61,7 +61,7 @@ def _run_todo_session():
             loop.close()
     except Exception as e:
         with open(_HEARTBEAT_LOG, "a", encoding="utf-8") as f:
-            f.write(f"[Todo-Worker Fehler] {datetime.datetime.now().isoformat()}: {e}\n")
+            f.write(f"[Todo-Worker Error] {datetime.datetime.now().isoformat()}: {e}\n")
     finally:
         _todo_worker_running = False
 
@@ -106,7 +106,7 @@ def register(api):
 
 def _register_tools(api):
     def get_last_heartbeat(**_) -> dict:
-        """Gibt den letzten Heartbeat-Eintrag und Todo-Status zurück."""
+        """Returns den letzten Heartbeat-Eintrag und Todo-Status zurück."""
         try:
             lines = _HEARTBEAT_LOG.read_text(encoding="utf-8").splitlines() if _HEARTBEAT_LOG.exists() else []
             last  = next((l for l in reversed(lines) if l.strip()), "–")

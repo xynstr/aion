@@ -2,13 +2,13 @@
 AION Plugin: Slack Bot
 =======================
 Bidirektionaler Slack-Bot mit per-User-Sessions via Socket Mode.
-Antwortet auf App-Mentions in Kanälen und auf Direktnachrichten.
+Antwortet auf App-Mentions in Channelsn und auf Direktnachrichten.
 
-Konfiguration (.env):
+Configuration (.env):
     SLACK_BOT_TOKEN=xoxb-...      # Bot User OAuth Token
     SLACK_APP_TOKEN=xapp-...      # App-Level Token (Socket Mode)
 
-Einrichtung:
+Setup:
   1. https://api.slack.com/apps → Neue App → "From scratch"
   2. Socket Mode aktivieren (App Settings → Socket Mode)
   3. App-Level Token generieren (Scope: connections:write) → SLACK_APP_TOKEN
@@ -19,7 +19,7 @@ Einrichtung:
        app_mention, message.im
   6. App installieren → Bot User OAuth Token kopieren → SLACK_BOT_TOKEN
 
-Abhängigkeit:
+Dependency:
     pip install slack-bolt
 """
 
@@ -61,7 +61,7 @@ def _split_message(text: str, max_len: int = 3000) -> list[str]:
 
 
 def _get_session(channel_key: str) -> object:
-    """Gibt eine AionSession zurück (erstellt bei Bedarf)."""
+    """Returns eine AionSession zurück (erstellt bei Bedarf)."""
     from aion import AionSession
     if channel_key not in _sessions:
         _sessions[channel_key] = AionSession(channel=channel_key)
@@ -69,7 +69,7 @@ def _get_session(channel_key: str) -> object:
 
 
 def _send_reply(client, channel: str, text: str, thread_ts: str = None):
-    """Sendet eine Antwort (ggf. aufgeteilt) in einen Slack-Kanal."""
+    """Sendet eine Antwort (ggf. aufgeteilt) in einen Slack-Channel."""
     for chunk in _split_message(str(text)):
         kwargs = {"channel": channel, "text": chunk}
         if thread_ts:
@@ -96,13 +96,13 @@ def _run_session(channel_key: str, text: str, client, channel: str, thread_ts: s
             elif t == "token":
                 response += event.get("content", "")
             elif t == "error":
-                response = f"Fehler: {event.get('message', '?')}"
+                response = f"Error: {event.get('message', '?')}"
 
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(_inner())
     except Exception as e:
-        response = f"Fehler: {e}"
+        response = f"Error: {e}"
     finally:
         loop.close()
 
@@ -153,7 +153,7 @@ def _start_bot_thread(bot_token: str, app_token: str):
     def _run():
         app = App(token=bot_token)
 
-        # ── App-Mention in Kanal ─────────────────────────────────────────────
+        # ── App-Mention in Channel ─────────────────────────────────────────────
 
         @app.event("app_mention")
         def handle_mention(event, client, say):
@@ -216,8 +216,8 @@ def _start_bot_thread(bot_token: str, app_token: str):
 
 def register(api):
     if not HAS_SLACK:
-        print("[slack_bot] 'slack-bolt' nicht installiert.")
-        print("  Bitte ausführen: pip install slack-bolt")
+        print("[slack_bot] 'slack-bolt' not installed.")
+        print("  Please run: pip install slack-bolt")
         return
 
     bot_token = os.environ.get("SLACK_BOT_TOKEN", "").strip()

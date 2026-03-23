@@ -31,7 +31,7 @@ def _is_gemini(model: str) -> bool:
 
 
 def _openai_schema_to_gemini(openai_tools: list) -> list:
-    """Konvertiert OpenAI Tool-Schemas in Gemini FunctionDeclaration-Format."""
+    """Converts OpenAI Tool-Schemas in Gemini FunctionDeclaration-Format."""
     from google.genai import types as t
 
     def clean_schema(s, in_properties=False):
@@ -81,7 +81,7 @@ def _openai_schema_to_gemini(openai_tools: list) -> list:
 
 
 def _make_chunk(text=None, tool_calls=None):
-    """Erstellt ein OpenAI-ähnliches Streaming-Chunk-Objekt."""
+    """Creates ein OpenAI-ähnliches Streaming-Chunk-Objekt."""
 
     class FunctionCall:
         def __init__(self, index, id_, name, arguments):
@@ -147,10 +147,10 @@ class _GeminyChatCompletions:
             from google import genai
             return genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
         except ImportError:
-            raise RuntimeError("google-genai nicht installiert: pip install google-genai")
+            raise RuntimeError("google-genai not installed: pip install google-genai")
 
     def _build_contents(self, messages: list):
-        """Konvertiert OpenAI-Messages in Gemini Contents."""
+        """Converts OpenAI-Messages in Gemini Contents."""
         from google.genai import types as t
 
         system_instruction = None

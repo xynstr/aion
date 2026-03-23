@@ -1,13 +1,13 @@
 """
 AION Plugin: restart_with_approval
 ====================================
-Startet den AION-Prozess vollständig neu — aber nur nach Bestätigung durch den Nutzer.
+Startet den AION-Prozess vollständig neu — aber nur nach Bestätigung durch den User.
 
 Unterschied zu self_restart (Hot-Reload):
   - self_restart = Plugins neu laden, Prozess läuft weiter (kein Datenverlust, sofort)
   - restart_with_approval = Prozess komplett beenden + neu starten
 
-Funktioniert in allen Kanälen (Web UI, Telegram, Discord):
+Functioniert in allen Channelsn (Web UI, Telegram, Discord):
   - confirmed=False → gibt approval_required: True zurück
   - Das vorhandene Approval-System (Ja/Nein-Buttons) übernimmt automatisch
   - Nach "ja" ruft AION restart_with_approval(confirmed=True) auf
@@ -71,8 +71,8 @@ def register(api):
         name="restart_with_approval",
         description=(
             "Startet den AION-Prozess vollständig neu (echter Prozessneustart, kein Hot-Reload). "
-            "Zeigt dem Nutzer zuerst eine Ja/Nein-Bestätigungsaufforderung — funktioniert in Web UI, Telegram und Discord. "
-            "Verwende dieses Tool wenn der Nutzer 'Starte dich neu', 'Neustart', 'restart' o.ä. sagt. "
+            "Zeigt dem User zuerst eine Ja/Nein-Bestätigungsaufforderung — funktioniert in Web UI, Telegram und Discord. "
+            "Verwende dieses Tool wenn der User 'Starte dich neu', 'Neustart', 'restart' o.ä. sagt. "
             "Für Plugin-Updates ohne Neustart: self_restart (Hot-Reload) verwenden."
         ),
         func=restart_with_approval,

@@ -4,17 +4,17 @@ AION Plugin: Discord Bot
 Bidirektionaler Discord-Bot mit per-User-Sessions.
 Antwortet auf @Mentions und Direktnachrichten.
 
-Konfiguration (.env):
+Configuration (.env):
     DISCORD_BOT_TOKEN=your_bot_token
 
-Einrichtung:
+Setup:
   1. https://discord.com/developers/applications → Neue App → Bot
   2. Bot-Token kopieren → DISCORD_BOT_TOKEN=...
   3. Unter "Privileged Gateway Intents": MESSAGE CONTENT INTENT aktivieren
   4. Bot einladen: OAuth2 → URL Generator → bot + application.commands → Scope
      → Permissions: Send Messages, Read Message History, Use Slash Commands
 
-Abhängigkeit:
+Dependency:
     pip install discord.py
 """
 
@@ -82,7 +82,7 @@ def _split_message(text: str, max_len: int = 1900) -> list[str]:
 
 
 def _get_session(user_id: int) -> object:
-    """Gibt eine AionSession für den User zurück (erstellt bei Bedarf)."""
+    """Returns eine AionSession für den User zurück (erstellt bei Bedarf)."""
     from aion import AionSession
     if user_id not in _sessions:
         _sessions[user_id] = AionSession(channel=f"discord_{user_id}")
@@ -106,7 +106,7 @@ def _create_bot() -> "commands.Bot":
             print(f"[Discord] Slash-Command-Sync fehlgeschlagen: {e}")
 
     async def _send_image(channel, url: str):
-        """Sendet ein Bild: data:-URL als Datei-Upload, HTTP-URL als Text."""
+        """Sendet ein Bild: data:-URL als File-Upload, HTTP-URL als Text."""
         if url.startswith("data:"):
             import base64 as _b64
             header, b64data = url.split(",", 1)
@@ -127,7 +127,7 @@ def _create_bot() -> "commands.Bot":
             loop = asyncio.get_event_loop()
             tts_res = await loop.run_in_executor(None, ap.audio_tts, text_reply)
             if not tts_res.get("ok"):
-                print(f"[Discord] TTS Fehler: {tts_res.get('error')}")
+                print(f"[Discord] TTS Error: {tts_res.get('error')}")
                 return False
             wav_tmp = tts_res["path"]
             with open(wav_tmp, "rb") as f:
@@ -136,7 +136,7 @@ def _create_bot() -> "commands.Bot":
             await channel.send(file=discord.File(fp=io.BytesIO(audio_bytes), filename=f"voice{ext}"))
             return True
         except Exception as e:
-            print(f"[Discord] Voice-Reply Fehler: {e}")
+            print(f"[Discord] Voice-Reply Error: {e}")
             return False
         finally:
             if wav_tmp and os.path.exists(wav_tmp):
@@ -158,10 +158,10 @@ def _create_bot() -> "commands.Bot":
                 elif t == "token":
                     response += event.get("content", "")
                 elif t == "error":
-                    response = f"Fehler: {event.get('message', '?')}"
+                    response = f"Error: {event.get('message', '?')}"
         except Exception as e:
-            response = f"Fehler: {e}"
-            print(f"[Discord] stream() Fehler: {e}")
+            response = f"Error: {e}"
+            print(f"[Discord] stream() Error: {e}")
 
         if response_blocks:
             for block in response_blocks:
@@ -218,12 +218,12 @@ def _create_bot() -> "commands.Bot":
             elif ct.startswith("audio/"):
                 voice_attachment = attachment
             else:
-                # Nicht unterstützter Dateityp
+                # Nicht unterstützter Filetyp
                 try:
                     from aion import unsupported_file_message
                     msg = unsupported_file_message(f"«{attachment.filename}» ({ct or 'unbekannt'})")
                 except Exception:
-                    msg = f"Dateityp «{attachment.filename}» kann ich leider nicht direkt verarbeiten."
+                    msg = f"Filetyp «{attachment.filename}» kann ich leider nicht direkt verarbeiten."
                 await message.channel.send(msg)
                 return
 
@@ -286,9 +286,9 @@ def _create_bot() -> "commands.Bot":
                 elif t == "token":
                     response += event.get("content", "")
                 elif t == "error":
-                    response = f"Fehler: {event.get('message', '?')}"
+                    response = f"Error: {event.get('message', '?')}"
         except Exception as e:
-            response = f"Fehler: {e}"
+            response = f"Error: {e}"
         if response_blocks:
             for block in response_blocks:
                 if block.get("type") == "text":
@@ -344,8 +344,8 @@ def _start_bot_thread(token: str):
 
 def register(api):
     if not HAS_DISCORD:
-        print("[discord_bot] 'discord.py' nicht installiert.")
-        print("  Bitte ausführen: pip install discord.py")
+        print("[discord_bot] 'discord.py' not installed.")
+        print("  Please run: pip install discord.py")
         return
 
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()

@@ -3,7 +3,7 @@ import re
 from datetime import datetime, UTC
 from pathlib import Path
 
-# BOT_DIR ist das Verzeichnis, in dem aion.py liegt.
+# BOT_DIR ist das Directory, in dem aion.py liegt.
 # __file__ = .../AION/plugins/memory_plugin/memory_plugin.py
 # .parent = memory_plugin/, .parent.parent = plugins/, .parent.parent.parent = AION/
 BOT_DIR = Path(__file__).parent.parent.parent
@@ -38,9 +38,9 @@ def append_to_history(role: str, content: str, channel: str = "default") -> dict
 def read_last_entries(num_entries: int = 50, channel_filter: str = "") -> dict:
     """
     Liest die letzten N Einträge aus der Konversationshistorie.
-    channel_filter: wenn gesetzt, nur Einträge dieses Kanals zurückgeben.
-      - "telegram" matcht alle telegram_* Kanäle
-      - "web" matcht alle web* Kanäle
+    channel_filter: wenn gesetzt, nur Einträge dieses Channels zurückgeben.
+      - "telegram" matcht alle telegram_* Channels
+      - "web" matcht alle web* Channels
       - exakter Wert wie "telegram_123456" für einen bestimmten Chat
     Gibt sie im OpenAI-Format {role, content} zurück, ohne 'ts'.
     """
@@ -77,7 +77,7 @@ def read_last_entries(num_entries: int = 50, channel_filter: str = "") -> dict:
 
 
 def read_web_history(num_entries: int = 20) -> dict:
-    """Liest die letzten N Einträge aus der Web-UI-History (channel=web*)."""
+    """Reads die letzten N Einträge aus der Web-UI-History (channel=web*)."""
     return read_last_entries(num_entries=num_entries, channel_filter="web")
 
 
@@ -137,7 +137,7 @@ def register(api):
     api.register_tool(
         name="memory_append_history",
         description=(
-            "Fügt einen Eintrag (Nutzer oder AION) mit Zeitstempel zur persistenten "
+            "Fügt einen Eintrag (User oder AION) mit Zeitstempel zur persistenten "
             "Konversationshistorie hinzu. Immer aufrufen nach jeder Antwort."
         ),
         func=append_to_history,
@@ -154,7 +154,7 @@ def register(api):
                 },
                 "channel": {
                     "type": "string",
-                    "description": "Kanal: 'web', 'telegram_CHATID', 'heartbeat', etc."
+                    "description": "Channel: 'web', 'telegram_CHATID', 'heartbeat', etc."
                 }
             },
             "required": ["role", "content"]
@@ -177,7 +177,7 @@ def register(api):
                 },
                 "channel_filter": {
                     "type": "string",
-                    "description": "Kanal-Filter: z.B. 'telegram_123456', 'telegram', 'web'"
+                    "description": "Channel-Filter: z.B. 'telegram_123456', 'telegram', 'web'"
                 }
             },
             "required": []
@@ -188,7 +188,7 @@ def register(api):
         name="memory_read_web_history",
         description=(
             "Liest die letzten N Nachrichten aus der Web-UI-History. "
-            "Nutze dieses Tool wenn der Nutzer fragt was im Web-Chat besprochen wurde, "
+            "Nutze dieses Tool wenn der User fragt was im Web-Chat besprochen wurde, "
             "oder wenn er von Web auf Telegram wechselt und den Kontext mitbringen möchte."
         ),
         func=read_web_history,
@@ -209,7 +209,7 @@ def register(api):
         description=(
             "Durchsucht die gesamte Konversationshistorie nach relevanten Einträgen "
             "zu einem Thema/einer Frage. Nutzt Keyword + Zeitgewichtung. "
-            "Nutze dies wenn der Nutzer nach etwas fragt, das früher besprochen wurde."
+            "Nutze dies wenn der User nach etwas fragt, das früher besprochen wurde."
         ),
         func=search_context,
         input_schema={
@@ -230,7 +230,7 @@ def register(api):
 
     api.register_tool(
         name="memory_clear_history",
-        description="Löscht die gesamte persistente Konversationshistorie. Nur auf explizite Nutzeranfrage!",
+        description="Löscht die gesamte persistente Konversationshistorie. Nur auf explizite Useranfrage!",
         func=clear_history,
         input_schema={
             "type": "object",

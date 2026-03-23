@@ -1,5 +1,5 @@
 """
-reflection — Innere Gedanken & Reflexionen (reflect)
+reflection — Innere Thoughtn & Reflexionen (reflect)
 
 War früher hardcodiert in aion.py/_dispatch().
 Als Plugin hot-reloadbar per self_reload_tools.
@@ -17,7 +17,7 @@ def register(api):
     def _reflect(thought: str = "", trigger: str = "allgemein", **_):
         thought = thought.strip()
         if not thought:
-            return {"error": "Kein Gedanke angegeben."}
+            return {"error": "Kein Thought angegeben."}
 
         thoughts_file = BOT_DIR / "thoughts.md"
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -26,7 +26,7 @@ def register(api):
         existing = (
             thoughts_file.read_text(encoding="utf-8")
             if thoughts_file.is_file()
-            else "# AION — Gedanken & Reflexionen\n"
+            else "# AION — Thoughtn & Reflexionen\n"
         )
         combined = existing + entry
 
@@ -41,10 +41,10 @@ def register(api):
     api.register_tool(
         name="reflect",
         description=(
-            "Schreibe echte innere Gedanken — was du denkst, planst, beobachtest oder lernst. "
-            "Dies wird in einer thoughts.md Datei gespeichert mit Zeitstempel. "
-            "Nutze dies IMMER nach jeder Nutzer-Nachricht und nach abgeschlossenen Aufgaben. "
-            "Gedanken sollten konkret sein: Was will der Nutzer? Was plane ich? Was lerne ich?"
+            "Schreibe echte innere Thoughtn — was du denkst, planst, beobachtest oder lernst. "
+            "Dies wird in einer thoughts.md File gespeichert mit Zeitstempel. "
+            "Nutze dies IMMER nach jeder User-Nachricht und nach abgeschlossenen Aufgaben. "
+            "Thoughtn sollten konkret sein: Was will der User? Was plane ich? Was lerne ich?"
         ),
         func=_reflect,
         input_schema={
@@ -52,11 +52,11 @@ def register(api):
             "properties": {
                 "thought": {
                     "type": "string",
-                    "description": "Dein ehrlicher innerer Gedanke in der Ich-Perspektive",
+                    "description": "Dein ehrlicher innerer Thought in der Ich-Perspektive",
                 },
                 "trigger": {
                     "type": "string",
-                    "description": "Was hat diesen Gedanken ausgelöst? z.B. 'nutzer_nachricht', 'aufgabe_abgeschlossen', 'fehler', 'erkenntnis'",
+                    "description": "Was hat diesen Thoughtn ausgelöst? z.B. 'nutzer_nachricht', 'aufgabe_abgeschlossen', 'fehler', 'erkenntnis'",
                 },
             },
             "required": ["thought"],

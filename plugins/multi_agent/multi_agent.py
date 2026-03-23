@@ -111,7 +111,7 @@ async def sessions_send(
 
 
 def sessions_history(agent_id: str = "", **_) -> dict:
-    """Gibt die letzten 20 Nachrichten eines Sub-Agenten zurück."""
+    """Returns die letzten 20 Nachrichten eines Sub-Agenten zurück."""
     if not agent_id:
         return {"error": "Kein 'agent_id' angegeben."}
     if agent_id not in _sub_sessions:

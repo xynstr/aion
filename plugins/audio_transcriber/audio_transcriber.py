@@ -1,7 +1,7 @@
 """
 AION Plugin: audio_transcriber
 ===============================
-Transkribiert WAV-Dateien (mono, 16-bit PCM) via Vosk (Offline).
+Transkribiert WAV-Fileen (mono, 16-bit PCM) via Vosk (Offline).
 
 Für universelle Audio-Unterstützung (ogg, mp3, m4a, ...):
 → Nutze das audio_pipeline-Plugin, das dieses Plugin intern verwendet.
@@ -18,7 +18,7 @@ vosk_model = None
 
 
 def transcribe_audio(file_path: str) -> str:
-    """Transkribiert eine WAV-Datei (mono, 16-bit) mit Vosk."""
+    """Transkribiert eine WAV-File (mono, 16-bit) mit Vosk."""
     global vosk_model
 
     if not _MODEL_PATH.exists():
@@ -39,7 +39,7 @@ def transcribe_audio(file_path: str) -> str:
 
         with wave.open(file_path, "rb") as wf:
             if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
-                return "FEHLER: WAV-Datei muss mono und 16-bit PCM sein. Nutze audio_transcribe_any für andere Formate."
+                return "FEHLER: WAV-File muss mono und 16-bit PCM sein. Nutze audio_transcribe_any für andere Formate."
 
             rec = KaldiRecognizer(vosk_model, wf.getframerate())
             rec.SetWords(True)

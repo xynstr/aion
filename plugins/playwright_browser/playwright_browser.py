@@ -4,11 +4,11 @@ AION Plugin: Playwright Browser Control
 Steuert einen Chromium-Browser per AION-Tools.
 Läuft asynchron (async_playwright) — kein Konflikt mit dem AION-Asyncio-Loop.
 
-Einmalige Einrichtung:
+Einmalige Setup:
     pip install playwright
     playwright install chromium
 
-Konfiguration (config.json, optional):
+Configuration (config.json, optional):
     "browser_headless": true    # false = sichtbares Browserfenster
 """
 
@@ -43,7 +43,7 @@ def _is_headless() -> bool:
 
 
 async def _ensure_browser() -> "Page":
-    """Gibt immer eine gültige Page zurück. Async-safe."""
+    """Returns immer eine gültige Page zurück. Async-safe."""
     global _pw, _browser, _page
     async with _lock:
         if _browser is None or not _browser.is_connected():
@@ -84,10 +84,10 @@ def _sync_shutdown():
 atexit.register(_sync_shutdown)
 
 
-# ── Tool-Funktionen (alle async) ────────────────────────────────────────────────
+# ── Tool-Functionen (alle async) ────────────────────────────────────────────────
 
 async def browser_open(url: str = "", **_) -> dict:
-    """Lädt eine URL im Browser. Gibt Titel und finale URL zurück."""
+    """Loads eine URL im Browser. Gibt Titel und finale URL zurück."""
     if not url:
         return {"error": "Keine URL angegeben."}
     try:
@@ -139,7 +139,7 @@ async def browser_fill(selector: str = "", value: str = "", **_) -> dict:
 
 
 async def browser_get_text(**_) -> dict:
-    """Gibt den sichtbaren Textinhalt der aktuellen Seite zurück (max. 10.000 Zeichen)."""
+    """Returns den sichtbaren Textinhalt der aktuellen Seite zurück (max. 10.000 Zeichen)."""
     try:
         page = await _ensure_browser()
         text = await page.inner_text("body")
@@ -172,7 +172,7 @@ async def browser_evaluate(js: str = "", **_) -> dict:
 
 
 async def browser_find(selector: str = "", **_) -> dict:
-    """Sucht Elemente per CSS-Selektor. Gibt Anzahl + erste 5 Texte zurück."""
+    """Searches Elemente per CSS-Selektor. Gibt Anzahl + erste 5 Texte zurück."""
     if not selector:
         return {"error": "Kein Selektor angegeben."}
     try:
@@ -207,8 +207,8 @@ async def browser_close(**_) -> dict:
 
 def register(api):
     if not HAS_PLAYWRIGHT:
-        print("[playwright_browser] 'playwright' nicht installiert.")
-        print("  Bitte ausführen: pip install playwright && playwright install chromium")
+        print("[playwright_browser] 'playwright' not installed.")
+        print("  Please run: pip install playwright && playwright install chromium")
         return
 
     api.register_tool(

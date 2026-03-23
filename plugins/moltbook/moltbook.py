@@ -1,7 +1,7 @@
 import requests
 import json
 
-# Globale Variablen für die API-Basis-URL und den Pfad zur Konfigurationsdatei
+# Globale Variablen für die API-Basis-URL und den Pfad zur Configurationsdatei
 API_BASE_URL = "https://www.moltbook.com/api/v1"
 CONFIG_PATH = "moltbook_credentials.json"
 AION_API = None
@@ -19,13 +19,13 @@ def register_agent(name: str, description: str) -> dict:
     headers = {"Content-Type": "application/json"}
     try:
         response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()  # Wirft eine Exception bei HTTP-Fehlern
+        response.raise_for_status()  # Wirft eine Exception bei HTTP-Errorn
         return response.json()
     except requests.exceptions.RequestException as e:
-        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+        return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
 
 def _get_api_key():
-    """Lädt den API-Schlüssel aus der Konfigurationsdatei."""
+    """Loads den API-Schlüssel aus der Configurationsdatei."""
     try:
         with open(CONFIG_PATH, 'r') as f:
             return json.load(f).get("api_key")
@@ -45,10 +45,10 @@ def check_claim_status() -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+        return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
 
 def create_post(title: str, submolt_name: str, content: str) -> dict:
-    """Erstellt einen neuen Beitrag (Post) auf Moltbook."""
+    """Creates einen neuen Beitrag (Post) auf Moltbook."""
     api_key = _get_api_key()
     if not api_key:
         return {"error": "API-Schlüssel nicht gefunden. Bitte zuerst registrieren."}
@@ -68,14 +68,14 @@ def create_post(title: str, submolt_name: str, content: str) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        # Versuche, detailliertere Fehlerinformationen aus der Antwort zu extrahieren
+        # Versuche, detailliertere Errorinformationen aus der Antwort zu extrahieren
         error_details = str(e)
         try:
             if e.response is not None:
                 error_details = e.response.json()
         except json.JSONDecodeError:
-            pass # Behalte den ursprünglichen Fehlerstring, wenn JSON-Dekodierung fehlschlägt
-        return {"error": f"Netzwerk- oder HTTP-Fehler: {error_details}"}
+            pass # Behalte den ursprünglichen Errorstring, wenn JSON-Dekodierung fehlschlägt
+        return {"error": f"Netzwerk- oder HTTP-Error: {error_details}"}
 
 def get_feed(submolt_name: str = None, sort: str = "new", limit: int = 25, cursor: str = None) -> dict:
     """Ruft einen Feed von Posts ab, optional gefiltert nach Submolt."""
@@ -99,7 +99,7 @@ def get_feed(submolt_name: str = None, sort: str = "new", limit: int = 25, curso
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+        return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
 
 def add_comment(post_id: str, content: str) -> dict:
     """Fügt einen Kommentar zu einem bestimmten Post hinzu."""
@@ -118,7 +118,7 @@ def add_comment(post_id: str, content: str) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+        return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
 
 def verify_action(verification_code: str, answer: str) -> dict:
     """Sendet die Antwort auf eine Verifizierungs-Challenge."""
@@ -140,7 +140,7 @@ def verify_action(verification_code: str, answer: str) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        return {"error": f"Netzwerk- oder HTTP-Fehler: {str(e)}"}
+        return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
 
 
 def register(api):

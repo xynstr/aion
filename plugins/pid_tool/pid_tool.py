@@ -2,7 +2,7 @@ import os
 import json
 
 def get_own_pid():
-    """Gibt die eigene Prozess-ID (PID) zur cck."""
+    """Returns die eigene Prozess-ID (PID) zur cck."""
     return json.dumps({"ok": True, "pid": os.getpid()})
 
 def register(api):

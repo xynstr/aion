@@ -4,17 +4,17 @@ AION Plugin: Telegram Bot (bidirektional)
 Nutzt AionSession — vollständige Feature-Parität mit dem Web UI:
   - Eigene Konversations-History pro Telegram-User
   - Memory-Injection, Thoughts-Injection
-  - Automatischer Charakter-Update alle 5 Gespräche
+  - Automatischer Character-Update alle 5 Gespräche
   - Lange Antworten werden automatisch aufgeteilt
   - Interaktive Bestätigungen via Inline-Buttons (approval_ja / approval_nein)
   - Fotos empfangen und senden (inkl. base64 Screenshots)
   - Sprachnachrichten empfangen (Transkription) und senden (TTS)
 
-Konfiguration (.env):
+Configuration (.env):
   TELEGRAM_BOT_TOKEN=1234567890:AAEXAMPLE...
   TELEGRAM_CHAT_ID=123456789   (optional, wird beim ersten /start gespeichert)
 
-Abhängigkeit:
+Dependency:
   pip install httpx
 """
 
@@ -35,7 +35,7 @@ _polling_lock = threading.Lock()
 _audio_pipeline_mod = None
 
 def _get_audio_pipeline():
-    """Lädt das audio_pipeline-Plugin (einmalig, lazy). Gibt Modul oder None zurück."""
+    """Loads das audio_pipeline-Plugin (einmalig, lazy). Gibt Modul oder None zurück."""
     global _audio_pipeline_mod
     if _audio_pipeline_mod is not None:
         return _audio_pipeline_mod
@@ -79,7 +79,7 @@ def _api_url(token: str, method: str) -> str:
 
 
 def _md_to_html(text: str) -> str:
-    """Konvertiert AION-Markdown in Telegram-kompatibles HTML."""
+    """Converts AION-Markdown in Telegram-kompatibles HTML."""
     import re
 
     code_blocks: list[str] = []
@@ -182,7 +182,7 @@ async def _telegram_worker(token: str):
     try:
         import httpx
     except ImportError:
-        print("[Telegram] 'httpx' nicht installiert — Polling deaktiviert.")
+        print("[Telegram] 'httpx' not installed — Polling deaktiviert.")
         print("[Telegram] Installieren mit: pip install httpx")
         return
 
@@ -222,7 +222,7 @@ async def _telegram_worker(token: str):
                         pass
 
         async def _send_photo(chat_id: str, url: str):
-            """Sendet ein Bild: data:-URL als Datei-Upload, HTTP-URL direkt."""
+            """Sendet ein Bild: data:-URL als File-Upload, HTTP-URL direkt."""
             try:
                 if url.startswith("data:"):
                     import base64 as _b64
@@ -241,7 +241,7 @@ async def _telegram_worker(token: str):
                         json={"chat_id": chat_id, "photo": url},
                     )
             except Exception as e:
-                print(f"[Telegram] sendPhoto Fehler: {e}")
+                print(f"[Telegram] sendPhoto Error: {e}")
 
         async def _send_voice_reply(chat_id: str, text_reply: str) -> bool:
             """TTS → OGG OPUS → Telegram sendVoice."""
@@ -253,7 +253,7 @@ async def _telegram_worker(token: str):
                 loop = asyncio.get_event_loop()
                 tts_res = await loop.run_in_executor(None, ap.audio_tts, text_reply)
                 if not tts_res.get("ok"):
-                    print(f"[Telegram] TTS Fehler: {tts_res.get('error')}")
+                    print(f"[Telegram] TTS Error: {tts_res.get('error')}")
                     return False
                 wav_tmp = tts_res["path"]
 
@@ -280,7 +280,7 @@ async def _telegram_worker(token: str):
                 return r.is_success
 
             except Exception as e:
-                print(f"[Telegram] Voice-Reply Fehler: {e}")
+                print(f"[Telegram] Voice-Reply Error: {e}")
                 return False
             finally:
                 for p in [wav_tmp, ogg_tmp]:
@@ -316,7 +316,7 @@ async def _telegram_worker(token: str):
 
                 data = r.json()
                 if not data.get("ok"):
-                    print(f"[Telegram] API-Fehler: {data.get('description', data)}")
+                    print(f"[Telegram] API-Error: {data.get('description', data)}")
                     await asyncio.sleep(5)
                     continue
 
@@ -372,9 +372,9 @@ async def _telegram_worker(token: str):
                                         elif t2 == "token":
                                             cq_resp += event.get("content", "")
                                         elif t2 == "error":
-                                            cq_resp = f"Fehler: {event.get('message', '?')}"
+                                            cq_resp = f"Error: {event.get('message', '?')}"
                                 except Exception as e:
-                                    cq_resp = f"Fehler: {e}"
+                                    cq_resp = f"Error: {e}"
                                 finally:
                                     cq_typing.cancel()
                                     busy.discard(cq_chat_id)
@@ -397,7 +397,7 @@ async def _telegram_worker(token: str):
                     if not chat_id:
                         continue
 
-                    # ── Nicht unterstützte Dateitypen ─────────────────────────
+                    # ── Nicht unterstützte Filetypen ─────────────────────────
                     _unsupported_label = None
                     _video      = msg.get("video")
                     _document   = msg.get("document")
@@ -416,7 +416,7 @@ async def _telegram_worker(token: str):
                         fname   = _document.get("file_name", "?")
                         mime    = _document.get("mime_type", "")
                         size_kb = round(_document.get("file_size", 0) / 1024)
-                        _unsupported_label = f"Datei «{fname}»{' (' + mime + ')' if mime else ''} ({size_kb} KB)"
+                        _unsupported_label = f"File «{fname}»{' (' + mime + ')' if mime else ''} ({size_kb} KB)"
                     elif _sticker:
                         emoji = _sticker.get("emoji", "")
                         _unsupported_label = f"Sticker {emoji}".strip()
@@ -481,7 +481,7 @@ async def _telegram_worker(token: str):
                             b64  = base64.b64encode(img_r.content).decode()
                             images.append(f"data:{mime};base64,{b64}")
                         except Exception as e:
-                            print(f"[Telegram] Bild-Download Fehler: {e}")
+                            print(f"[Telegram] Bild-Download Error: {e}")
 
                     # Voice/Audio transkribieren
                     is_voice_input = False
@@ -517,8 +517,8 @@ async def _telegram_worker(token: str):
                             else:
                                 text = "[audio_pipeline nicht verfügbar]"
                         except Exception as _ve:
-                            print(f"[Telegram] Voice-Fehler: {type(_ve).__name__}: {_ve}")
-                            text = f"[Fehler bei Sprachnachricht: {type(_ve).__name__}]"
+                            print(f"[Telegram] Voice-Error: {type(_ve).__name__}: {_ve}")
+                            text = f"[Error bei Sprachnachricht: {type(_ve).__name__}]"
                         finally:
                             if tmp_audio_path and os.path.exists(tmp_audio_path):
                                 try:
@@ -559,13 +559,13 @@ async def _telegram_worker(token: str):
                             elif t == "approval":
                                 needs_approval = True
                             elif t == "error":
-                                response = f"Fehler: {event.get('message', '?')}"
+                                response = f"Error: {event.get('message', '?')}"
                             elif t == "tool_result":
                                 if event.get("tool") in ("send_telegram_message", "send_telegram_voice"):
                                     tg_tool_sent = True
                     except Exception as e:
-                        response = f"Fehler: {e}"
-                        print(f"[Telegram] stream() Fehler für {chat_id}: {e}")
+                        response = f"Error: {e}"
+                        print(f"[Telegram] stream() Error für {chat_id}: {e}")
                     finally:
                         typing_task.cancel()
                         busy.discard(chat_id)
@@ -648,10 +648,10 @@ async def _telegram_worker(token: str):
                 if "shutdown" in err_msg or "futures after" in err_msg or "closed" in err_msg:
                     print("[Telegram] Event-Loop beendet — Worker beendet sich sauber.")
                     return
-                # Timeout/Connect-Fehler → still retry
+                # Timeout/Connect-Error → still retry
                 t_name = type(e).__name__
                 if "Timeout" not in t_name and "Connect" not in t_name:
-                    print(f"[Telegram] Worker Fehler: {e}")
+                    print(f"[Telegram] Worker Error: {e}")
                 try:
                     await asyncio.sleep(5)
                 except Exception:
@@ -679,8 +679,8 @@ def register(api):
     api.register_tool(
         name="send_telegram_message",
         description=(
-            "Sendet eine Nachricht an den Nutzer via Telegram (an die konfigurierte Chat-ID). "
-            "Nutze dies, um dem Nutzer proaktiv Nachrichten zu schicken."
+            "Sendet eine Nachricht an den User via Telegram (an die konfigurierte Chat-ID). "
+            "Nutze dies, um dem User proaktiv Nachrichten zu schicken."
         ),
         func=send_telegram_message,
         input_schema={

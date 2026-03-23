@@ -5,7 +5,7 @@ Zwei Modi:
   1. Feste Uhrzeit:  schedule_add(name="Brief", time="08:00", days="werktags", task="...")
   2. Intervall:      schedule_add(name="Ping",  interval="5m", task="...")
 
-Beispiele für interval:
+Examplee für interval:
   "30s"   = alle 30 Sekunden
   "5m"    = alle 5 Minuten
   "1h"    = jede Stunde
@@ -129,7 +129,7 @@ def _parse_days(days_str: str) -> list[int]:
 # ── Fälligkeitsprüfung ────────────────────────────────────────────────────────
 
 def _is_due(task: dict, now: datetime) -> bool:
-    """Prüft ob ein Task jetzt fällig ist."""
+    """Checks ob ein Task jetzt fällig ist."""
     if not task.get("enabled", True):
         return False
 
@@ -205,7 +205,7 @@ async def _execute_task(task: dict) -> None:
         )
 
     except Exception as e:
-        print(f"[Scheduler] Fehler bei '{task_name}': {e}")
+        print(f"[Scheduler] Error bei '{task_name}': {e}")
         if "send_telegram_message" in _aion._plugin_tools:
             try:
                 await _aion._dispatch("send_telegram_message", {
@@ -259,7 +259,7 @@ def _scheduler_loop() -> None:
         time.sleep(5)  # alle 5s prüfen (Intervall-Granularität)
 
 
-# ── Tool-Funktionen ───────────────────────────────────────────────────────────
+# ── Tool-Functionen ───────────────────────────────────────────────────────────
 
 def _schedule_add(name: str = "", time: str = "", interval: str = "",
                   days: str = "täglich", task: str = "", **_) -> dict:
@@ -288,7 +288,7 @@ def _schedule_add(name: str = "", time: str = "", interval: str = "",
     if interval:
         secs = _parse_interval(interval)
         if not secs:
-            return {"error": f"Intervall '{interval}' nicht lesbar. Beispiele: '5m', '1h', '30s', '2h30m'"}
+            return {"error": f"Intervall '{interval}' nicht lesbar. Examplee: '5m', '1h', '30s', '2h30m'"}
         entry["interval_seconds"] = secs
         entry["interval_str"]     = _interval_to_str(secs)
         msg = f"Task '{name}' angelegt — läuft alle {_interval_to_str(secs)}."

@@ -73,7 +73,7 @@ def register(api):
 
     api.register_tool(
         name="todo_add",
-        description="Neue Aufgabe zur todo.md im AION-Root hinzufügen. Schreibt '- [ ] task' in die Datei.",
+        description="Neue Aufgabe zur todo.md im AION-Root hinzufügen. Schreibt '- [ ] task' in die File.",
         func=todo_add,
         input_schema={
             "type": "object",
