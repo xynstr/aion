@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="static/aion-2026.svg" alt="AION" width="200">
+<img src="static/aion-2026.svg" alt="AION" width="400">
 
 **Autonomous Intelligent Operations Node**
 
