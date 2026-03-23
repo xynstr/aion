@@ -1,7 +1,7 @@
 # AION — Changelog
 
 This document describes what has changed. AION reads this on startup to know what is new.
-**Pflicht:** Nach jeder Selbst-Modifikation (Code, Plugin, Config) einen Eintrag ergänzen.
+**Required:** Add an entry after each self-modification (code, plugin, config).
 
 ---
 
