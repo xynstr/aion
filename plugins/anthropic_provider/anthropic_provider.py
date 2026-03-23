@@ -54,6 +54,32 @@ def _build_client(model: str):
     )
 
 
+async def _list_anthropic_models_dynamic():
+    """Ruft verfügbare Claude-Modelle live von der Anthropic API ab.
+    Endpoint: GET https://api.anthropic.com/v1/models (paginiert, max 100)"""
+    try:
+        import httpx
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return KNOWN_MODELS
+        async with httpx.AsyncClient(timeout=4.0) as c:
+            r = await c.get(
+                f"{ANTHROPIC_BASE_URL}/models",
+                headers={
+                    "x-api-key":         api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                params={"limit": 100},
+            )
+            if r.status_code == 200:
+                data   = r.json()
+                models = [m["id"] for m in data.get("data", []) if m.get("id")]
+                return models if models else KNOWN_MODELS
+    except Exception:
+        pass
+    return KNOWN_MODELS
+
+
 def register(api):
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
@@ -71,6 +97,7 @@ def register(api):
         models=KNOWN_MODELS,
         env_keys=["ANTHROPIC_API_KEY"],
         context_window=200_000,
+        list_models_fn=_list_anthropic_models_dynamic,
     )
 
     print(f"[Plugin] anthropic_provider loaded — models: {', '.join(KNOWN_MODELS[:3])} …")

@@ -40,6 +40,27 @@ def _build_client(model: str):
     return AsyncOpenAI(base_url=GROK_BASE_URL, api_key=api_key)
 
 
+async def _list_grok_models_dynamic():
+    """Ruft verfügbare xAI Grok-Modelle live von der API ab (OpenAI-compatible /v1/models)."""
+    try:
+        import httpx
+        api_key = os.environ.get("XAI_API_KEY", "")
+        if not api_key:
+            return KNOWN_MODELS
+        async with httpx.AsyncClient(timeout=4.0) as c:
+            r = await c.get(
+                f"{GROK_BASE_URL}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if r.status_code == 200:
+                data   = r.json()
+                models = [m["id"] for m in data.get("data", []) if m.get("id")]
+                return models if models else KNOWN_MODELS
+    except Exception:
+        pass
+    return KNOWN_MODELS
+
+
 def register(api):
     api_key = os.environ.get("XAI_API_KEY", "")
     if not api_key:
@@ -57,6 +78,7 @@ def register(api):
         models=KNOWN_MODELS,
         env_keys=["XAI_API_KEY"],
         context_window=131_072,
+        list_models_fn=_list_grok_models_dynamic,
     )
 
     print(f"[Plugin] grok_provider loaded — models: {', '.join(KNOWN_MODELS)}")

@@ -36,6 +36,27 @@ def _build_client(model: str):
     return AsyncOpenAI(base_url=DEEPSEEK_BASE_URL, api_key=api_key)
 
 
+async def _list_deepseek_models_dynamic():
+    """Ruft verfügbare DeepSeek-Modelle live von der API ab (OpenAI-compatible /v1/models)."""
+    try:
+        import httpx
+        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            return KNOWN_MODELS
+        async with httpx.AsyncClient(timeout=4.0) as c:
+            r = await c.get(
+                f"{DEEPSEEK_BASE_URL}/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if r.status_code == 200:
+                data   = r.json()
+                models = [m["id"] for m in data.get("data", []) if m.get("id")]
+                return models if models else KNOWN_MODELS
+    except Exception:
+        pass
+    return KNOWN_MODELS
+
+
 def register(api):
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     if not api_key:
@@ -53,6 +74,7 @@ def register(api):
         models=KNOWN_MODELS,
         env_keys=["DEEPSEEK_API_KEY"],
         context_window=64_000,
+        list_models_fn=_list_deepseek_models_dynamic,
     )
 
     print(f"[Plugin] deepseek_provider loaded — models: {', '.join(KNOWN_MODELS)}")

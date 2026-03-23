@@ -598,11 +598,35 @@ async def list_providers():
             "prefix": entry.get("prefix", ""),
             "models": models,
         })
-    # Always include OpenAI as the default fallback
+    # OpenAI — immer als Default-Fallback inkludieren
+    # Modelle dynamisch abrufen falls OPENAI_API_KEY gesetzt, sonst statische Fallback-Liste
+    _openai_static = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini"]
+    _openai_models = _openai_static
+    _openai_key    = _read_env_file().get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+    if _openai_key:
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=4.0) as _hc:
+                _r = await _hc.get(
+                    "https://api.openai.com/v1/models",
+                    headers={"Authorization": f"Bearer {_openai_key}"},
+                )
+                if _r.status_code == 200:
+                    # Nur Chat-fähige Modelle — GPT-*, o1-*, o3-*, o4-*; keine Embeddings/Whisper/DALL-E
+                    _prefixes = ("gpt-", "o1-", "o1", "o3-", "o3", "o4-", "chatgpt-")
+                    _ids = sorted(
+                        [m["id"] for m in _r.json().get("data", [])
+                         if any(m.get("id", "").startswith(p) for p in _prefixes)],
+                        reverse=True,
+                    )
+                    if _ids:
+                        _openai_models = _ids
+        except Exception:
+            pass
     providers.append({
-        "label":  "OpenAI",
-        "prefix": "",
-        "models": ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
+        "label":   "OpenAI",
+        "prefix":  "",
+        "models":  _openai_models,
         "default": True,
     })
     return JSONResponse({
