@@ -65,6 +65,23 @@ def _ollama_list(params: dict = None) -> dict:
         return {"ok": False, "error": str(e), "hint": "Is Ollama running? Try: ollama serve"}
 
 
+async def _list_ollama_models_dynamic():
+    """Ruft die installierten Ollama-Modelle dynamisch vom lokalen Server ab.
+    Fallback auf KNOWN_MODELS wenn Ollama nicht läuft."""
+    try:
+        import httpx
+        base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+        async with httpx.AsyncClient(timeout=3.0) as c:
+            r = await c.get(f"{base_url.rstrip('/')}/api/tags")
+            if r.status_code == 200:
+                data = r.json()
+                models = [f"ollama/{m['name']}" for m in data.get("models", [])]
+                return models if models else KNOWN_MODELS
+    except Exception:
+        pass
+    return KNOWN_MODELS
+
+
 def register(api):
     if not hasattr(_aion_module, "register_provider"):
         print("[Plugin] ollama_provider: aion.py has no register_provider — skipping")
@@ -76,6 +93,7 @@ def register(api):
         label="Ollama (local)",
         models=KNOWN_MODELS,
         context_window=32_000,  # konservativ — lokale Modelle variieren stark
+        list_models_fn=_list_ollama_models_dynamic,
     )
 
     api.register_tool(

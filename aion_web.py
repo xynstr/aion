@@ -364,12 +364,33 @@ def _mask_key(val: str) -> str:
         return "●" * len(val)
     return val[:4] + "…" + val[-4:]
 
+
+def _read_env_file() -> dict[str, str]:
+    """Liest nur AION's .env-Datei direkt (ignoriert System-Umgebungsvariablen).
+    Gibt key→value-Paare zurück. Leere Werte werden als nicht gesetzt behandelt."""
+    env_file = AION_DIR / ".env"
+    result: dict[str, str] = {}
+    if not env_file.is_file():
+        return result
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        result[k.strip()] = v.strip()
+    return result
+
+
 @app.get("/api/keys")
 async def get_keys():
-    """Returns all known API keys (masked) grouped by provider."""
-    registry  = getattr(_aion_module, "_provider_registry", [])
-    covered   = set()
-    providers = []
+    """Returns all known API keys (masked) grouped by provider.
+    'set'-Status wird ausschliesslich aus AION's .env-Datei bestimmt,
+    nicht aus System-Umgebungsvariablen — verhindert Falsch-Positive bei
+    frischer Installation wenn ein Key bereits im System-Env vorhanden ist."""
+    registry      = getattr(_aion_module, "_provider_registry", [])
+    env_file_keys = _read_env_file()   # Nur .env, nicht os.environ
+    covered       = set()
+    providers     = []
 
     for entry in registry:
         env_keys = entry.get("env_keys", [])
@@ -377,8 +398,13 @@ async def get_keys():
             continue
         keys_info = []
         for k in env_keys:
-            val = os.environ.get(k, "")
-            keys_info.append({"key": k, "set": bool(val), "masked": _mask_key(val)})
+            file_val = env_file_keys.get(k, "")
+            sys_val  = os.environ.get(k, "")
+            # Als "gesetzt" gilt nur ein nicht-leerer Wert in AION's .env
+            is_set   = bool(file_val.strip())
+            # Für Anzeige: .env-Wert bevorzugen, sonst System-Wert
+            display  = file_val or sys_val
+            keys_info.append({"key": k, "set": is_set, "masked": _mask_key(display)})
             covered.add(k)
         providers.append({
             "label":    entry.get("label", entry.get("prefix", "?")),
@@ -386,11 +412,14 @@ async def get_keys():
         })
 
     # OpenAI fallback (not in registry, always shown)
-    oai_val = os.environ.get("OPENAI_API_KEY", "")
+    oai_file = env_file_keys.get("OPENAI_API_KEY", "")
+    oai_sys  = os.environ.get("OPENAI_API_KEY", "")
     if "OPENAI_API_KEY" not in covered:
         providers.append({
             "label":    "OpenAI",
-            "env_keys": [{"key": "OPENAI_API_KEY", "set": bool(oai_val), "masked": _mask_key(oai_val)}],
+            "env_keys": [{"key": "OPENAI_API_KEY",
+                          "set": bool(oai_file.strip()),
+                          "masked": _mask_key(oai_file or oai_sys)}],
         })
         covered.add("OPENAI_API_KEY")
 
@@ -399,24 +428,20 @@ async def get_keys():
     for entry in _WELL_KNOWN_KEYS:
         k = entry["key"]
         if k not in covered:
-            val = os.environ.get(k, "")
-            other_keys.append({"key": k, "set": bool(val), "masked": _mask_key(val)})
+            file_val = env_file_keys.get(k, "")
+            sys_val  = os.environ.get(k, "")
+            other_keys.append({"key": k,
+                                "set": bool(file_val.strip()),
+                                "masked": _mask_key(file_val or sys_val)})
             covered.add(k)
 
     # Any remaining keys in .env not yet covered
-    env_file = AION_DIR / ".env"
-    if env_file.is_file():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k = line.split("=", 1)[0].strip()
-            if k in covered:
-                continue
-            if any(k.endswith(s) for s in ("_KEY", "_TOKEN", "_ID", "_SECRET")):
-                val = os.environ.get(k, "")
-                other_keys.append({"key": k, "set": bool(val), "masked": _mask_key(val)})
-                covered.add(k)
+    for k, v in env_file_keys.items():
+        if k in covered:
+            continue
+        if any(k.endswith(s) for s in ("_KEY", "_TOKEN", "_ID", "_SECRET")):
+            other_keys.append({"key": k, "set": bool(v.strip()), "masked": _mask_key(v)})
+            covered.add(k)
 
     return JSONResponse({"providers": providers, "other_keys": other_keys})
 
@@ -553,14 +578,25 @@ async def process_file(request: Request):
 
 @app.get("/api/providers")
 async def list_providers():
-    """Returns all registered LLM providers and their known models."""
-    registry = getattr(_aion_module, "_provider_registry", [])
+    """Returns all registered LLM providers and their models.
+    Wenn ein Provider eine list_models_fn registriert hat, werden die Modelle
+    dynamisch von der Provider-API abgerufen (Timeout 4s, Fallback auf statische Liste)."""
+    registry  = getattr(_aion_module, "_provider_registry", [])
     providers = []
     for entry in registry:
+        models          = list(entry.get("models", []))
+        list_models_fn  = entry.get("list_models_fn")
+        if list_models_fn:
+            try:
+                dyn_models = await asyncio.wait_for(list_models_fn(), timeout=4.0)
+                if dyn_models:
+                    models = dyn_models
+            except Exception:
+                pass  # Fallback auf statische Liste
         providers.append({
             "label":  entry.get("label", entry.get("prefix", "?")),
             "prefix": entry.get("prefix", ""),
-            "models": entry.get("models", []),
+            "models": models,
         })
     # Always include OpenAI as the default fallback
     providers.append({
@@ -570,8 +606,8 @@ async def list_providers():
         "default": True,
     })
     return JSONResponse({
-        "providers":      providers,
-        "active_model":   _aion_module.MODEL,
+        "providers":       providers,
+        "active_model":    _aion_module.MODEL,
         "total_providers": len(providers),
     })
 
@@ -888,11 +924,15 @@ async def google_oauth_callback(code: str = "", state: str = "", error: str = ""
     return HTMLResponse("<html><body><script>setTimeout(()=>{window.opener?.postMessage({ok:true},'*');window.close()},200);</script><p style='font-family:monospace;padding:20px'>✓ Erfolgreich verbunden</p></body></html>")
 
 if __name__ == "__main__":
-    has_key = bool(os.environ.get("OPENAI_API_KEY", "").strip()) or \
-              bool(os.environ.get("GEMINI_API_KEY", "").strip())
-    if not has_key:
-        print("Fehler: Kein API-Key gesetzt (OPENAI_API_KEY oder GEMINI_API_KEY fehlt).")
-        sys.exit(1)
+    # Hinweis wenn noch kein API-Key konfiguriert — kein harter Abbruch, da der User
+    # den Key auch direkt im Web UI (Settings → API Keys) hinterlegen kann.
+    _env_keys = _read_env_file()
+    _has_key  = bool(_env_keys.get("OPENAI_API_KEY", "").strip()) or \
+                bool(_env_keys.get("GEMINI_API_KEY", "").strip())
+    if not _has_key:
+        print("[AION] Hinweis: Noch kein API-Key in .env hinterlegt.")
+        print("[AION] Bitte im Web UI unter Settings → API Keys konfigurieren.")
+        print("[AION] Alternativ: 'aion --setup' ausführen.")
     _port = int(os.environ.get("AION_PORT", 7000))
     _host = os.environ.get("AION_HOST", "127.0.0.1")
     print(f"Starte AION Web UI auf http://{_host}:{_port}")

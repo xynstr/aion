@@ -125,7 +125,8 @@ _provider_registry: list[dict] = []
 
 
 def register_provider(prefix: str, build_fn, label: str = "", models: list | None = None,
-                      env_keys: list | None = None, context_window: int = 0):
+                      env_keys: list | None = None, context_window: int = 0,
+                      list_models_fn=None):
     """Register an LLM provider. Called by provider plugins.
 
     prefix          — model-name prefix that routes to this provider (e.g. "ollama/", "claude-")
@@ -134,7 +135,12 @@ def register_provider(prefix: str, build_fn, label: str = "", models: list | Non
     models          — optional list of known model names for switch_model hints
     env_keys        — optional list of env var names required by this provider (e.g. ["GEMINI_API_KEY"])
     context_window  — context window in tokens (used to compute dynamic read limits)
+    list_models_fn  — optional async callable() → list[str] for dynamic model discovery
     """
+    global _provider_registry
+    # Dedup: vorhandenen Eintrag mit diesem Prefix entfernen, um Duplikate bei
+    # mehrfachem Plugin-Load (z.B. Hot-Reload) zu verhindern
+    _provider_registry = [e for e in _provider_registry if e["prefix"] != prefix]
     _provider_registry.append({
         "prefix":         prefix,
         "build_fn":       build_fn,
@@ -142,6 +148,7 @@ def register_provider(prefix: str, build_fn, label: str = "", models: list | Non
         "models":         models or [],
         "env_keys":       env_keys or [],
         "context_window": context_window,
+        "list_models_fn": list_models_fn,
     })
 
 
@@ -1660,6 +1667,23 @@ class AionSession:
                     # Kein Completion-Check wenn Approval aussteht — der Bot wartet bewusst auf
                     # Nutzer-Bestätigung; der Check würde das als "Ankündigung ohne Ausführung"
                     # werten und die Schleife endlos am Laufen halten.
+                    #
+                    # Kein Completion-Check wenn das LLM eine Frage stellt / auf Bestätigung
+                    # wartet. Ohne diese Prüfung würde der Checker YES zurückgeben
+                    # ("Ankündigung ohne Ausführung") und [System] Execute NOW injizieren —
+                    # AION würde dann autonom ausführen ohne auf User-Antwort zu warten.
+                    _QUESTION_SIGNALS = (
+                        "soll ich", "shall i", "möchtest du", "would you like",
+                        "darf ich", "may i", "willst du", "do you want",
+                        "soll ich beginnen", "shall i begin", "soll ich starten",
+                        "soll ich fortfahren", "shall i proceed", "soll ich anfangen",
+                        "lass mich wissen", "let me know", "bitte bestätige",
+                        "please confirm", "warte auf", "waiting for",
+                    )
+                    if final_text and any(s in final_text.lower() for s in _QUESTION_SIGNALS):
+                        # LLM wartet auf User-Antwort — Turn beenden, nicht erzwingen
+                        break
+
                     if final_text and _iter < MAX_TOOL_ITERATIONS - 2 and not _stop_for_approval:
                         try:
                             user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
@@ -1680,6 +1704,8 @@ class AionSession:
                                         "Answer NO for:\n"
                                         "- Diagnosis / analysis / explanation of findings ('Das Problem ist...', 'I found that...')\n"
                                         "- Asking the user a question or requesting confirmation\n"
+                                        "- Presenting a plan and asking if the user wants to proceed "
+                                        "(e.g. 'Soll ich beginnen?', 'Shall I start?', 'Lass mich wissen', 'Let me know')\n"
                                         "- Showing a diff/preview and waiting for user approval\n"
                                         "- Purely informational responses (no action needed)\n"
                                         "- Summaries of what was already done via tools"

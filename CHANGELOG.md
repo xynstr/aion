@@ -5,6 +5,65 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-24 — Critical Bug-Fixes: Onboarding, Approval-Flow, Provider-Dedup
+
+### Fixed: `aion --setup` did nothing
+- `_ensure_dependencies()` was not called in the `--setup` branch → missing packages caused
+  `onboarding.py` to crash silently before showing anything
+- Fix: `_ensure_dependencies()` now runs first; subprocess uses `-u` (unbuffered) + explicit
+  stdin/stdout/stderr; completion message printed after success
+- File: `aion_launcher.py`
+
+### Fixed: Provider list 20×-duplicated in Web UI
+- `register_provider()` used `.append()` without checking for existing entries →
+  every plugin reload (hot-reload, server restart) added another copy
+- Fix: Added dedup by `prefix` before appending; global registry is cleaned first
+- File: `aion.py`
+
+### Fixed: "Ja / Bestätigen" button did nothing
+- `sendApproval()` called `sendMsg()` which was **never defined** anywhere → silent JS error
+- Fix: Replaced with direct `input.value = 'ja'; send();` + reset `isThinking = false`
+  to handle edge cases where the stream flag wasn't cleared yet
+- File: `static/index.html`
+
+### Fixed: AION executed actions autonomously without waiting for user confirmation
+- The completion-check (`[System] Execute it NOW`) was triggered even when AION had
+  asked "Soll ich beginnen?" — the checker saw a plan description and returned YES
+- Fix 1: Question-signal detection before the completion-check → if `final_text`
+  contains "soll ich", "shall i", "lass mich wissen", etc., loop breaks immediately
+- Fix 2: Completion-check system prompt explicitly handles "plan + question" case → NO
+- File: `aion.py`
+
+### Fixed: `No module named 'google'` on fresh install
+- `google-genai` was missing from `requirements.txt`
+- Fix: Added `google-genai>=0.8.0`
+- File: `requirements.txt`
+
+### Fixed: Gemini API key shown as "set" on fresh install
+- `/api/keys` endpoint read from `os.environ` which includes Windows system environment
+  variables — not just AION's `.env`
+- Fix: New `_read_env_file()` helper reads only AION's `.env` directly; "set"-status
+  is now based exclusively on `.env` content
+- File: `aion_web.py`
+
+### Fixed: Web server crashed on startup without API key
+- `aion_web.py __main__` called `sys.exit(1)` when no key was configured →
+  prevented users from configuring keys via the Web UI
+- Fix: Changed to a warning message only; server starts and directs user to
+  Settings → API Keys or `aion --setup`
+- File: `aion_web.py`
+
+### New: Dynamic model list from provider APIs
+- `/api/providers` now calls `list_models_fn()` per provider if registered (4s timeout,
+  fallback to static list on error)
+- `register_provider()` accepts new optional `list_models_fn=` parameter
+- Gemini: fetches live model list from Google Gen AI API (`generateContent` models only)
+- Ollama: fetches installed models from local `http://localhost:11434/api/tags`
+- Files: `aion.py`, `aion_web.py`, `plugins/gemini_provider/gemini_provider.py`,
+  `plugins/ollama_provider/ollama_provider.py`
+
+---
+
 ## 2026-03-23 (5) — Security & Control Features (Phase 3 Complete) + CLI Tools
 
 ### New: Channel Allowlist (`config.json → "channel_allowlist"`)

@@ -521,8 +521,15 @@ AION/
 
 | Problem | Solution |
 |---------|---------|
+| `aion --setup` does nothing | Run `pip install -r requirements.txt && pip install -e .` first, then retry |
+| Onboarding wizard doesn't appear | Delete `aion_onboarding_complete.flag` and run `aion --setup` |
+| `No module named 'google'` | `pip install google-genai` (or re-run `pip install -r requirements.txt`) |
+| Gemini key shown as "set" after fresh install | Stale `.env` file — delete it and run `aion --setup` again |
 | Plugin not loading | Check `aion_events.log` — usually a missing `pip install <package>` |
 | Provider not responding | Verify the API key in `.env` matches the provider's variable name |
+| Providers listed multiple times in Web UI | Restart AION — fixed automatically with the dedup in `register_provider()` |
+| "Ja" confirmation button does nothing | Fixed in current version — update to latest and restart |
+| AION executes actions without confirmation | Fixed in current version — update to latest and restart |
 | Discord/Slack bot silent | Check token in `.env` + required permissions/intents in developer portal |
 | Playwright not found | `python -m playwright install chromium` |
 | ffmpeg not in PATH | AION auto-searches WinGet install paths; or add ffmpeg to PATH manually |

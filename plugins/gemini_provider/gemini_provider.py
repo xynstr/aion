@@ -333,6 +333,30 @@ def _switch_model(model: str = "", **kwargs) -> dict:
     return {"ok": True, "model": model, "provider": provider}
 
 
+async def _list_gemini_models_dynamic():
+    """Ruft die verfügbaren Gemini-Modelle dynamisch von der API ab.
+    Fallback auf GEMINI_MODELS wenn die API nicht erreichbar ist oder der Key fehlt."""
+    try:
+        import google.genai as genai
+        api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            return GEMINI_MODELS
+        client = genai.Client(api_key=api_key)
+        models = []
+        for m in client.models.list():
+            name = m.name or ""
+            # Nur Content-Generation-Modelle (keine Embedding- oder AQA-Modelle)
+            supported = getattr(m, "supported_generation_methods", None) or []
+            if "generateContent" in supported:
+                # Name kommt als "models/gemini-2.0-flash" — Prefix entfernen
+                short = name.replace("models/", "")
+                if short:
+                    models.append(short)
+        return models if models else GEMINI_MODELS
+    except Exception:
+        return GEMINI_MODELS
+
+
 def register(api):
     # Register via provider registry (replaces direct _build_client patch)
     if hasattr(_aion_module, "register_provider"):
@@ -343,6 +367,7 @@ def register(api):
             models=GEMINI_MODELS,
             env_keys=["GEMINI_API_KEY"],
             context_window=1_000_000,
+            list_models_fn=_list_gemini_models_dynamic,
         )
     else:
         # Fallback for older aion.py without registry

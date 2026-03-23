@@ -1637,9 +1637,14 @@ function sendApproval(confirmed) {
   const bar = document.getElementById('approvalBar');
   if (bar) {
     bar.querySelectorAll('.approval-btn').forEach(b => b.disabled = true);
-    bar.querySelector('.approval-bar-label').textContent = confirmed ? 'Bestätigt' : 'Abgebrochen';
+    bar.querySelector('.approval-bar-label').textContent = confirmed ? 'Bestätigt ✓' : 'Abgebrochen';
   }
-  sendMsg(confirmed ? 'ja' : 'nein');
+  // isThinking zurücksetzen: Stream ist nach approval-Event beendet,
+  // aber das Flag könnte noch gesetzt sein → send() würde sonst früh abbrechen
+  isThinking = false;
+  const input = document.getElementById('input');
+  input.value = confirmed ? 'ja' : 'nein';
+  send();
 }
 
 function appendHistoryAionMsg(text) {

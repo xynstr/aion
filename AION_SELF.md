@@ -12,6 +12,55 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-03-24)
+
+### 0. Critical Bug-Fixes: Onboarding, Approval-Flow, Provider-Dedup
+
+**Six critical bugs** identified and fixed that affected fresh installations and core UX:
+
+**Bug 1 — `aion --setup` did nothing:**
+`_ensure_dependencies()` was missing in the `--setup` branch. If any package was absent,
+`onboarding.py` crashed before showing the wizard. Fix: deps installed first, subprocess
+uses `-u` (unbuffered) with explicit stdin/stdout/stderr, completion message shown.
+`aion_launcher.py`
+
+**Bug 2 — Providers listed 20× in Web UI:**
+`register_provider()` used `.append()` without dedup. Every plugin reload added a new copy.
+Fix: Added `_provider_registry = [e for e in _provider_registry if e["prefix"] != prefix]`
+before each `.append()`. `aion.py`
+
+**Bug 3 — "Ja / Bestätigen" button did nothing:**
+`sendApproval()` called `sendMsg()` which was **never defined** → silent JS TypeError.
+Fix: Replaced with direct `input.value = confirmed ? 'ja' : 'nein'; send();` plus
+`isThinking = false` reset. `static/index.html`
+
+**Bug 4 — AION executed autonomously without waiting for confirmation:**
+The completion-check injected `[System] Execute it NOW` even when AION had just asked
+"Soll ich beginnen?" — checker saw the plan description and returned YES.
+Fix 1: Question-signal detection (`soll ich`, `shall i`, `lass mich wissen`, etc.)
+breaks the loop before the checker runs.
+Fix 2: Checker system prompt updated with "plan + question" → NO case. `aion.py`
+
+**Bug 5 — `No module named 'google'` on fresh install:**
+`google-genai` was not in `requirements.txt`. Fix: Added `google-genai>=0.8.0`.
+
+**Bug 6 — Gemini key shown as "set" on fresh install:**
+`/api/keys` read `os.environ` which includes Windows system env vars, not just AION's `.env`.
+Fix: New `_read_env_file()` reads only `.env` directly. "set"-status based exclusively
+on `.env` content. `aion_web.py`
+
+**Bonus — Web server now starts gracefully without API key:**
+Previously `sys.exit(1)` on missing key prevented users from configuring via Web UI.
+Now shows a warning and redirects to Settings → API Keys.
+
+**New — Dynamic model list from provider APIs:**
+`register_provider()` now accepts `list_models_fn=` (async callable).
+`/api/providers` calls it with 4s timeout, falls back to static list.
+Gemini: fetches live list from Google Gen AI API.
+Ollama: fetches installed models from `localhost:11434/api/tags`.
+
+---
+
 ## Latest Improvements (2026-03-22)
 
 ### 0. Plugin Stability Fixes

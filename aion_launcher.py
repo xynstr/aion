@@ -37,11 +37,17 @@ def _ensure_dependencies():
 def _run_onboarding():
     onboarding = AION_DIR / "onboarding.py"
     if not onboarding.is_file():
-        print("[AION] onboarding.py not found — skipping")
+        print("[AION] onboarding.py not found — skipping", flush=True)
         return
-    result = subprocess.run([sys.executable, str(onboarding)])
+    sys.stdout.flush()
+    result = subprocess.run(
+        [sys.executable, "-u", str(onboarding)],
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
     if result.returncode != 0:
-        print("\n[AION] Setup cancelled.")
+        print("\n[AION] Setup cancelled.", flush=True)
         sys.exit(1)
 
 
@@ -65,8 +71,10 @@ def main():
     os.chdir(AION_DIR)
 
     if "--setup" in args:
+        _ensure_dependencies()
         FLAG_FILE.unlink(missing_ok=True)
         _run_onboarding()
+        print("\n[AION] Setup complete. Run 'aion' to start.", flush=True)
         return
 
     # First run: install + onboarding

@@ -29,6 +29,9 @@ openpyxl>=3.1.0
 # After install: playwright install chromium
 playwright>=1.40.0
 
+# AI Provider SDKs (optional — je nach gewähltem Provider)
+google-genai>=0.8.0        # Google Gemini (gemini_provider plugin)
+
 # Messaging channels (optional — je nach gewünschten Kanälen)
 discord.py>=2.3.0          # Discord-Bot (discord_bot plugin)
 slack-bolt>=1.18.0         # Slack-Bot (slack_bot plugin)
