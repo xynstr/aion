@@ -10,7 +10,7 @@ Basismodul für Spracherkennung. Verarbeitet ausschließlich WAV-Dateien (mono, 
 
 - `transcribe_audio(file_path)` — Transkribiert eine WAV-Datei und gibt den erkannten Text als String zurück. Gibt eine Fehlermeldung zurück wenn das Format nicht stimmt oder das Modell fehlt.
 
-## Abhängigkeiten
+## Dependencies
 
 | Paket | Installation |
 |---|---|

@@ -1,84 +1,84 @@
 # AION — Changelog
 
-Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und weiß so was neu ist.
+This document describes what has changed. AION reads this on startup to know what is new.
 **Pflicht:** Nach jeder Selbst-Modifikation (Code, Plugin, Config) einen Eintrag ergänzen.
 
 ---
 
 ## 2026-03-23 (5) — Security & Control Features (Phase 3 Complete) + CLI Tools
 
-### Neu: Channel Allowlist (`config.json → "channel_allowlist"`)
-- Sperrt/erlaubt bestimmte Kanäle: z.B. nur Telegram erlauben, Discord/Slack sperren
-- Syntax: `["default", "web", "telegram*"]` (exakte Matches + Wildcards)
-- Prüfung: `AionSession.stream()` am Anfang → Fehler wenn nicht in Allowlist
-- Flexibilität: Wenn nicht gesetzt → alle Kanäle erlaubt
-- **CLI-Tool:** `set_channel_allowlist(["default", "telegram*"])`
+### New: Channel Allowlist (`config.json → "channel_allowlist"`)
+- Blocks/allows specific channels: z.B. nur Telegram erlauben, Discord/Slack sperren
+- Syntax: `["default", "web", "telegram*"]` (exact matches + wildcards)
+- Check: `AionSession.stream()` am Anfang → Error if not in allowlist
+- Flexibility: if not set → all channels allowed
+- **CLI Tool:** `set_channel_allowlist(["default", "telegram*"])`
 
-### Neu: Thinking Level Control (`config.json → "thinking_level"` + `"thinking_overrides"`)
-- 4 Level: `minimal` (schnell) → `standard` (normal) → `deep` (ausgiebig) → `ultra` (maximal)
-- Global: `"thinking_level": "standard"` für alle Kanäle
-- Channel-Override: `"thinking_overrides": {"telegram*": "deep", "discord*": "minimal"}`
-- Implementierung: Fügt System-Prompts hinzu (reflect-Tool nutzen ja/nein, wie intensiv)
-- **CLI-Tools:**
-  - `set_thinking_level("deep", "telegram*")` — Pro-Channel Override
-  - `set_thinking_level("standard")` — Global setzen
-  - `get_control_settings()` — Aktuelle Konfiguration checken
+### New: Thinking Level Control (`config.json → "thinking_level"` + `"thinking_overrides"`)
+- 4 Levels: `minimal` (fast) → `standard` (normal) → `deep` (extensive) → `ultra` (maximal)
+- Global: `"thinking_level": "standard"` for all channels
+- Channel Override: `"thinking_overrides": {"telegram*": "deep", "discord*": "minimal"}`
+- Implementation: Adds system prompts (reflect-Tool nutzen ja/nein, wie intensiv)
+- **CLI Tools:**
+  - `set_thinking_level("deep", "telegram*")` — Per-channel override
+  - `set_thinking_level("standard")` — Set globally
+  - `get_control_settings()` — Check current configuration
 
 ### Implementation Details
-- `_check_channel_allowlist(channel)` — Wildcard-Matching mit Exact-Match Fallback
-- `_get_thinking_prompt(channel)` — Channel-spezifische Thinking-Level Prompts
-- `_build_system_prompt(channel)` — Jetzt Channel-aware für Thinking-Level Overrides
-- Keine Regressions: Legacy `chat_turn()` nutzt Default-Channel
+- `_check_channel_allowlist(channel)` — Wildcard matching with exact-match fallback
+- `_get_thinking_prompt(channel)` — Channel-specific thinking level prompts
+- `_build_system_prompt(channel)` — Now channel-aware for thinking level overrides
+- No regressions: Legacy `chat_turn()` uses default channel
 
 ### Phase 3 Summary
-✅ Browser Automation (Playwright) — 8 Tools
-✅ Model Failover — Auto-Retry bei API-Fehler
-✅ Discord Bot — Bidirektional, per-User Sessions
-✅ Slack Bot — Socket Mode, Thread-Support
-✅ Multi-Agent Router — Custom Routing
+✅ Browser Automation (Playwright) — 8 tools
+✅ Model Failover — Auto-retry on API error
+✅ Discord Bot — Bidirectional, per-user sessions
+✅ Slack Bot — Socket Mode, thread support
+✅ Multi-Agent Router — Custom routing
 ✅ Docker Support — Deployment-ready
 ✅ Security: Allowlist
 ✅ Control: Thinking Level
 
 ---
 
-## 2026-03-22 (4) — Claude Abo-Integration + Audio Web UI + Keys Tab + Public README
+## 2026-03-22 (4) — Claude Subscription Integration + Audio Web UI + Keys Tab + Public README
 
-### Neu: Claude CLI Provider Plugin (`plugins/claude_cli_provider/`)
-- `ask_claude(prompt, context_files, task_type)` — nutzt Claude.ai-Abo via `claude --print`; kein API-Key nötig
-- `claude_cli_login()` — installiert Claude Code CLI via npm falls fehlt, öffnet Browser für OAuth
-- `claude_cli_status()` — prüft ob CLI installiert + angemeldet
-- `get_task_routing()` / `set_task_routing()` — liest/schreibt `task_routing` in `config.json`
-- Startup-Check meldet CLI-Status beim Laden
+### New: Claude CLI Provider Plugin (`plugins/claude_cli_provider/`)
+- `ask_claude(prompt, context_files, task_type)` — uses Claude.ai subscription via `claude --print`; no API key needed
+- `claude_cli_login()` — installs Claude Code CLI via npm if missing, opens browser for OAuth
+- `claude_cli_status()` — checks if CLI is installed + authenticated
+- `get_task_routing()` / `set_task_routing()` — reads/writes `task_routing` in `config.json`
+- Startup check reports CLI status when loading
 
-### Neu: Task Routing (`config.json → "task_routing"`)
-- Routing-Tabelle: `coding → claude-opus-4-6`, `review → claude-sonnet-4-6`, `browsing → gemini-2.5-flash`, `default → gemini-2.5-pro`
-- AION liest `rules.md`-Regel: für Code-Aufgaben automatisch `ask_claude` verwenden
-- Konfigurierbar via Web UI System-Tab + onboarding Step 8 + `set_task_routing` Tool
+### New: Task Routing (`config.json → "task_routing"`)
+- Routing table: `coding → claude-opus-4-6`, `review → claude-sonnet-4-6`, `browsing → gemini-2.5-flash`, `default → gemini-2.5-pro`
+- AION reads `rules.md`-rule: for coding tasks automatically `ask_claude` use
+- Configurable via Web UI System tab + onboarding step 8 + `set_task_routing` Tool
 
-### Neu: Audio im Web UI
-- `aion.py`: `collected_audio` Liste parallel zu `collected_images` — sammelt `audio_tts`-Ergebnisse
-- `aion_web.py`: `/api/audio/{filename}` Endpunkt mit Sicherheitsprüfungen (Extension + kein Path-Traversal)
-- `static/index.html`: `appendAudioBlock(url, format)` rendert `<audio controls>` Player im Chat
+### New: Audio in Web UI
+- `aion.py`: `collected_audio` List parallel to `collected_images` — collects `audio_tts`-results
+- `aion_web.py`: `/api/audio/{filename}` endpoint with security checks (extension + no path traversal)
+- `static/index.html`: `appendAudioBlock(url, format)` renders `<audio controls>` player in chat
 
-### Neu: Web UI Keys-Tab Verbesserungen
-- `_KEY_META` Objekt mit Provider-Links, Hinweisen und Status-Dots
-- Claude-Login-Block direkt im Keys-Tab (kein Terminal nötig)
-- Auto-Poll nach Login: alle 4s prüfen ob claude CLI authentifiziert
+### New: Web UI Keys Tab improvements
+- `_KEY_META` object with provider links, hints, and status dots
+- Claude login block directly in Keys tab (no terminal needed)
+- Auto-poll after login: check every 4s if Claude CLI is authenticated
 
-### Neu: Task Routing Sektion im System-Tab
-- 4 Felder: coding/review/browsing/default Modell
-- Status-Anzeige: Claude CLI installiert + angemeldet
-- Speichern via `/api/config/settings` (allowed-Set um `task_routing` erweitert)
+### New: Task Routing section in System tab
+- 4 fields: coding/review/browsing/default model
+- Status display: Claude CLI installed + authenticated
+- Save via `/api/config/settings` (allowed set around `task_routing` expanded)
 
-### Neu: Neue API Endpunkte
-- `GET /api/audio/{filename}` — Audio-Datei aus Temp-Verzeichnis servieren
-- `GET /api/claude-cli/status` — CLI-Installations- und Auth-Status
-- `POST /api/claude-cli/login` — Browser-Login starten
+### New: New API endpoints
+- `GET /api/audio/{filename}` — Serve audio file from temp directory
+- `GET /api/claude-cli/status` — CLI installation and auth status
+- `POST /api/claude-cli/login` — Start browser login
 
-### Fix: Double `.mp3` Extension (`audio_pipeline.py`)
-- `_tts_edge()` fügte `.mp3` an, obwohl Pfad bereits auf `.mp3` endete → `filename.mp3.mp3`
-- Fix: explizite Prüfung vor dem Anhängen der Extension
+### Fix: Double `.mp3` extension (`audio_pipeline.py`)
+- `_tts_edge()` added `.mp3` even though path already ended in `.mp3` → `filename.mp3.mp3`
+- Fix: explizite Prüfung vor dem Anhängen der extension
 
 ### Fix: Telegram Response Ordering — Voice nach allen Blöcken
 - Voice-Reply war in `elif`-Zweig → wurde übersprungen wenn `response_blocks` gefüllt war
@@ -99,7 +99,7 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ## 2026-03-19 (3)
 
-### Neu: file_replace_lines Tool
+### New: file_replace_lines Tool
 - Ersetzt Zeilen start_line–end_line direkt (kein String-Matching)
 - self_read_code gibt jetzt first_line/last_line zurück → Zeilennummern ablesen → ersetzen
 - Zuverlässiger als self_patch_code, kein "nicht gefunden" mehr
@@ -115,13 +115,13 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 ### Fix: smart_patch Zeilen-Tracking-Bug
 - block_core hatte Leerzeilen rausgefiltert, match_end-Berechnung zählte sie trotzdem
 - Fix: match_end trackt jetzt den echten Zeilenbereich inkl. Leerzeilen
-- Neu: Eindeutigkeits-Check meldet Fehler wenn Block mehrfach vorkommt
+- New: Eindeutigkeits-Check meldet Fehler wenn Block mehrfach vorkommt
 
 ---
 
 ## 2026-03-19 (2)
 
-### Neu: Bestätigungs-Buttons (Web UI + Telegram)
+### New: Bestätigungs-Buttons (Web UI + Telegram)
 - Web UI: Wenn AION eine Code-Änderung bestätigt haben möchte, erscheinen "✓ Bestätigen" und "✗ Ablehnen" Buttons direkt im Chat — kein Tippen mehr nötig
 - Telegram: Inline-Keyboard mit "✓ Ja" / "✗ Nein" Buttons wird gesendet; Button-Klick wird per `callback_query` verarbeitet
 - aion.py: Neuer SSE-Event-Typ `approval` signalisiert dem Frontend dass Buttons gezeigt werden sollen
@@ -131,25 +131,25 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 
 ## 2026-03-19
 
-### Neu: Scheduler Intervall-Modus
+### New: Scheduler Intervall-Modus
 - `schedule_add` hat jetzt einen `interval`-Parameter: `"5m"`, `"30s"`, `"1h"`, `"2h30m"`
 - Neben festen Uhrzeiten können Aufgaben jetzt in beliebigen Abständen wiederholt werden
 - Prüftakt: alle 5 Sekunden (vorher 10s)
 
-### Neu: send_telegram_voice(path)
+### New: send_telegram_voice(path)
 - Audiodatei als Telegram-Sprachnachricht versenden (WAV, MP3, OGG …)
 - Workflow: `audio_tts(text)` → `send_telegram_voice(path)`
 - ffmpeg konvertiert automatisch zu OGG OPUS
 
-### Neu: audio_pipeline Plugin
+### New: audio_pipeline Plugin
 - `audio_transcribe_any(file_path)` — beliebige Audiodatei → Text (ffmpeg + Vosk, offline)
 - `audio_tts(text)` — Text → WAV-Sprachdatei (pyttsx3/SAPI5, offline)
 
-### Neu: Moltbook Plugin
+### New: Moltbook Plugin
 - `moltbook_get_feed`, `moltbook_create_post`, `moltbook_add_comment`
 - Soziale Präsenz auf moltbook.com
 
-### Neu: Dynamische Plugin-Übersicht
+### New: Dynamische Plugin-Übersicht
 - Plugin-READMEs werden beim Laden eingelesen und im System-Prompt angezeigt
 - Jedes Plugin braucht eine README.md mit einer kurzen Beschreibung
 
@@ -169,10 +169,10 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 - Ohne `confirmed`: zeigt Vorschau. Mit `confirmed=true`: führt aus. Stateless, Loop-proof
 - Nebeneffekt: System-Prompt-Text leckte in Ausgabe wenn Messages-History durch Loop korrupt war
 
-### Neu: start.bat — visuelles Redesign
+### New: start.bat — visuelles Redesign
 - ASCII-Logo, ANSI-Farben (grün/gelb/rot), Box-Rahmen für jeden Schritt
 - 6-stufige Fortschrittsanzeige mit ✓/!/✗ Symbolen
-- Aktives Modell wird beim Start angezeigt
+- Aktives model wird beim Start angezeigt
 - Vollständiges Log in `aion_start.log` (absoluter Pfad, ab Zeile 1)
 - Bei Fehler: letzte 25 Log-Zeilen direkt in der Konsole
 - `python-telegram-bot` aus optionalen Installs entfernt (nicht verwendet, verursachte Konflikte)
@@ -205,7 +205,7 @@ Hier steht was sich geändert hat. AION liest dieses Dokument beim Start und wei
 ```
 ## YYYY-MM-DD
 
-### Neu: [Feature-Name]
+### New: [Feature-Name]
 - Was wurde hinzugefügt und warum
 
 ### Geändert: [Was]

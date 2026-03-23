@@ -22,7 +22,7 @@ playwright install chromium
 | `browser_find(selector)` | Elemente suchen |
 | `browser_close()` | Seite schließen |
 
-## Konfiguration
+## Configuration
 
 `config.json`:
 ```json

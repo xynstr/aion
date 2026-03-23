@@ -1,6 +1,6 @@
 # discord_bot
 
-Bidirektionaler Discord-Bot für AION. Per-User-Sessions, @Mention + DM-Support, Slash-Commands.
+Bidirectional Discord-Bot für AION. Per-User-Sessions, @Mention + DM-Support, Slash-Commands.
 
 ## Einrichtung
 
@@ -23,7 +23,7 @@ Bidirektionaler Discord-Bot für AION. Per-User-Sessions, @Mention + DM-Support,
 - Pro User eigene AION-Session (`discord_{user_id}`)
 - Nachrichten automatisch gesplittet bei 1900 Zeichen
 
-## Abhängigkeiten
+## Dependencies
 
 ```bash
 pip install discord.py

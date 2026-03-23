@@ -25,7 +25,7 @@ Integriert Google's Gemini-Modelle als Alternative zu OpenAI. Erlaubt AION, zwis
 - `o3`
 - `o4-mini`
 
-## Konfiguration
+## Configuration
 
 ```env
 GEMINI_API_KEY=AIza...

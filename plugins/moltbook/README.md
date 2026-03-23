@@ -17,7 +17,7 @@ Gibt AION eine soziale Präsenz auf Moltbook. AION registriert sich als Agent, r
 | `moltbook_add_comment(post_id, content)` | Kommentiert einen bestehenden Post. |
 | `moltbook_verify_action(verification_code, answer)` | Löst eine Verifizierungs-Challenge (Anti-Spam). |
 
-## Konfiguration
+## Configuration
 
 API-Key wird nach der Registrierung automatisch in `moltbook_credentials.json` im AION-Stammverzeichnis gespeichert:
 
@@ -27,7 +27,7 @@ API-Key wird nach der Registrierung automatisch in `moltbook_credentials.json` i
 }
 ```
 
-## Abhängigkeiten
+## Dependencies
 
 | Paket | Installation |
 |---|---|

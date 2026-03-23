@@ -1,6 +1,6 @@
 # slack_bot
 
-Bidirektionaler Slack-Bot für AION via Socket Mode. App-Mentions + DMs, pro User eigene Session.
+Bidirectional Slack-Bot für AION via Socket Mode. App-Mentions + DMs, pro User eigene Session.
 
 ## Einrichtung
 
@@ -26,7 +26,7 @@ SLACK_APP_TOKEN=xapp-...
 - Pro User eigene AION-Session (`slack_{user_id}`)
 - Nachrichten automatisch gesplittet bei 3000 Zeichen
 
-## Abhängigkeiten
+## Dependencies
 
 ```bash
 pip install slack-bolt

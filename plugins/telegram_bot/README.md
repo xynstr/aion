@@ -20,7 +20,7 @@ AION antwortet auf Telegram-Nachrichten (Text, Bilder, Sprachnachrichten) und ka
 2. send_telegram_voice(path) → sendet WAV als Sprachnachricht (OGG-Konvertierung automatisch)
 ```
 
-## Konfiguration
+## Configuration
 
 In `.env`:
 ```env
@@ -40,7 +40,7 @@ TELEGRAM_CHAT_ID=987654321
 - Sprachnachrichten (OGG) → ffmpeg → Vosk-Transkription → AION → TTS-Rückantwort
 - Bilder → Base64 → AION Vision
 
-## Abhängigkeiten
+## Dependencies
 
 | Paket | Zweck |
 |---|---|
