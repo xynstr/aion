@@ -27,13 +27,13 @@ except ImportError:
 try:
     from openai import AsyncOpenAI
 except ImportError:
-    print("Fehler: 'openai' nicht installiert. Bitte 'pip install openai' ausführen.")
+    print("Error: 'openai' not installed. Please run 'pip install openai'.")
     sys.exit(1)
 
 try:
     import httpx
 except ImportError:
-    print("Fehler: 'httpx' nicht installiert. Bitte 'pip install httpx' ausführen.")
+    print("Error: 'httpx' not installed. Please run 'pip install httpx'.")
     sys.exit(1)
 
 try:
@@ -50,7 +50,7 @@ except ImportError:
         def rule(self, *args, **kwargs): print("─" * 60)
     console = _FallbackConsole()
 
-# ── Konfiguration ─────────────────────────────────────────────────────────────
+# ── Configuration ─────────────────────────────────────────────────────────────
 
 BOT_DIR      = Path(__file__).parent.resolve()
 CONFIG_FILE  = BOT_DIR / "config.json"
@@ -68,7 +68,7 @@ LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
 _active_channel: contextvars.ContextVar[str] = contextvars.ContextVar("aion_channel", default="default")
 
 
-# ── Strukturiertes Event-Logging ───────────────────────────────────────────────
+# ── Structured Event Logging ───────────────────────────────────────────────
 
 def _log_event(event_type: str, data: dict) -> None:
     """Schreibt einen strukturierten Log-Eintrag in aion_events.log (JSONL).
@@ -118,7 +118,7 @@ MODEL = _cfg.get("model") or os.environ.get("AION_MODEL", "gpt-4.1")
 
 client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
-# ── Provider-Registry ─────────────────────────────────────────────────────────
+# ── Provider Registry ─────────────────────────────────────────────────────────
 # Each entry: {"prefix": str, "build_fn": callable, "label": str, "models": list}
 # Plugins call register_provider() in their register() function.
 _provider_registry: list[dict] = []
@@ -430,7 +430,7 @@ def _load_character() -> str:
     CHARACTER_FILE.write_text(DEFAULT_CHARACTER, encoding="utf-8")
     return DEFAULT_CHARACTER
 
-# ── System-Prompt ─────────────────────────────────────────────────────────────
+# ── System Prompt ─────────────────────────────────────────────────────────────
 
 def _load_changelog_snippet() -> str:
     """Liest den letzten Changelog-Block (aktuellste Version) für den System-Prompt."""
@@ -502,7 +502,7 @@ Always respond in the same language the user writes in. Mirror the user's langua
 If the user writes German → respond in German. English → English. Never switch unless the user does first.
 {plugin_block}{changelog_block}"""
 
-# ── Gedächtnis-System ─────────────────────────────────────────────────────────
+# ── Memory System ─────────────────────────────────────────────────────────
 
 class AionMemory:
     def __init__(self):
