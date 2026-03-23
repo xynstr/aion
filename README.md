@@ -1,10 +1,8 @@
 <div align="center">
 
-# ◈ AION
+<img src="static/aion-2026.svg" alt="AION" width="200">
 
 **Autonomous Intelligent Operations Node**
-
-*Think. Act. Evolve.*
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-009688?style=flat-square)](https://fastapi.tiangolo.com)
