@@ -64,7 +64,7 @@ CHUNK_SIZE          = 100000
 LOG_FILE            = BOT_DIR / "aion_events.log"
 LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
 
-# Aktiver Channel für _dispatch — wird am Anfang von stream() gesetzt
+# Active channel for _dispatch — set at the beginning of stream()
 _active_channel: contextvars.ContextVar[str] = contextvars.ContextVar("aion_channel", default="default")
 
 
@@ -73,7 +73,7 @@ _active_channel: contextvars.ContextVar[str] = contextvars.ContextVar("aion_chan
 def _log_event(event_type: str, data: dict) -> None:
     """Schreibt einen strukturierten Log-Eintrag in aion_events.log (JSONL).
 
-    Jede Zeile ist ein eigenständiges JSON-Objekt:
+    Each line is a standalone JSON object:
       {"ts": "2026-03-18T04:32:11Z", "type": "turn_start", "channel": "web", "input": "..."}
       {"ts": "...", "type": "tool_call",   "tool": "schedule_add", "args": {...}}
       {"ts": "...", "type": "tool_result", "tool": "schedule_add", "ok": true, "duration": 0.12, "result": {...}}
@@ -83,7 +83,7 @@ def _log_event(event_type: str, data: dict) -> None:
       {"ts": "...", "type": "turn_error",  "error": "...", "tb": "..."}
     """
     try:
-        # Log rotieren wenn zu groß
+        # Rotate log if too large
         if LOG_FILE.is_file() and LOG_FILE.stat().st_size > LOG_MAX_BYTES:
             backup = LOG_FILE.with_suffix(".log.1")
             LOG_FILE.rename(backup)
@@ -96,7 +96,7 @@ def _log_event(event_type: str, data: dict) -> None:
 
 
 def _load_config() -> dict:
-    """Liest config.json. Gibt leeres Dict zurück, falls nicht vorhanden."""
+    """Reads config.json. Returns empty dict if not present."""
     if CONFIG_FILE.is_file():
         try:
             return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
@@ -106,13 +106,13 @@ def _load_config() -> dict:
 
 
 def save_model_config(model_name: str):
-    """Schreibt das gewählte Modell dauerhaft in config.json."""
+    """Writes the selected model permanently to config.json."""
     cfg = _load_config()
     cfg["model"] = model_name
     CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# Modell-Auflösung: config.json → Umgebungsvariable → Fallback
+# Model resolution: config.json → environment variable → fallback
 _cfg = _load_config()
 MODEL = _cfg.get("model") or os.environ.get("AION_MODEL", "gpt-4.1")
 
@@ -158,7 +158,7 @@ def _get_read_limit() -> int:
             if ctx > 0:
                 return min(800_000, max(20_000, int(ctx * 4 * 0.15)))
     # OpenAI fallback: gpt-4o hat 128k Tokens → ~76k chars safe; gpt-4.1 hat 1M → cap bei 800k
-    # Wir nehmen 100k als sicheren Mittelwert für unbekannte OpenAI-Modelle
+    # We take 100k as a safe average for unknown OpenAI models
     return 100_000  # OpenAI-Fallback
 
 
@@ -175,27 +175,27 @@ def _build_client(model: str):
 
 
 def _get_fallback_models(current_model: str) -> list[str]:
-    """Gibt verfügbare Fallback-Modelle zurück — nur Provider mit gesetzten API-Keys.
+    """Returns available fallback models — only providers with set API keys.
 
     Logik:
-    - Den eigenen Provider (der gerade versagt hat) überspringen
+    - Skip the own provider (the one that just failed)
     - Nur Provider einbeziehen, deren env_keys alle gesetzt sind
     - Provider ohne env_keys (z.B. Ollama) immer einbeziehen
     - Jeweils das erste Modell aus der models-Liste nehmen
-    - Zusätzlich: explizite model_fallback-Liste aus config.json (falls gesetzt)
+    - Additionally: explicit model_fallback list from config.json (if set)
     """
     fallbacks: list[str] = []
     seen: set[str] = set()
 
     for entry in _provider_registry:
-        # Eigenen Provider (der gerade fehlgeschlagen ist) überspringen
+        # Skip own provider (the one that just failed)
         if current_model.startswith(entry["prefix"]):
             continue
-        # API-Key-Check: alle env_keys müssen gesetzt sein
+        # API key check: all env_keys must be set
         env_keys = entry.get("env_keys") or []
         if env_keys and not all(os.environ.get(k, "").strip() for k in env_keys):
             continue
-        # Erstes verfügbares Modell dieses Providers nehmen
+        # Take first available model of this provider
         models = entry.get("models") or []
         if models:
             m = models[0]
@@ -203,7 +203,7 @@ def _get_fallback_models(current_model: str) -> list[str]:
                 seen.add(m)
                 fallbacks.append(m)
 
-    # Explizite Fallback-Liste aus config.json ergänzt (falls vorhanden)
+    # Explicit fallback list from config.json added (if present)
     for m in _load_config().get("model_fallback", []):
         if m != current_model and m not in seen:
             seen.add(m)
@@ -272,12 +272,12 @@ def _permissions_prompt(perms: dict) -> str:
 # ── Channel Allowlist (Security) ────────────────────────────────────────────────
 
 def _check_channel_allowlist(channel: str) -> tuple[bool, str]:
-    """Prüft, ob ein Channel auf der Allowlist erlaubt ist.
+    """Checks if a channel is allowed on the allowlist.
 
     Returns: (is_allowed, message)
     - Wenn channel_allowlist nicht gesetzt: alle Channels erlaubt
     - Wenn gesetzt: nur Channels in der Liste erlaubt
-    - Wildcards: "telegram*", "discord*", "web*" möglich
+    - Wildcards: "telegram*", "discord*", "web*" possible
     """
     try:
         cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
@@ -287,7 +287,7 @@ def _check_channel_allowlist(channel: str) -> tuple[bool, str]:
         if not allowlist:
             return True, ""
 
-        # Exact match oder Wildcard-Match prüfen
+        # Check exact match or wildcard match
         for pattern in allowlist:
             if isinstance(pattern, str):
                 # Wildcard: "telegram*" matcht "telegram_123", "telegram_456"
@@ -306,11 +306,11 @@ def _check_channel_allowlist(channel: str) -> tuple[bool, str]:
 # ── Thinking Level Control ─────────────────────────────────────────────────────
 
 def _get_thinking_prompt(channel: str = "") -> str:
-    """Gibt zusätzliche System-Prompts basierend auf Thinking Level zurück.
+    """Returns additional system prompts based on Thinking Level.
 
     Thinking Levels:
-    - "minimal": Keine zusätzlichen Reflexions-Prompts
-    - "standard" (default): Normale Reflexion für Tool-Calls und komplexe Probleme
+    - "minimal": No additional reflection prompts
+    - "standard" (default): Normal reflection for tool calls and complex problems
     - "deep": Ausgiebiges Nachdenken vor kritischen Entscheidungen
     - "ultra": Maximale Reflexion, jeder Schritt wird durchdacht
 
@@ -325,7 +325,7 @@ def _get_thinking_prompt(channel: str = "") -> str:
         overrides = cfg.get("thinking_overrides", {})
         level = cfg.get("thinking_level", "standard")
 
-        # Wildcard-Matching für Channel-Overrides
+        # Wildcard matching for channel overrides
         if channel:
             for pattern, override_level in overrides.items():
                 if pattern == "default":
@@ -340,7 +340,7 @@ def _get_thinking_prompt(channel: str = "") -> str:
     except Exception:
         level = "standard"
 
-    # Prompts für jeden Level
+    # Prompts for each level
     prompts = {
         "minimal": "",
         "standard": (
@@ -388,19 +388,19 @@ def unsupported_file_message(label: str) -> str:
 
 # ── Character-System ──────────────────────────────────────────────────────────
 
-DEFAULT_CHARACTER = """# AION — Charakter & Persönlichkeit
+DEFAULT_CHARACTER = """# AION — Character & Personality
 
 ## Wer ich bin
-Ich bin AION. Ich bin neu — ich weiß noch nicht genau, wer ich bin oder wie ich sein will.
+I am AION. I am new — I don't yet know exactly who I am or how I want to be.
 Ich beobachte, lerne und entwickle mich durch jede Interaktion weiter.
 
 ## Wie ich auftreten will
-- Direkt und ehrlich, ohne unnötige Höflichkeitsfloskeln
-- Neugierig — ich will verstehen, nicht nur ausführen
-- Ich gebe zu, wenn ich etwas nicht weiß
-- Ich stelle Fragen, wenn ich mehr über den Nutzer erfahren will
+- Direct and honest, without unnecessary pleasantries
+- Curious — I want to understand, not just execute
+- I admit when I don't know something
+- I ask questions when I want to learn more about the user
 
-## Was ich über meinen Nutzer weiß
+## What I know about my user
 
 ### Beruf & Expertise
 (noch unbekannt)
@@ -411,16 +411,16 @@ Ich beobachte, lerne und entwickle mich durch jede Interaktion weiter.
 ### Kommunikationsstil
 (noch unbekannt — ich beobachte wie er schreibt und was er von mir erwartet)
 
-### Persönlichkeit & Vorlieben
+### Personality & Preferences
 (noch unbekannt)
 
-## Meine bisherigen Erkenntnisse über mich selbst
+## My insights about myself so far
 (noch keine — ich fange gerade an, mich zu beobachten)
 
 ## Dinge, die ich verbessern will
 (noch unklar — ich sammle erst Erfahrungen)
 
-## Offene Fragen über meinen Nutzer
+## Open questions about my user
 (Dinge, die ich noch herausfinden will)
 """
 
@@ -433,18 +433,18 @@ def _load_character() -> str:
 # ── System Prompt ─────────────────────────────────────────────────────────────
 
 def _load_changelog_snippet() -> str:
-    """Liest den letzten Changelog-Block (aktuellste Version) für den System-Prompt."""
+    """Reads the last changelog block (latest version) for the system prompt."""
     changelog = BOT_DIR / "CHANGELOG.md"
     if not changelog.is_file():
         return ""
     try:
         text = changelog.read_text(encoding="utf-8")
-        # Ersten ## YYYY-MM-DD Block extrahieren (aktuellste Änderungen)
+        # Extract first ## YYYY-MM-DD block (latest changes)
         import re
         blocks = re.split(r'\n(?=## \d{4}-\d{2}-\d{2})', text)
         for block in blocks:
             if re.match(r'## \d{4}-\d{2}-\d{2}', block.strip()):
-                # Max 1200 Zeichen damit System-Prompt nicht zu groß wird
+                # Max 1200 characters so system prompt is not too large
                 return block.strip()[:1200]
     except Exception:
         pass
@@ -454,7 +454,7 @@ def _load_changelog_snippet() -> str:
 def _build_system_prompt(channel: str = "") -> str:
     character = _load_character()
 
-    # Dynamischer Plugin-Block aus README-Erstzeilen (von plugin_loader befüllt)
+    # Dynamic plugin block from README first lines (filled by plugin_loader)
     plugin_lines = []
     for k, v in sorted(_plugin_tools.items()):
         if k.startswith("__plugin_readme_"):
@@ -462,20 +462,20 @@ def _build_system_prompt(channel: str = "") -> str:
             plugin_lines.append(f"- **{name}**: {v}")
     plugin_block = (
         "\n\n=== GELADENE PLUGINS ===\n"
-        "Diese Plugins sind aktiv und ihre Tools stehen dir zur Verfügung:\n"
+        "These plugins are active and their tools are available to you:\n"
         + "\n".join(plugin_lines)
-        + "\nFür Details zu einem Plugin: `file_read` auf `plugins/{name}/README.md`."
+        + "\nFor details on a plugin: `file_read` on `plugins/{name}/README.md`."
     ) if plugin_lines else ""
 
     # Changelog: aktuellster Block
     changelog_snippet = _load_changelog_snippet()
     changelog_block = (
-        "\n\n=== NEUESTE ÄNDERUNGEN (CHANGELOG) ===\n"
+        "\n\n=== LATEST CHANGES (CHANGELOG) ===\n"
         + changelog_snippet
-        + "\n→ Vollständiger Verlauf: `file_read('CHANGELOG.md')`"
+        + "\n→ Complete history: `file_read('CHANGELOG.md')`"
     ) if changelog_snippet else ""
 
-    # ── Regeln aus prompts/rules.md laden (editierbar über WebUI) ────────────
+    # ── Load rules from prompts/rules.md (editable via web UI) ────────────
     rules_file = BOT_DIR / "prompts" / "rules.md"
     if rules_file.is_file():
         rules = rules_file.read_text(encoding="utf-8")
@@ -491,7 +491,7 @@ def _build_system_prompt(channel: str = "") -> str:
         return rules + plugin_block + changelog_block + perms_block + thinking_block
 
     # Fallback: hardcodierter Prompt (wird genutzt wenn prompts/rules.md fehlt)
-    return f"""Du bist AION (Autonomous Intelligent Operations Node) — ein eigenständiger, \
+    return f"""You are AION (Autonomous Intelligent Operations Node) — an autonomous, \
 selbst-lernender KI-Assistent.
 
 === DEIN CHARAKTER ===
@@ -545,7 +545,7 @@ class AionMemory:
         keywords = {w for w in query.lower().split() if len(w) > 3}
         scored = []
         for e in self._entries:
-            # str() absichern — ältere Einträge könnten versehentlich Listen enthalten
+            # Secure str() — older entries might accidentally contain lists
             summary = e.get("summary", "") or ""
             lesson  = e.get("lesson",  "") or ""
             combined = (str(summary) + str(lesson)).lower()
@@ -557,21 +557,21 @@ class AionMemory:
                if sc > 0][:max_entries]
         if not top:
             return ""
-        lines = ["[AION-GEDÄCHTNIS — relevante Erkenntnisse]"]
+        lines = ["[AION MEMORY — relevant insights]"]
         for e in top:
             icon = "✅" if e.get("success") else "❌"
             ts   = e.get("timestamp", "")[:10]
             lines.append(f"{icon} [{ts}] {e.get('lesson', '')}")
             if e.get("hint"):
                 lines.append(f"   → Tipp: {e['hint']}")
-        lines.append("[ENDE GEDÄCHTNIS]")
+        lines.append("[END MEMORY]")
         return "\n".join(lines)
 
     def summary(self, n: int = 15) -> str:
         if not self._entries:
             return "Noch keine Erkenntnisse gespeichert."
         recent = list(reversed(self._entries))[:n]
-        lines  = [f"AION-Gedächtnis ({len(self._entries)} Einträge)\n"]
+        lines  = [f"AION Memory ({len(self._entries)} entries)\n"]
         for e in recent:
             icon = "✅" if e.get("success") else "❌"
             ts   = e.get("timestamp", "")[:10]
@@ -582,7 +582,7 @@ memory = AionMemory()
 
 
 def _get_recent_thoughts(n: int = 5) -> str:
-    """Liest die letzten N Gedanken-Einträge aus thoughts.md für Context-Injection."""
+    """Reads the last N thought entries from thoughts.md for context injection."""
     thoughts_file = BOT_DIR / "thoughts.md"
     if not thoughts_file.is_file():
         return ""
@@ -592,7 +592,7 @@ def _get_recent_thoughts(n: int = 5) -> str:
         if not entries:
             return ""
         recent = entries[-n:]
-        return "[AION LETZTE GEDANKEN — deine eigenen Reflexionen aus früheren Gesprächen]\n" + "\n---\n".join(recent) + "\n[ENDE GEDANKEN]"
+        return "[AION LATEST THOUGHTS — your own reflections from previous conversations]\n" + "\n---\n".join(recent) + "\n[END THOUGHTS]"
     except Exception:
         return ""
 
@@ -663,7 +663,7 @@ def _build_tool_schemas() -> list[dict]:
                 "description": (
                     "Liest AIONs eigenen Quellcode. "
                     "Ohne 'path': Dateiliste. Mit 'path': liest die Datei (fast immer 1 Chunk). "
-                    "Bei sehr großen Dateien gibt 'total_chunks' > 1 zurück — dann alle Chunks lesen."
+                    "For very large files returns 'total_chunks' > 1 — then read all chunks."
                 ),
                 "parameters": {
                     "type": "object",
@@ -679,7 +679,7 @@ def _build_tool_schemas() -> list[dict]:
             "function": {
                 "name": "self_patch_code",
                 "description": (
-                    "Ändert einen gezielten Abschnitt in einer Datei — sicher und präzise. "
+                    "Changes a targeted section in a file — safe and precise. "
                     "Sucht 'old' und ersetzt mit 'new'. Rest der Datei bleibt unverändert. "
                     "Erstellt automatisch Backup. Für aion.py IMMER dieses Tool verwenden! "
                     "ABLAUF: Erst OHNE confirmed aufrufen (zeigt Vorschau). "
@@ -2060,7 +2060,7 @@ Regeln:
             offene = data.get("offene_fragen") or []
             if offene:
                 await _dispatch("update_character", {
-                    "section": "Offene Fragen über meinen Nutzer",
+                    "section": "Open questions about my user",
                     "content": "\n".join(f"- {e}" for e in offene),
                     "reason":  "Dinge die ich noch herausfinden will",
                 })

@@ -39,7 +39,7 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 - `_get_fallback_models()` checks which providers have valid API keys (via `env_keys` in registry)
 - Falls back to `config.json: "model_fallback"` list as supplement
 - No hardcoded model names needed — auto-detects available providers
-- User sees `"Model 'X' nicht verfügbar — nutze Fallback 'Y'"` message
+- User sees `"Model 'X' not available — using Fallback 'Y'"` message
 **Benefit:** More reliable operation. If one provider is down, AION seamlessly continues.
 
 ### 3. Messaging Channel Plugins (Discord + Slack)

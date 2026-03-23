@@ -78,139 +78,139 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ### Fix: Double `.mp3` extension (`audio_pipeline.py`)
 - `_tts_edge()` added `.mp3` even though path already ended in `.mp3` → `filename.mp3.mp3`
-- Fix: explizite Prüfung vor dem Anhängen der extension
+- Fix: explicit check before appending extension
 
-### Fix: Telegram Response Ordering — Voice nach allen Blöcken
-- Voice-Reply war in `elif`-Zweig → wurde übersprungen wenn `response_blocks` gefüllt war
-- Fix: Voice-Versand in `if response_blocks:` Block verschoben, nach allen Text/Bild-Blöcken
+### Fix: Telegram Response Ordering — Voice After All Blocks
+- Voice reply was in `elif` branch → was skipped if `response_blocks` was filled
+- Fix: Voice transmission moved into `if response_blocks:` block, after all text/image blocks
 
-### Update: README.md komplett neu für Public Release
-- Badges, Feature-Vergleich, Provider-Tabelle (API-Key vs. Abo), REST-API-Referenz
-- Troubleshooting, LLM-Loop-Diagramm, Task Routing Sektion
+### Update: README.md Completely Redesigned for Public Release
+- Badges, feature comparison, provider table (API-Key vs. subscription), REST-API reference
+- Troubleshooting, LLM-loop diagram, Task Routing section
 
-### Update: AION_SELF.md Abschnitt 13
-- Claude CLI Provider Plugin dokumentiert
-- Audio Web UI Pipeline dokumentiert
-- Keys Tab Verbesserungen dokumentiert
-- Neue API-Endpunkte dokumentiert
-- `claude_cli_provider` in Plugin-Verzeichnis und Tools-Tabelle eingetragen
+### Update: AION_SELF.md Section 13
+- Claude CLI Provider Plugin documented
+- Audio Web UI Pipeline documented
+- Keys Tab improvements documented
+- New API endpoints documented
+- `claude_cli_provider` added to plugin directory and tools table
 
 ---
 
 ## 2026-03-19 (3)
 
 ### New: file_replace_lines Tool
-- Ersetzt Zeilen start_line–end_line direkt (kein String-Matching)
-- self_read_code gibt jetzt first_line/last_line zurück → Zeilennummern ablesen → ersetzen
-- Zuverlässiger als self_patch_code, kein "nicht gefunden" mehr
+- Replaces lines start_line–end_line directly (no string matching)
+- self_read_code now returns first_line/last_line → read line numbers → replace
+- More reliable than self_patch_code, no more "not found"
 
-### Geändert: self_read_code — Zeilennummern im Output
-- Gibt jetzt first_line und last_line zurück
-- Hint empfiehlt file_replace_lines mit konkreten Zeilennummern
+### Changed: self_read_code — Line numbers in output
+- Now returns first_line and last_line
+- Hint recommends file_replace_lines with concrete line numbers
 
-### Geändert: System-Prompt Selbst-Modifikation
-- file_replace_lines als bevorzugtes Tool eingetragen
-- Explizite Regel: 'old' bei self_patch_code MUSS zeichengenau kopiert sein
+### Changed: System-Prompt Self-Modification
+- file_replace_lines registered as preferred tool
+- Explicit rule: 'old' in self_patch_code MUST be copied exactly
 
-### Fix: smart_patch Zeilen-Tracking-Bug
-- block_core hatte Leerzeilen rausgefiltert, match_end-Berechnung zählte sie trotzdem
-- Fix: match_end trackt jetzt den echten Zeilenbereich inkl. Leerzeilen
-- New: Eindeutigkeits-Check meldet Fehler wenn Block mehrfach vorkommt
+### Fix: smart_patch line-tracking bug
+- block_core had filtered out blank lines, match_end calculation counted them anyway
+- Fix: match_end now tracks the actual line range including blank lines
+- New: Uniqueness check reports error if block occurs multiple times
 
 ---
 
 ## 2026-03-19 (2)
 
-### New: Bestätigungs-Buttons (Web UI + Telegram)
-- Web UI: Wenn AION eine Code-Änderung bestätigt haben möchte, erscheinen "✓ Bestätigen" und "✗ Ablehnen" Buttons direkt im Chat — kein Tippen mehr nötig
-- Telegram: Inline-Keyboard mit "✓ Ja" / "✗ Nein" Buttons wird gesendet; Button-Klick wird per `callback_query` verarbeitet
-- aion.py: Neuer SSE-Event-Typ `approval` signalisiert dem Frontend dass Buttons gezeigt werden sollen
-- Tastatureingabe ("ja"/"nein") funktioniert weiterhin als Fallback
+### New: Confirmation Buttons (Web UI + Telegram)
+- Web UI: When AION wants to confirm a code change, "Confirm" and "Reject" buttons appear directly in the chat — no typing needed
+- Telegram: Inline keyboard with "Yes" / "No" buttons is sent; button click is processed via `callback_query`
+- aion.py: New SSE event type `approval` signals the frontend that buttons should be shown
+- Keyboard input ("yes"/"no") continues to work as fallback
 
 ---
 
 ## 2026-03-19
 
-### New: Scheduler Intervall-Modus
-- `schedule_add` hat jetzt einen `interval`-Parameter: `"5m"`, `"30s"`, `"1h"`, `"2h30m"`
-- Neben festen Uhrzeiten können Aufgaben jetzt in beliebigen Abständen wiederholt werden
-- Prüftakt: alle 5 Sekunden (vorher 10s)
+### New: Scheduler Interval Mode
+- `schedule_add` now has an `interval` parameter: `"5m"`, `"30s"`, `"1h"`, `"2h30m"`
+- In addition to fixed times, tasks can now be repeated at any interval
+- Check interval: every 5 seconds (previously 10s)
 
 ### New: send_telegram_voice(path)
-- Audiodatei als Telegram-Sprachnachricht versenden (WAV, MP3, OGG …)
+- Send audio file as Telegram voice message (WAV, MP3, OGG …)
 - Workflow: `audio_tts(text)` → `send_telegram_voice(path)`
-- ffmpeg konvertiert automatisch zu OGG OPUS
+- ffmpeg automatically converts to OGG OPUS
 
 ### New: audio_pipeline Plugin
-- `audio_transcribe_any(file_path)` — beliebige Audiodatei → Text (ffmpeg + Vosk, offline)
-- `audio_tts(text)` — Text → WAV-Sprachdatei (pyttsx3/SAPI5, offline)
+- `audio_transcribe_any(file_path)` — any audio file → text (ffmpeg + Vosk, offline)
+- `audio_tts(text)` — text → WAV audio file (pyttsx3/SAPI5, offline)
 
 ### New: Moltbook Plugin
 - `moltbook_get_feed`, `moltbook_create_post`, `moltbook_add_comment`
-- Soziale Präsenz auf moltbook.com
+- Social presence on moltbook.com
 
-### New: Dynamische Plugin-Übersicht
-- Plugin-READMEs werden beim Laden eingelesen und im System-Prompt angezeigt
-- Jedes Plugin braucht eine README.md mit einer kurzen Beschreibung
+### New: Dynamic Plugin Overview
+- Plugin READMEs are read on load and displayed in the system prompt
+- Each plugin needs a README.md with a brief description
 
-### Geändert: Telegram → HTML-Format
-- Nachrichten werden als HTML gesendet (nicht mehr MarkdownV2)
-- Markdown-zu-HTML-Konvertierung (_md_to_html) eingebaut
+### Changed: Telegram → HTML Format
+- Messages are sent as HTML (no longer MarkdownV2)
+- Markdown-to-HTML conversion (_md_to_html) built in
 
-### Geändert: Telegram Sprachnachrichten empfangen
-- OGG-Sprachnachricht → ffmpeg → Vosk → Text → AION → TTS-Rückantwort
+### Changed: Telegram Voice Message Reception
+- OGG voice message → ffmpeg → Vosk → text → AION → TTS response
 
-### Fix: Telegram Doppel-Antworten nach self_reload_tools
-- Thread-Namen-Check verhindert zweiten Polling-Thread bei Plugin-Reload
+### Fix: Telegram Double Responses After self_reload_tools
+- Thread name check prevents second polling thread on plugin reload
 
-### Fix: Approval-Loop bei Code-Änderungen
-- Kompletten Gate-Mechanismus (`_pending_code_action`, `_pending_needs_user_turn`) entfernt
-- Neues System: `confirmed`-Parameter bei `self_patch_code`, `self_modify_code`, `create_plugin`
-- Ohne `confirmed`: zeigt Vorschau. Mit `confirmed=true`: führt aus. Stateless, Loop-proof
-- Nebeneffekt: System-Prompt-Text leckte in Ausgabe wenn Messages-History durch Loop korrupt war
+### Fix: Approval loop on code changes
+- Removed entire gate mechanism (`_pending_code_action`, `_pending_needs_user_turn`)
+- New system: `confirmed` parameter in `self_patch_code`, `self_modify_code`, `create_plugin`
+- Without `confirmed`: shows preview. With `confirmed=true`: executes. Stateless, loop-proof
+- Side effect: System prompt text leaked into output when message history was corrupted by loop
 
-### New: start.bat — visuelles Redesign
-- ASCII-Logo, ANSI-Farben (grün/gelb/rot), Box-Rahmen für jeden Schritt
-- 6-stufige Fortschrittsanzeige mit ✓/!/✗ Symbolen
-- Aktives model wird beim Start angezeigt
-- Vollständiges Log in `aion_start.log` (absoluter Pfad, ab Zeile 1)
-- Bei Fehler: letzte 25 Log-Zeilen direkt in der Konsole
-- `python-telegram-bot` aus optionalen Installs entfernt (nicht verwendet, verursachte Konflikte)
+### New: start.bat — Visual Redesign
+- ASCII logo, ANSI colors (green/yellow/red), box frames for each step
+- 6-step progress display with checkmark/exclamation/cross symbols
+- Active model is displayed at startup
+- Complete log in `aion_start.log` (absolute path, from line 1)
+- On error: last 25 log lines displayed directly in console
+- `python-telegram-bot` removed from optional installs (not used, caused conflicts)
 
-### Fix: aion_web.py — Crash bei reinem Gemini-Setup
-- Startprüfung akzeptiert jetzt `GEMINI_API_KEY` als Alternative zu `OPENAI_API_KEY`
-- Vorher: `sys.exit(1)` wenn kein OpenAI-Key → Crash bei Gemini-only-Nutzern
+### Fix: aion_web.py — Crash with Gemini-only Setup
+- Startup check now accepts `GEMINI_API_KEY` as alternative to `OPENAI_API_KEY`
+- Previously: `sys.exit(1)` if no OpenAI key → crash for Gemini-only users
 
 ### Fix: Telegram 409-Loop
-- start.bat beendet alte Prozesse aggressiver (zweiter Kill-Versuch, 12s Wartezeit)
-- Backoff-Strategie: 12s → 14s → max 30s; Log-Warnung alle 5 Versuche
+- start.bat terminates old processes more aggressively (second kill attempt, 12s wait)
+- Backoff strategy: 12s → 14s → max 30s; log warning every 5 attempts
 
-### Geändert: CLIO-Plugin deaktiviert
-- clio_reflection.py → _clio_reflection.py (Plugin-Loader ignoriert _-Präfix)
-- Grund: hatte gefälschte Zufallswerte (random.randint) statt echter Konfidenzberechnung
+### Changed: CLIO Plugin Disabled
+- clio_reflection.py → _clio_reflection.py (plugin loader ignores _ prefix)
+- Reason: had fake random values (random.randint) instead of actual confidence calculation
 
-### Geändert: _auto_character_update verbessert
-- Temperature: 0.2 → 0.7 (kreativere Charakteranalyse)
-- Prompt: VERBOTEN/GESUCHT-Struktur, vergleicht gegen bestehende character.md
-- Mustererkennung: sucht Patterns über mehrere Gespräche
+### Changed: _auto_character_update Improved
+- Temperature: 0.2 → 0.7 (more creative character analysis)
+- Prompt: FORBIDDEN/WANTED structure, compares against existing character.md
+- Pattern recognition: searches for patterns across multiple conversations
 
-### Geändert: Bestätigungspflicht für Code-Änderungen
-- BEVOR self_patch_code/self_modify_code/create_plugin aufgerufen wird: User fragen
-- Ablauf: Code lesen → zeigen was sich ändert → Zustimmung abwarten → ausführen
+### Changed: Confirmation Required for Code Changes
+- BEFORE calling self_patch_code/self_modify_code/create_plugin: ask user
+- Flow: Read code → show changes → wait for approval → execute
 
 ---
 
-## Format für neue Einträge
+## Format for New Entries
 
 ```
 ## YYYY-MM-DD
 
 ### New: [Feature-Name]
-- Was wurde hinzugefügt und warum
+- What was added and why
 
-### Geändert: [Was]
-- Was und warum geändert
+### Changed: [What]
+- What and why changed
 
-### Fix: [Was]
-- Was war kaputt und wie gefixt
+### Fix: [What]
+- What was broken and how it was fixed
 ```
