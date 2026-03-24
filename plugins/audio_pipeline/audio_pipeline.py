@@ -1,32 +1,36 @@
 """
 AION Plugin: audio_pipeline
 ============================
-Universelles Audio-Ein/Ausgabe-Plugin für AION.
+Universal audio input/output plugin for AION.
 
-Stellt zwei Tools bereit:
-  - audio_transcribe_any : Beliebige Audiodatei → Text (ffmpeg + Vosk, offline)
-  - audio_tts            : Text → WAV-Sprachdatei (multi-engine Router)
+Tools:
+  - audio_transcribe_any : Any audio file → text (Faster Whisper, fully offline)
+  - audio_tts            : Text → spoken audio (multi-engine router)
 
-TTS-Engines (steuerbar via engine-Parameter oder config.json "tts_engine"):
-  - sapi5  : Windows SAPI5 via pyttsx3 (offline, roboterhaft) — Fallback
-  - edge   : Microsoft Neural TTS via edge-tts (online, sehr natürlich, kostenlos)
-             Stimme konfigurierbar via config.json "tts_voice" (z.B. "de-DE-KatjaNeural")
-  - piper  : Piper TTS (offline, neural, schnell) — in Vorbereitung
+STT (Speech-to-Text):
+  - Faster Whisper (offline, multilingual, auto-detects language)
+  - No manual model download — auto-downloaded on first use (~465 MB for 'small')
+  - Model size configurable via: aion config set whisper_model small|medium|large-v3
+  - ffmpeg recommended for non-WAV formats (optional — WAV always works without it)
 
-Engine-Priorität:
-  1. Expliziter engine-Parameter beim Aufruf
+TTS engines (via engine parameter or config.json "tts_engine"):
+  - edge   : Microsoft Neural TTS (online, best quality)  — recommended
+             Voice: config.json "tts_voice" (e.g. "de-DE-KatjaNeural")
+  - sapi5  : Windows SAPI5 via pyttsx3 (offline, fallback)
+  - piper  : Piper TTS (offline, neural) — planned
+
+Engine priority:
+  1. Explicit engine= parameter
   2. config.json → "tts_engine"
   3. Fallback: "sapi5"
 
-Andere Plugins (Telegram, WhatsApp, Discord, ...) können dieses Plugin direkt
-importieren — keine API-Keys, keine Cloud-Dependencyen.
+Other plugins (Telegram, Discord, ...) can import this directly — no API keys needed.
 
-Benötigt:
-  - ffmpeg im PATH  (winget install Gyan.FFmpeg)
-  - pyttsx3         (pip install pyttsx3)           — für engine=sapi5
-  - edge-tts        (pip install edge-tts)          — für engine=edge
-  - vosk            (pip install vosk)              — für Transkription
-  - Vosk-Modell unter plugins/audio_transcriber/vosk-model-small-de-0.15/
+Requirements:
+  - faster-whisper  (pip install faster-whisper)   — for transcription
+  - pyttsx3         (pip install pyttsx3)           — for engine=sapi5
+  - edge-tts        (pip install edge-tts)          — for engine=edge
+  - ffmpeg (optional, winget install Gyan.FFmpeg)   — for non-WAV audio formats
 """
 
 import asyncio
@@ -40,13 +44,12 @@ from pathlib import Path
 
 # ── Pfade ────────────────────────────────────────────────────────────────────
 
-_PLUGIN_DIR = Path(__file__).parent
-_AION_DIR   = _PLUGIN_DIR.parent.parent
-_MODEL_PATH = _AION_DIR / "plugins" / "audio_transcriber" / "vosk-model-small-de-0.15"
+_PLUGIN_DIR  = Path(__file__).parent
+_AION_DIR    = _PLUGIN_DIR.parent.parent
 _CONFIG_FILE = _AION_DIR / "config.json"
 
-# Lazy-geladenes Vosk-Modell (wird nur einmal geladen)
-_vosk_model = None
+# Lazy-loaded Faster Whisper model (shared with audio_transcriber plugin)
+_whisper_model = None
 
 
 # ── Config-Helfer ─────────────────────────────────────────────────────────────
@@ -84,9 +87,9 @@ def _ffmpeg_ok() -> bool:
 
 
 def _convert_to_wav(input_path: str) -> str:
-    """Converts beliebige Audiodatei → WAV (mono, 16 kHz, 16-bit) via ffmpeg.
-    Gibt den Pfad zur temporären WAV-File zurück.
-    Caller ist für das Löschen der File zuständig.
+    """Converts any audio file → WAV (mono, 16 kHz, 16-bit) via ffmpeg.
+    Returns path to a temporary WAV file. Caller must delete it.
+    Used for TTS output conversion only — transcription goes directly to Whisper.
     """
     ffmpeg_bin = _find_ffmpeg()
     if not ffmpeg_bin:
@@ -101,91 +104,114 @@ def _convert_to_wav(input_path: str) -> str:
     tmp.close()
     cmd = [
         ffmpeg_bin, "-y", "-i", input_path,
-        "-ar", "16000",       # 16 kHz Abtastrate (optimal für Vosk)
-        "-ac", "1",           # Mono
-        "-sample_fmt", "s16", # 16-bit PCM
+        "-ar", "16000",
+        "-ac", "1",
+        "-sample_fmt", "s16",
         tmp.name,
     ]
     result = subprocess.run(cmd, capture_output=True, timeout=60)
     if result.returncode != 0:
         os.unlink(tmp.name)
         raise RuntimeError(
-            f"ffmpeg Error (exit {result.returncode}): "
+            f"ffmpeg error (exit {result.returncode}): "
             f"{result.stderr.decode(errors='replace')[:400]}"
         )
     return tmp.name
 
 
-def _transcribe_wav(wav_path: str) -> str:
-    """Transkribiert eine WAV-File via Vosk. Gibt erkannten Text zurück."""
-    global _vosk_model
+def _get_whisper_model_size() -> str:
+    """Read whisper_model from config.json. Default: 'small'."""
     try:
-        from vosk import Model, KaldiRecognizer
-        import wave
-    except ImportError:
-        raise RuntimeError("vosk not installed: pip install vosk")
+        if _CONFIG_FILE.is_file():
+            cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+            return cfg.get("whisper_model", "small")
+    except Exception:
+        pass
+    return "small"
 
-    if not _MODEL_PATH.exists():
-        raise RuntimeError(
-            f"Vosk-Modell nicht gefunden: {_MODEL_PATH}\n"
-            "Bitte herunterladen von https://alphacephei.com/vosk/models "
-            "und als plugins/audio_transcriber/vosk-model-small-de-0.15/ entpacken."
+
+def _get_whisper_model():
+    """Lazy-load Faster Whisper model. Shares instance with audio_transcriber plugin."""
+    global _whisper_model
+    if _whisper_model is None:
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            raise RuntimeError(
+                "faster-whisper not installed — run: pip install faster-whisper"
+            )
+        model_size = _get_whisper_model_size()
+        device = "cpu"
+        compute_type = "int8"
+        try:
+            import torch
+            if torch.cuda.is_available():
+                device = "cuda"
+                compute_type = "float16"
+        except ImportError:
+            pass
+        print(
+            f"[audio_pipeline] Loading Whisper '{model_size}' "
+            f"on {device} ({compute_type})…",
+            flush=True,
         )
+        _whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    return _whisper_model
 
-    if _vosk_model is None:
-        _vosk_model = Model(str(_MODEL_PATH))
 
-    with wave.open(wav_path, "rb") as wf:
-        rec = KaldiRecognizer(_vosk_model, wf.getframerate())
-        rec.SetWords(True)
-        while True:
-            data = wf.readframes(4000)
-            if not data:
-                break
-            rec.AcceptWaveform(data)
-
-    return json.loads(rec.FinalResult()).get("text", "")
+def _transcribe_with_whisper(audio_path: str, language: str = "") -> str:
+    """Transcribes any audio file via Faster Whisper. Returns plain text."""
+    model = _get_whisper_model()
+    kwargs = {"beam_size": 5}
+    if language:
+        kwargs["language"] = language
+    segments, _info = model.transcribe(audio_path, **kwargs)
+    return " ".join(seg.text.strip() for seg in segments).strip()
 
 
 # ── Öffentliche Tool-Functionen ───────────────────────────────────────────────
 
-def audio_transcribe_any(file_path: str) -> dict:
-    """Transkribiert beliebige Audiodateien (ogg, mp3, m4a, wav, ...) in Text.
+def audio_transcribe_any(file_path: str, language: str = "") -> dict:
+    """Transcribes any audio file (OGG, MP3, M4A, WAV, FLAC, WebM, ...) to text.
 
-    Kann direkt von anderen Plugins importiert werden:
+    Uses Faster Whisper (fully offline, multilingual). Auto-detects language.
+    Faster Whisper uses ffmpeg internally for non-WAV formats when available.
+
+    Can be imported directly by other plugins:
         from audio_pipeline.audio_pipeline import audio_transcribe_any
         result = audio_transcribe_any("/tmp/voice.ogg")
-        # → {"ok": True, "text": "hallo welt", "converted": True}
+        # → {"ok": True, "text": "hello world", "language": "en"}
     """
     input_path = str(file_path)
 
     if not os.path.exists(input_path):
-        return {"ok": False, "error": f"File nicht gefunden: {input_path}"}
+        return {"ok": False, "error": f"File not found: {input_path}"}
 
-    wav_path = None
     try:
-        # Direkt-Versuch für WAV (spart ffmpeg-Aufruf)
-        if input_path.lower().endswith(".wav"):
-            try:
-                text = _transcribe_wav(input_path)
-                return {"ok": True, "text": text, "converted": False}
-            except Exception:
-                pass  # Fallback: über ffmpeg konvertieren
+        text = _transcribe_with_whisper(input_path, language=language)
+        return {"ok": True, "text": text}
 
-        # Konvertierung via ffmpeg → temporäre WAV → Vosk
-        wav_path = _convert_to_wav(input_path)
-        text = _transcribe_wav(wav_path)
-        return {"ok": True, "text": text, "converted": True}
+    except RuntimeError as e:
+        err = str(e)
+        # If Whisper fails on non-WAV due to missing ffmpeg, try converting first
+        if "ffmpeg" in err.lower() or "audio" in err.lower():
+            wav_path = None
+            try:
+                wav_path = _convert_to_wav(input_path)
+                text = _transcribe_with_whisper(wav_path, language=language)
+                return {"ok": True, "text": text}
+            except Exception as e2:
+                return {"ok": False, "error": str(e2)}
+            finally:
+                if wav_path and os.path.exists(wav_path):
+                    try:
+                        os.unlink(wav_path)
+                    except Exception:
+                        pass
+        return {"ok": False, "error": err}
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
-
-    finally:
-        if wav_path and os.path.exists(wav_path):
-            try:
-                os.unlink(wav_path)
-            except Exception:
-                pass
 
 
 def _tts_sapi5(text: str, output_path: str) -> dict:
@@ -300,9 +326,9 @@ def register(api):
     api.register_tool(
         name="audio_transcribe_any",
         description=(
-            "Wandelt beliebige Audiodateien (ogg, mp3, m4a, wav, ...) in Text um. "
-            "Nutzt ffmpeg für Formatkonvertierung und Vosk für Offline-Spracherkennung (Deutsch). "
-            "Gibt {ok, text} zurück."
+            "Transcribes any audio file (OGG, MP3, M4A, WAV, FLAC, WebM, ...) to text. "
+            "Uses Faster Whisper (fully offline, multilingual, auto-detects language). "
+            "Returns {ok, text}."
         ),
         func=audio_transcribe_any,
         input_schema={
@@ -310,8 +336,12 @@ def register(api):
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "Vollständiger Pfad zur Audiodatei",
-                }
+                    "description": "Full path to the audio file",
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Language code (e.g. 'de', 'en'). Empty = auto-detect.",
+                },
             },
             "required": ["file_path"],
         },

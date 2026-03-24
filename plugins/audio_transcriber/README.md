@@ -1,34 +1,50 @@
 # audio_transcriber
 
-Transkribiert WAV-Audiodateien in Text via Vosk (offline, Deutsch).
+Transcribes audio files to text via **Faster Whisper** (offline, multilingual).
 
-## Zweck
+## Purpose
 
-Base module for speech recognition. Processes only WAV files (mono, 16-bit PCM, 16 kHz). For all other formats (ogg, mp3, m4a, ...) use the `audio_pipeline` plugin, which uses this Vosk model internally.
+Base module for speech recognition. Supports all common audio formats (WAV, MP3, OGG, M4A, FLAC, WebM, ...).
+No manual model download needed — model is downloaded automatically on first use.
+
+For universal audio support including TTS, use the `audio_pipeline` plugin.
 
 ## Tools
 
-- `transcribe_audio(file_path)` — Transcribes a WAV file and returns the recognized text as a string. Gibt eine Fehlermeldung zurück wenn das Format nicht stimmt oder das Modell fehlt.
+- `transcribe_audio(file_path, language?)` — Transcribes any audio file and returns the recognized text as a string. Auto-detects language when `language` is not provided.
 
 ## Dependencies
 
-| Paket | Installation |
-|---|---|
-| `vosk` | `pip install vosk` |
+| Package | Installation |
+|---------|-------------|
+| `faster-whisper` | `pip install faster-whisper` |
+| `ffmpeg` (optional) | `winget install Gyan.FFmpeg` — needed for non-WAV formats |
 
-Vosk-Modell: `plugins/audio_transcriber/vosk-model-small-de-0.15/` muss vorhanden sein.
+## Model Configuration
 
-Download: https://alphacephei.com/vosk/models → `vosk-model-small-de-0.15.zip` entpacken.
+Default model: `small` (~465 MB, downloaded automatically on first use).
 
-## Dateistruktur
+```bash
+aion config set whisper_model small    # default — best balance
+aion config set whisper_model medium   # better accuracy
+aion config set whisper_model large-v3 # best quality (~3 GB)
+aion config set whisper_model base     # faster, lower quality
+aion config set whisper_model tiny     # fastest, lowest quality
+```
+
+Models are cached in `~/.cache/huggingface/hub/`.
+
+## GPU Support
+
+Automatically uses CUDA if `torch` with CUDA is installed:
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+```
+
+## File Structure
 
 ```
 plugins/audio_transcriber/
-  audio_transcriber.py          ← dieses Plugin
-  vosk-model-small-de-0.15/     ← Sprachmodell (nicht im Repo)
+  audio_transcriber.py   ← this plugin
   README.md
 ```
-
-## Hinweis
-
-Use the `audio_pipeline` plugin for universal audio support — es übernimmt Konvertierung und ruft `transcribe_audio` intern auf.

@@ -5,6 +5,21 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-24 — STT: Vosk → Faster Whisper
+
+### Replaced: Vosk → Faster Whisper (audio_transcriber + audio_pipeline)
+- **Vosk removed** — required manual model download, German-only, lower accuracy
+- **Faster Whisper** — offline, multilingual, auto-detects language, auto-downloads model
+- No manual model download — model fetched from HuggingFace Hub on first use (~465 MB for 'small')
+- All audio formats supported (WAV, MP3, OGG, M4A, FLAC, WebM) via ffmpeg (optional)
+- GPU auto-detected — uses CUDA float16 if torch+CUDA available, else CPU int8
+- Model size configurable: `aion config set whisper_model small|medium|large-v3`
+- `language` parameter added to both `transcribe_audio` and `audio_transcribe_any`
+- Files: `plugins/audio_transcriber/audio_transcriber.py`, `plugins/audio_pipeline/audio_pipeline.py`
+- Requirements: `faster-whisper>=1.0.0` added, `vosk` removed
+
+---
+
 ## 2026-03-24 — Setup Expansion + CLI Config Tool
 
 ### New: TTS and Thinking Level in Setup Wizard

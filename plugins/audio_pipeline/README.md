@@ -1,27 +1,46 @@
 # audio_pipeline
 
-Universal audio input/output plugin. Converts any audio files to text and generates spoken language — completely offline, no cloud dependency.
+Universal audio input/output plugin. Transcribes any audio to text and generates speech — fully offline, no cloud dependency.
 
-## Zweck
+## Purpose
 
-This plugin is the central audio infrastructure for AION. Other plugins (Telegram, WhatsApp, Discord, ...) import it directly to process voice messages or generate audio output.
+Central audio infrastructure for AION. Other plugins (Telegram, Discord, ...) import this directly to process voice messages or generate audio output.
 
 ## Tools
 
-- `audio_transcribe_any(file_path)` — Converts any audio files (ogg, mp3, m4a, wav, ...) to WAV via ffmpeg and transcribes with Vosk (offline, German). Gibt `{ok, text, converted}` zurück.
-- `audio_tts(text, output_path?)` — Converts text to spoken language (WAV file). Uses pyttsx3 with Windows SAPI5, prefers German voice. Gibt `{ok, path}` zurück.
+- `audio_transcribe_any(file_path, language?)` — Converts any audio file (OGG, MP3, M4A, WAV, FLAC, WebM, ...) to text via **Faster Whisper** (offline, multilingual). Returns `{ok, text}`.
+- `audio_tts(text, engine?, output_path?)` — Converts text to spoken audio. Returns `{ok, path, engine}`.
 
-## Dependencyen
+## STT (Speech-to-Text)
 
-| Paket | Zweck | Installation |
-|---|---|---|
-| `ffmpeg` | Audio-Formatkonvertierung | `winget install Gyan.FFmpeg` |
-| `pyttsx3` | Text-to-Speech (offline) | `pip install pyttsx3` |
-| `vosk` | Spracherkennung (offline) | `pip install vosk` |
+Uses **Faster Whisper** — fully offline, multilingual, auto-detects language.
+- No manual model download — downloaded automatically on first use
+- Model configurable via `aion config set whisper_model small|medium|large-v3`
+- ffmpeg recommended for non-WAV formats (optional)
 
-Vosk-Modell: `plugins/audio_transcriber/vosk-model-small-de-0.15/` muss vorhanden sein.
+## TTS (Text-to-Speech)
 
-## Nutzung durch andere Plugins
+| Engine | Quality | Requires |
+|--------|---------|---------|
+| `edge` | ⭐⭐⭐ Microsoft Neural (online) | `pip install edge-tts` |
+| `sapi5` | ⭐⭐ Windows built-in (offline) | `pip install pyttsx3` |
+
+Configure engine and voice:
+```bash
+aion config set tts_engine edge
+aion config set tts_voice de-DE-KatjaNeural
+```
+
+## Dependencies
+
+| Package | Purpose | Installation |
+|---------|---------|-------------|
+| `faster-whisper` | Speech recognition | `pip install faster-whisper` |
+| `pyttsx3` | TTS fallback (offline) | `pip install pyttsx3` |
+| `edge-tts` | TTS best quality (online) | `pip install edge-tts` |
+| `ffmpeg` (optional) | Non-WAV audio formats | `winget install Gyan.FFmpeg` |
+
+## Usage by Other Plugins
 
 ```python
 import importlib.util
@@ -35,14 +54,14 @@ def _get_audio_pipeline():
     return mod
 
 ap = _get_audio_pipeline()
-result = ap.audio_transcribe_any("/tmp/voice.ogg")  # → {"ok": True, "text": "hallo welt"}
-result = ap.audio_tts("Hallo Welt")                 # → {"ok": True, "path": "/tmp/xyz.wav"}
+result = ap.audio_transcribe_any("/tmp/voice.ogg")  # → {"ok": True, "text": "hello world"}
+result = ap.audio_tts("Hello World")                # → {"ok": True, "path": "/tmp/xyz.mp3"}
 ```
 
-## Filestruktur
+## File Structure
 
 ```
 plugins/audio_pipeline/
-  audio_pipeline.py   ← dieses Plugin
+  audio_pipeline.py   ← this plugin
   README.md
 ```

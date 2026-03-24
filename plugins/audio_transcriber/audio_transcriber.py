@@ -1,66 +1,105 @@
 """
 AION Plugin: audio_transcriber
 ===============================
-Transkribiert WAV-Fileen (mono, 16-bit PCM) via Vosk (Offline).
+Transcribes audio files via Faster Whisper (offline, multilingual).
 
-Für universelle Audio-Unterstützung (ogg, mp3, m4a, ...):
-→ Nutze das audio_pipeline-Plugin, das dieses Plugin intern verwendet.
+No manual model download needed — model is downloaded automatically on first use.
+Cached in ~/.cache/huggingface/hub/ (default HuggingFace cache).
+
+Setup:
+  pip install faster-whisper
+
+Models (configurable via config.json "whisper_model"):
+  tiny    — fastest, lowest quality  (~75 MB)
+  base    — fast, decent quality     (~145 MB)
+  small   — best balance (default)   (~465 MB)
+  medium  — better quality           (~1.5 GB)
+  large-v3— best quality             (~3 GB)
+
+Config:
+  aion config set whisper_model small   (default)
+  aion config set whisper_model medium  (better accuracy)
 """
 
 import json
 import os
 from pathlib import Path
 
-_MODEL_PATH = Path(__file__).parent / "vosk-model-small-de-0.15"
+_PLUGIN_DIR  = Path(__file__).parent
+_AION_DIR    = _PLUGIN_DIR.parent.parent
+_CONFIG_FILE = _AION_DIR / "config.json"
 
-# Globales Vosk-Modell (lazy load)
-vosk_model = None
+# Lazy-loaded Faster Whisper model
+_whisper_model = None
 
 
-def transcribe_audio(file_path: str) -> str:
-    """Transkribiert eine WAV-File (mono, 16-bit) mit Vosk."""
-    global vosk_model
-
-    if not _MODEL_PATH.exists():
-        return (
-            f"FEHLER: Vosk-Modell nicht gefunden unter {_MODEL_PATH}. "
-            "Bitte von https://alphacephei.com/vosk/models herunterladen und entpacken."
-        )
-
-    if not os.path.exists(file_path):
-        return f"FEHLER: Audiodatei nicht gefunden: {file_path}"
-
+def _get_model_size() -> str:
+    """Read whisper_model from config.json. Default: 'small'."""
     try:
-        from vosk import Model, KaldiRecognizer
-        import wave
+        if _CONFIG_FILE.is_file():
+            cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+            return cfg.get("whisper_model", "small")
+    except Exception:
+        pass
+    return "small"
 
-        if vosk_model is None:
-            vosk_model = Model(str(_MODEL_PATH))
 
-        with wave.open(file_path, "rb") as wf:
-            if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
-                return "FEHLER: WAV-File muss mono und 16-bit PCM sein. Nutze audio_transcribe_any für andere Formate."
+def _get_model():
+    """Lazy-load WhisperModel. Uses CUDA if available, else CPU int8."""
+    global _whisper_model
+    if _whisper_model is None:
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            raise RuntimeError(
+                "faster-whisper not installed — run: pip install faster-whisper"
+            )
+        model_size = _get_model_size()
+        device = "cpu"
+        compute_type = "int8"
+        try:
+            import torch
+            if torch.cuda.is_available():
+                device = "cuda"
+                compute_type = "float16"
+        except ImportError:
+            pass
+        print(
+            f"[audio_transcriber] Loading Whisper '{model_size}' "
+            f"on {device} ({compute_type})…",
+            flush=True,
+        )
+        _whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    return _whisper_model
 
-            rec = KaldiRecognizer(vosk_model, wf.getframerate())
-            rec.SetWords(True)
-            while True:
-                data = wf.readframes(4000)
-                if not data:
-                    break
-                rec.AcceptWaveform(data)
 
-        return json.loads(rec.FinalResult()).get("text", "")
+def transcribe_audio(file_path: str, language: str = "") -> str:
+    """Transcribes any audio file via Faster Whisper (offline, multilingual).
 
+    Supports WAV, MP3, OGG, M4A, FLAC, WebM and all formats ffmpeg can decode.
+    Auto-detects language when language is empty.
+    Returns the transcribed text as a plain string.
+    """
+    if not os.path.exists(file_path):
+        return f"ERROR: Audio file not found: {file_path}"
+    try:
+        model = _get_model()
+        kwargs = {"beam_size": 5}
+        if language:
+            kwargs["language"] = language
+        segments, _info = model.transcribe(str(file_path), **kwargs)
+        return " ".join(seg.text.strip() for seg in segments).strip()
     except Exception as e:
-        return f"FEHLER bei der Transkription: {e}"
+        return f"ERROR during transcription: {e}"
 
 
 def register(api):
     api.register_tool(
         name="transcribe_audio",
         description=(
-            "Transkribiert eine WAV-Audiodatei (mono, 16-bit PCM) in Text via Vosk (offline). "
-            "Für andere Formate (ogg, mp3, m4a) nutze audio_transcribe_any."
+            "Transcribes an audio file (WAV, MP3, OGG, M4A, FLAC, ...) to text "
+            "via Faster Whisper (fully offline, multilingual, no model download needed). "
+            "Auto-detects language. Returns transcribed text as string."
         ),
         func=transcribe_audio,
         input_schema={
@@ -68,8 +107,12 @@ def register(api):
             "properties": {
                 "file_path": {
                     "type": "string",
-                    "description": "Vollständiger Pfad zur .wav-Audiodatei",
-                }
+                    "description": "Full path to the audio file",
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Language code (e.g. 'de', 'en', 'fr'). Empty = auto-detect.",
+                },
             },
             "required": ["file_path"],
         },

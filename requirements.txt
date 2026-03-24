@@ -20,6 +20,9 @@ python-dotenv>=1.0.0
 # TTS (optional — engine=edge empfohlen, engine=sapi5 als Fallback)
 edge-tts>=6.1.0
 
+# Speech-to-Text (optional — audio_transcriber + audio_pipeline plugins)
+faster-whisper>=1.0.0      # Offline STT, multilingual, replaces Vosk
+
 # File processing (Web UI uploads)
 pypdf>=4.0.0
 python-docx>=1.1.0
