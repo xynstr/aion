@@ -558,7 +558,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="input-row">
           <input type="file" id="fileInput" multiple="" accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv,.pdf,.docx,.doc,.xlsx,.xls,.ogg,.mp3,.wav,.m4a,.flac,.aac,.opus" style="display:none" onchange="onFileSelected(event)">
           <button class="attach-btn" title="Datei anhängen" onclick="document.getElementById('fileInput').click()">📎</button>
-          <textarea id="input" placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
+          <textarea id="input" placeholder="Message to AION… (Enter = Send, Shift+Enter = New line)" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
           <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none" title="Generierung stoppen">■</button>
         </div>
@@ -1013,12 +1013,12 @@ async function loadHistory(channel) {
         <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
         <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
         <div class="chips">
-          <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
-          <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
-          <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
-          <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
-          <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
-          <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
+          <div class="chip" onclick="useChip(this)">What can you do?</div>
+          <div class="chip" onclick="useChip(this)">Find latest AI news</div>
+          <div class="chip" onclick="useChip(this)">Show me your source code</div>
+          <div class="chip" onclick="useChip(this)">Install VLC Player</div>
+          <div class="chip" onclick="useChip(this)">What system runs here?</div>
+          <div class="chip" onclick="useChip(this)">Create a new tool</div>
         </div>
       </div>`;
       return;
@@ -1066,7 +1066,7 @@ async function switchChannel(id) {
   if (!isWeb) {
     if (input) input.placeholder = 'Nur Ansicht — Antworten über ' + id.split('_')[0];
   } else {
-    if (input) input.placeholder = 'Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)';
+    if (input) input.placeholder = 'Message to AION… (Enter = Send, Shift+Enter = New line)';
   }
 }
 
@@ -2428,12 +2428,12 @@ async function resetChat() {
   document.getElementById('messages').innerHTML = `
     <div class="welcome" id="welcome">
       <div class="welcome-icon">◈</div><h2>AION</h2>
-      <p>Konversation zurückgesetzt.</p>
+      <p>Conversation reset.</p>
       <div class="chips">
-        <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
-        <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
-        <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
-        <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
+        <div class="chip" onclick="useChip(this)">What can you do?</div>
+        <div class="chip" onclick="useChip(this)">Find latest AI news</div>
+        <div class="chip" onclick="useChip(this)">Show me your source code</div>
+        <div class="chip" onclick="useChip(this)">What system runs here?</div>
       </div>
     </div>`;
 }
