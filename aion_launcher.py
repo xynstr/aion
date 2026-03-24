@@ -222,3 +222,7 @@ def _main():
         print(f"[AION] Starting Web UI → http://localhost:7000")
         _open_browser_delayed()
         subprocess.run([python, str(AION_DIR / "aion_web.py")])
+
+
+if __name__ == "__main__":
+    main()
