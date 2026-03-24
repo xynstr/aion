@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AION</title>
 <script src="/lucide.min.js" onload="lucide.createIcons()"></script>
 <style>
@@ -381,6 +381,23 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .settings-select:focus { border-color: #4facfe; background: var(--bg4); box-shadow: 0 0 0 3px rgba(79,172,254,0.08); }
 .settings-val { background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 7px 12px; border-radius: 7px; font-size: 11.5px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; word-break: break-all; max-width: 600px; }
 .settings-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── Keys Layout ───────────────────────────────────────────────────────── */
+.keys-provider-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.keys-provider-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.keys-provider-title { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: var(--text); }
+.keys-provider-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.keys-provider-status.set { background: var(--green); }
+.keys-provider-status.missing { background: var(--red); }
+.keys-item { background: var(--bg4); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.keys-item-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.keys-item-name { font-size: 12px; font-weight: 700; color: var(--text); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+.keys-item-input { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.keys-item-input input { flex: 1; min-width: 200px; }
+.keys-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
+.keys-badge.set { background: rgba(74,222,128,0.15); color: var(--green); }
+.keys-badge.missing { background: rgba(255,107,107,0.15); color: var(--red); }
+
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
 .stat-value { font-size: 26px; font-weight: 800; color: #ffffff; line-height: 1; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
@@ -468,7 +485,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   <!-- Header — persistent -->
   <div class="header">
     <div class="header-left">
-      <img src="aion-2026-small.svg" alt="AION" class="logo-icon" title="AION">
+      <img src="aion-2026-small.svg" alt="AION" class="logo-icon" title="AION" />
       <div class="status-dot" id="statusDot"></div>
     </div>
     <button class="hbtn danger" onclick="resetChat()">↺ Reset</button>
@@ -523,14 +540,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="welcome" id="welcome">
             <h2>AION</h2>
             <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
-            <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
+            <p>Give me a task—I can search the web, install programs, edit files, and improve my own code.</p>
             <div class="chips">
-              <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
-              <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
-              <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
-              <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
-              <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
-              <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
+              <div class="chip" onclick="useChip(this)">What can you do?</div>
+              <div class="chip" onclick="useChip(this)">Search for the latest AI news</div>
+              <div class="chip" onclick="useChip(this)">Show me your source code</div>
+              <div class="chip" onclick="useChip(this)">Install VLC Player</div>
+              <div class="chip" onclick="useChip(this)">What operating system is running here?</div>
+              <div class="chip" onclick="useChip(this)">Create a new tool</div>
             </div>
           </div>
         </div>
@@ -539,11 +556,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </button>
         <div id="attachPreview" class="attach-preview"></div>
         <div class="input-row">
-          <input type="file" id="fileInput" multiple accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv,.pdf,.docx,.doc,.xlsx,.xls,.ogg,.mp3,.wav,.m4a,.flac,.aac,.opus" style="display:none" onchange="onFileSelected(event)">
+          <input type="file" id="fileInput" multiple="" accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv,.pdf,.docx,.doc,.xlsx,.xls,.ogg,.mp3,.wav,.m4a,.flac,.aac,.opus" style="display:none" onchange="onFileSelected(event)">
           <button class="attach-btn" title="Datei anhängen" onclick="document.getElementById('fileInput').click()">📎</button>
-          <textarea id="input"
-            placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)"
-            rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
+          <textarea id="input" placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
           <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none" title="Generierung stoppen">■</button>
         </div>
@@ -554,33 +569,31 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">Prompts</div>
-            <div class="page-subtitle">Systemanweisungen für AION bearbeiten</div>
+            <div class="page-subtitle">Edit system instructions for AION</div>
           </div>
           <div class="page-hdr-actions">
             <span id="promptStatus" class="prompt-status"></span>
-            <button class="action-btn primary" id="promptSaveBtn" onclick="savePrompt()">💾 Speichern</button>
+            <button class="action-btn primary" id="promptSaveBtn" onclick="savePrompt()">💾 Save</button>
           </div>
         </div>
         <div class="prompt-body">
           <div class="prompt-file-nav">
             <button class="prompt-item active" id="pitem-rules" onclick="promptSwitch('rules')">
-              <span class="pi-icon"><i data-lucide="scroll-text"></i></span><span class="pi-label">Regeln</span>
+              <span class="pi-icon"><i data-lucide="scroll-text"></i></span><span class="pi-label">Rules</span>
               <span class="pi-dirty" id="pdirty-rules"></span>
             </button>
             <button class="prompt-item" id="pitem-character" onclick="promptSwitch('character')">
-              <span class="pi-icon"><i data-lucide="user-round"></i></span><span class="pi-label">Charakter</span>
+              <span class="pi-icon"><i data-lucide="user-round"></i></span><span class="pi-label">Character</span>
               <span class="pi-dirty" id="pdirty-character"></span>
             </button>
             <button class="prompt-item" id="pitem-self_doc" onclick="promptSwitch('self_doc')">
-              <span class="pi-icon"><i data-lucide="book-open"></i></span><span class="pi-label">Selbst-Doku</span>
+              <span class="pi-icon"><i data-lucide="book-open"></i></span><span class="pi-label">Self-documentation</span>
               <span class="pi-dirty" id="pdirty-self_doc"></span>
             </button>
           </div>
           <div class="prompt-editor-col">
             <div class="prompt-editor-wrap">
-              <textarea id="promptEditor" class="prompt-editor"
-                        spellcheck="false" placeholder="Datei laden…"
-                        oninput="onPromptEdit()"></textarea>
+              <textarea id="promptEditor" class="prompt-editor" spellcheck="false" placeholder="Datei laden…" oninput="onPromptEdit()"></textarea>
             </div>
           </div>
         </div>
@@ -599,7 +612,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </div>
         <div class="page-scroll">
           <div id="pluginList">
-            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Plugins…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Load plugins…</span></div>
           </div>
         </div>
       </div>
@@ -612,17 +625,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="page-subtitle" id="memoryTotalBadge">…</div>
           </div>
           <div class="page-hdr-actions">
-            <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Leeren</button>
+            <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Clear</button>
           </div>
         </div>
         <div class="page-scroll">
           <div class="memory-search-wrap">
-            <input type="text" class="memory-search" id="memorySearch"
-                   placeholder="Suchen…" oninput="debounceMemorySearch()">
+            <input type="text" class="memory-search" id="memorySearch" placeholder="Suchen…" oninput="debounceMemorySearch()">
             <button class="action-btn" onclick="loadMemory()">↺</button>
           </div>
           <div id="memoryList">
-            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Einträge…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Loading entries…</span></div>
           </div>
         </div>
       </div>
@@ -632,7 +644,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">API Keys</div>
-            <div class="page-subtitle">Zugangsdaten für KI-Provider und Dienste</div>
+            <div class="page-subtitle">Access credentials for AI providers and services</div>
           </div>
           <button class="action-btn" onclick="loadKeys()">↺</button>
         </div>
@@ -640,15 +652,15 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <!-- Google OAuth -->
           <div class="settings-group" id="googleOAuthSection" style="display:none">
             <div class="settings-label">Google — OAuth</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Mit Google-Account verbinden (Gemini-Abo verwenden)</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Connect with Google Account (use Gemini subscription)</div>
             <div id="googleOAuthStatus" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
             <button class="action-btn" onclick="startGoogleOAuth()" id="googleOAuthBtn">
-              <span style="margin-right:6px">G</span> Mit Google verbinden
+             <span style="margin-right:6px">G</span> Connect with Google
             </button>
           </div>
           <div class="settings-divider" id="googleOAuthDivider" style="display:none"></div>
           <div id="keysList">
-            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Keys…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Loading keys…</span></div>
           </div>
         </div>
       </div>
@@ -658,10 +670,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">System</div>
-            <div class="page-subtitle">Konfiguration & Statistiken</div>
+            <div class="page-subtitle">Configuration &amp; Statistics</div>
           </div>
           <div class="page-hdr-actions">
-            <button class="action-btn" id="settingsRefreshBtn" onclick="refreshSettings()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Aktualisieren</button>
+            <button class="action-btn" id="settingsRefreshBtn" onclick="refreshSettings()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Refresh</button>
           </div>
         </div>
         <div class="page-scroll">
@@ -670,16 +682,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="stat-grid">
             <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
             <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
-            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Erinnerungen</div></div>
-            <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Gespräche</div></div>
+            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Reminders</div></div>
+            <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Conversations</div></div>
           </div>
 
           <!-- Settings Tabs -->
           <div class="settings-tabs" id="settingsTabs">
-            <button class="settings-tab active" onclick="switchSettingsTab('models')">KI-Modelle</button>
-            <button class="settings-tab" onclick="switchSettingsTab('settings')">Einstellungen</button>
+            <button class="settings-tab active" onclick="switchSettingsTab('models')">AI Models</button>
+            <button class="settings-tab" onclick="switchSettingsTab('settings')">Settings</button>
             <button class="settings-tab" onclick="switchSettingsTab('routing')">Task Routing</button>
-            <button class="settings-tab" onclick="switchSettingsTab('permissions')">Berechtigungen</button>
+            <button class="settings-tab" onclick="switchSettingsTab('permissions')">Permissions</button>
             <button class="settings-tab" onclick="switchSettingsTab('channels')">Channels</button>
           </div>
 
@@ -687,33 +699,29 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="settings-tab-content active" id="tab-models">
           <!-- KI-Modell + Provider -->
           <div class="sys-card">
-            <div class="sys-card-title"><i data-lucide="cpu" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Modell</div>
+            <div class="sys-card-title"><i data-lucide="cpu" style="width:13px;height:13px;stroke-width:1.75"></i> AI Model</div>
             <div class="settings-row">
               <select class="settings-select" id="settingsModel" style="flex:1;max-width:420px">
-                <option value="">Lade Modelle…</option>
+                <option value="">Loading models…</option>
               </select>
               <button class="action-btn primary" onclick="saveModelFromSettings()">Save</button>
               <button class="action-btn" id="refreshModelsBtn" onclick="refreshProviderModels()" title="Modelle neu laden" style="display:flex;align-items:center;gap:4px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i></button>
             </div>
             <div style="font-size:11px;color:var(--text3)">
-              Eigener Modellname:
-              <input type="text" id="settingsModelCustom" placeholder="z.B. ollama/llama3.2 oder claude-sonnet-4-6"
-                style="margin-top:4px;width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px"
-                oninput="if(this.value)document.getElementById('settingsModel').value=''">
+              Custom model name:
+             <input type="text" id="settingsModelCustom" placeholder="z.B. ollama/llama3.2 oder claude-sonnet-4-6" style="margin-top:4px;width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px" oninput="if(this.value)document.getElementById('settingsModel').value=''"> 
             </div>
             <div style="margin-top:4px">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:6px">Aktive Provider</div>
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:6px">Active providers</div>
               <div id="providerList" style="display:flex;flex-direction:column;gap:5px">
-                <span style="font-size:11px;color:var(--text3)">Lade…</span>
+                <span style="font-size:11px;color:var(--text3)">Loading…</span>
               </div>
             </div>
             <div style="margin-top:4px">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:4px">Fallback-Modelle</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Kommagetrennte Modelle als Fallback bei API-Fehler</div>
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:4px">Fallback models</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Comma-separated models as a fallback in case of API errors</div>
               <div class="settings-row">
-                <input type="text" id="modelFallbackInput" class="settings-select"
-                  style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
-                  placeholder="z.B. gpt-4.1-mini, gemini-2.0-flash">
+                <input type="text" id="modelFallbackInput" class="settings-select" style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none" placeholder="z.B. gpt-4.1-mini, gemini-2.0-flash">
                 <button class="action-btn primary" onclick="saveModelFallback()">Save</button>
               </div>
             </div>
@@ -721,8 +729,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
           <!-- Custom Provider -->
           <div class="sys-card">
-            <div class="sys-card-title"><i data-lucide="plug" style="width:13px;height:13px;stroke-width:1.75"></i> Provider hinzufügen (OpenAI-kompatibel)</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Beliebige OpenAI-kompatible API einbinden — z.B. Mistral, Together AI, Perplexity, LM Studio…</div>
+            <div class="sys-card-title"><i data-lucide="plug" style="width:13px;height:13px;stroke-width:1.75"></i> Add provider (OpenAI-compatible)</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Integrate any OpenAI-compatible API — e.g., Mistral, Together AI, Perplexity, LM Studio…</div>
             <div id="customProviderList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
               <div style="display:flex;flex-direction:column;gap:3px">
@@ -730,7 +738,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
                 <input type="text" id="cpName" class="key-input" placeholder="z.B. Mistral">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
-                <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">API Key Env-Variable</span>
+                <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">API Key Environment Variable</span>
                 <input type="text" id="cpApiEnv" class="key-input" placeholder="z.B. MISTRAL_API_KEY" style="font-family:monospace" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'_')">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
@@ -738,12 +746,12 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
                 <input type="text" id="cpBaseUrl" class="key-input" placeholder="https://api.mistral.ai/v1">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
-                <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Modelle (kommagetrennt)</span>
+                <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Models (comma-separated)</span>
                 <input type="text" id="cpModels" class="key-input" placeholder="mistral-large-latest, mistral-small-latest">
               </div>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-              <button class="action-btn primary" onclick="saveCustomProvider()">Provider hinzufügen</button>
+              <button class="action-btn primary" onclick="saveCustomProvider()">Add provider</button>
               <span id="cpStatus" style="font-size:11px;color:var(--text3)"></span>
             </div>
           </div>
@@ -754,38 +762,32 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <!-- TTS + Kosten -->
           <div class="sys-cols">
             <div class="sys-card">
-              <div class="sys-card-title"><i data-lucide="volume-2" style="width:13px;height:13px;stroke-width:1.75"></i> Sprachausgabe (TTS)</div>
+              <div class="sys-card-title"><i data-lucide="volume-2" style="width:13px;height:13px;stroke-width:1.75"></i> Text-to-speech (TTS)</div>
               <div class="settings-row" style="margin-bottom:6px">
                 <span style="font-size:12px;color:var(--text2);min-width:60px">Engine</span>
                 <select class="settings-select" id="ttsEngine" style="max-width:200px" onchange="saveTTSSettings()">
-                  <option value="edge">edge-tts (empfohlen)</option>
+                  <option value="edge">edge-tts (recommended)</option>
                   <option value="sapi5">sapi5 (Windows)</option>
                   <option value="pyttsx3">pyttsx3 (offline)</option>
-                  <option value="off">Deaktiviert</option>
+                  <option value="off">Disabled</option>
                 </select>
               </div>
               <div class="settings-row">
-                <span style="font-size:12px;color:var(--text2);min-width:60px">Stimme</span>
-                <input type="text" class="settings-select" id="ttsVoice" placeholder="z.B. de-DE-KatjaNeural"
-                  style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
-                  onblur="saveTTSSettings()">
+                <span style="font-size:12px;color:var(--text2);min-width:60px">Voice</span>
+                <input type="text" class="settings-select" id="ttsVoice" placeholder="z.B. de-DE-KatjaNeural" style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none" onblur="saveTTSSettings()">
               </div>
             </div>
             <div class="sys-card">
-              <div class="sys-card-title"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Kosten optimieren</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Günstigeres Modell für interne Checks. Leer = automatisch.</div>
+              <div class="sys-card-title"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> Optimize AI costs</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Cheaper model for internal checks. Empty = automatic.</div>
               <div class="settings-row" style="margin-bottom:8px">
-                <span style="font-size:12px;color:var(--text2);min-width:120px">Check-Modell</span>
-                <input type="text" id="checkModelInput" class="settings-select"
-                  style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
-                  placeholder="leer = automatisch (z.B. gpt-4.1-mini)">
+                <span style="font-size:12px;color:var(--text2);min-width:120px">Check model</span>
+                <input type="text" id="checkModelInput" class="settings-select" style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none" placeholder="leer = automatisch (z.B. gpt-4.1-mini)">
               </div>
               <div class="settings-row" style="margin-bottom:8px">
-                <span style="font-size:12px;color:var(--text2);min-width:120px">History-Länge</span>
-                <input type="number" id="maxHistoryInput" class="settings-select"
-                  style="max-width:120px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
-                  placeholder="40" min="5" max="200">
-                <span style="font-size:11px;color:var(--text3)">Nachrichten</span>
+                <span style="font-size:12px;color:var(--text2);min-width:120px">History length</span>
+                <input type="number" id="maxHistoryInput" class="settings-select" style="max-width:120px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none" placeholder="40" min="5" max="200">
+                <span style="font-size:11px;color:var(--text3)">Messages</span>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
                 <button class="action-btn primary" onclick="saveCostSettings()">Save</button>
@@ -801,31 +803,31 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="sys-card">
             <div class="sys-card-title"><i data-lucide="route" style="width:13px;height:13px;stroke-width:1.75"></i> Task Routing</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
-              Welches Modell AION für welche Aufgabe nutzt. Claude-Abo via Claude Code CLI — kein API-Key nötig.<br>
+              Which model AION uses for which task. Claude subscription via Claude Code CLI — no API key required.<br>
               <span id="claudeCliStatus" style="margin-top:4px;display:inline-block"></span>
             </div>
             <div style="display:grid;grid-template-columns:80px 1fr;gap:6px 10px;align-items:center;max-width:480px">
               <span style="font-size:11px;color:var(--text2)">Coding</span>
               <select id="routingCoding" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Modell wählen —</option>
+                <option value="">— Select model —</option>
               </select>
               <span style="font-size:11px;color:var(--text2)">Review</span>
               <select id="routingReview" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Modell wählen —</option>
+                <option value="">— Select model —</option>
               </select>
               <span style="font-size:11px;color:var(--text2)">Browsing</span>
               <select id="routingBrowsing" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Modell wählen —</option>
+                <option value="">— Select model —</option>
               </select>
               <span style="font-size:11px;color:var(--text2)">Default</span>
               <select id="routingDefault" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Modell wählen —</option>
+                <option value="">— Select model —</option>
               </select>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="action-btn primary" onclick="saveTaskRouting()">Save</button>
-              <button class="action-btn" id="claudeLoginBtn" onclick="claudeCliLogin()">Mit Claude anmelden</button>
-              <button class="action-btn" onclick="_loadClaudeCliStatus()">↺ Status prüfen</button>
+              <button class="action-btn" id="claudeLoginBtn" onclick="claudeCliLogin()">Sign in with Claude</button>
+              <button class="action-btn" onclick="_loadClaudeCliStatus()">↺ Check status</button>
               <span id="routingSaveStatus" style="font-size:11px;color:var(--text3)"></span>
             </div>
             <div id="claudeLoginMsg" style="margin-top:8px;font-size:11px;display:none"></div>
@@ -837,7 +839,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <!-- Berechtigungen + Verzeichnis -->
           <div class="sys-cols">
             <div class="sys-card">
-              <div class="sys-card-title"><i data-lucide="shield-check" style="width:13px;height:13px;stroke-width:1.75"></i> Berechtigungen</div>
+              <div class="sys-card-title"><i data-lucide="shield-check" style="width:13px;height:13px;stroke-width:1.75"></i> Permissions</div>
               <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
                 <button class="action-btn" onclick="applyPermPreset('conservative')" style="display:flex;align-items:center;gap:5px"><i data-lucide="shield" style="width:13px;height:13px;stroke-width:1.75"></i> Conservative</button>
                 <button class="action-btn" onclick="applyPermPreset('balanced')" style="display:flex;align-items:center;gap:5px"><i data-lucide="scale" style="width:13px;height:13px;stroke-width:1.75"></i> Balanced</button>
@@ -847,15 +849,15 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             </div>
             <div style="display:flex;flex-direction:column;gap:12px">
               <div class="sys-card">
-                <div class="sys-card-title"><i data-lucide="folder" style="width:13px;height:13px;stroke-width:1.75"></i> Verzeichnis</div>
+                <div class="sys-card-title"><i data-lucide="folder" style="width:13px;height:13px;stroke-width:1.75"></i> Directory</div>
                 <div class="settings-val" id="settingsBotDir" style="font-size:11px;word-break:break-all">…</div>
               </div>
               <div class="sys-card">
-                <div class="sys-card-title"><i data-lucide="terminal" style="width:13px;height:13px;stroke-width:1.75"></i> Aktionen</div>
+                <div class="sys-card-title"><i data-lucide="terminal" style="width:13px;height:13px;stroke-width:1.75"></i> Actions</div>
                 <div style="display:flex;flex-direction:column;gap:7px">
-                  <button class="action-btn" onclick="resetExchanges()" style="display:flex;align-items:center;gap:5px"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke-width:1.75"></i> Gesprächszähler zurücksetzen</button>
-                  <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Memory komplett leeren</button>
-                  <button class="action-btn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Alle Plugins neu laden</button>
+                  <button class="action-btn" onclick="resetExchanges()" style="display:flex;align-items:center;gap:5px"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke-width:1.75"></i> Reset call counter</button>
+                  <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Clear all memory</button>
+                  <button class="action-btn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Reload all plugins</button>
                 </div>
               </div>
             </div>
@@ -868,27 +870,25 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="sys-cols">
             <div class="sys-card">
               <div class="sys-card-title"><i data-lucide="brain" style="width:13px;height:13px;stroke-width:1.75"></i> Thinking Level</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b>deep</b> = mehr Qualität, mehr Tokens. <b>off</b> = schnellster Modus.</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b>deep</b> = higher quality, more tokens. <b>off</b> = fastest mode.</div>
               <div class="settings-row" style="margin-bottom:8px">
                 <span style="font-size:12px;color:var(--text2);min-width:60px">Global</span>
                 <select class="settings-select" id="thinkingLevelGlobal" style="max-width:160px">
-                  <option value="off">off – kein Thinking</option>
+                  <option value="off">off – no thinking</option>
                   <option value="minimal">minimal</option>
-                  <option value="standard" selected>standard</option>
+                  <option value="standard" selected="">standard</option>
                   <option value="deep">deep</option>
                   <option value="extreme">extreme</option>
                 </select>
                 <button class="action-btn primary" onclick="saveThinkingLevel()">Save</button>
               </div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel-Override (leer = alle):</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel override (empty = all):</div>
               <div class="settings-row" style="margin-bottom:4px">
-                <input type="text" id="thinkingOverrideChannel" class="settings-select"
-                  style="max-width:130px;background:var(--bg4);font-family:monospace;font-size:12px"
-                  placeholder="z.B. telegram*">
+                <input type="text" id="thinkingOverrideChannel" class="settings-select" style="max-width:130px;background:var(--bg4);font-family:monospace;font-size:12px" placeholder="z.B. telegram*">
                 <select class="settings-select" id="thinkingOverrideLevel" style="max-width:130px">
                   <option value="off">off</option>
                   <option value="minimal">minimal</option>
-                  <option value="standard">standard</option>
+                  <option value="standard">default</option>
                   <option value="deep">deep</option>
                   <option value="extreme">extreme</option>
                 </select>
@@ -897,19 +897,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               <div id="thinkingOverridesList" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
             </div>
             <div class="sys-card">
-              <div class="sys-card-title"><i data-lucide="list-filter" style="width:13px;height:13px;stroke-width:1.75"></i> Channel Allowlist</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Welche Channels AION antworten darf. Leer = alle erlaubt. Wildcards: <code>telegram*</code></div>
+              <div class="sys-card-title"><i data-lucide="list-filter" style="width:13px;height:13px;stroke-width:1.75"></i> Channel allowlist</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Which channels AION is allowed to reply to. Empty = all allowed. Wildcards: <code>telegram*</code></div>
               <div class="settings-row" style="margin-bottom:6px">
-                <input type="text" id="allowlistNewChannel" class="settings-select"
-                  style="background:var(--bg4);font-family:monospace;font-size:12px"
-                  placeholder="z.B. discord_* oder web"
-                  onkeydown="if(event.key==='Enter')addAllowlistEntry()">
+                <input type="text" id="allowlistNewChannel" class="settings-select" style="background:var(--bg4);font-family:monospace;font-size:12px" placeholder="z.B. discord_* oder web" onkeydown="if(event.key==='Enter')addAllowlistEntry()">
                 <button class="action-btn primary" onclick="addAllowlistEntry()">+</button>
               </div>
               <div id="allowlistEntries" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px"></div>
               <div style="margin-top:8px;display:flex;gap:8px">
                 <button class="action-btn" onclick="saveAllowlist()">Save</button>
-                <button class="action-btn danger" onclick="clearAllowlist()">Alle entfernen</button>
+                <button class="action-btn danger" onclick="clearAllowlist()">Remove all</button>
               </div>
             </div>
           </div><!-- /sys-cols Thinking+Allowlist -->
@@ -930,9 +927,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
-      <div class="detail-label">Eingabe (Args)</div>
+      <div class="detail-label">Input (Args)</div>
       <div class="detail-box" id="modalInput"></div>
-      <div class="detail-label">Ergebnis</div>
+      <div class="detail-label">Output</div>
       <div class="detail-box" id="modalResult"></div>
     </div>
   </div>
@@ -1355,69 +1352,89 @@ function renderKeys(data) {
   const el = document.getElementById('keysList');
   let html = '';
 
-  const makeRow = (k) => {
+  const makeKeyItem = (k) => {
     const meta = _KEY_META[k.key] || {};
     const getLink = meta.url
-      ? `<a href="${esc(meta.url)}" target="_blank" class="action-btn" style="font-size:10px;padding:4px 8px;text-decoration:none">${esc(meta.label||'Key holen')} ↗</a>`
+      ? `<a href="${esc(meta.url)}" target="_blank" class="action-btn" style="font-size:10px;padding:4px 8px;text-decoration:none">${esc(meta.label||'Get Key')} ↗</a>`
       : '';
     const hint = meta.hint
-      ? `<span style="font-size:10px;color:var(--text3);margin-left:4px">${esc(meta.hint)}</span>`
+      ? `<span style="font-size:10px;color:var(--text3)">${esc(meta.hint)}</span>`
       : '';
+    const masked = k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace;letter-spacing:1px">${esc(k.masked)}</span>` : '';
+
     return `
-    <div style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
-        <span class="key-name">${k.key}</span>
-        <span class="key-badge ${k.set ? 'key-set' : 'key-missing'}">${k.set ? '✓ gesetzt' : '✗ fehlt'}</span>
-        ${k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace">${esc(k.masked)}</span>` : hint}
-        ${getLink}
+    <div class="keys-item">
+      <div class="keys-item-header">
+        <span class="keys-item-name">${k.key}</span>
+        <span class="keys-badge ${k.set ? 'set' : 'missing'}">${k.set ? '✓ SET' : '✗ MISSING'}</span>
       </div>
-      <div style="display:flex;gap:6px">
-        <input type="password" class="key-input" id="key-${k.key}"
-               placeholder="${k.set ? 'Neuen Wert zum Überschreiben…' : 'Key hier einfügen…'}">
-        <button class="action-btn primary" onclick="saveKey('${k.key}')">Save</button>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${masked || hint ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">${masked}${getLink}</div>` : ''}
+        <div class="keys-item-input">
+          <input type="password" class="key-input" id="key-${k.key}" style="flex:1;min-width:200px"
+                 placeholder="${k.set ? 'Leave empty to keep current' : 'Paste key here…'}">
+          <button class="action-btn primary" onclick="saveKey('${k.key}')">Save</button>
+        </div>
       </div>
     </div>`;
   };
 
-  // Claude CLI Block — immer anzeigen
-  html += `<div class="settings-group">
-    <div class="settings-label">Claude (Abo — kein API-Key)</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
-      Nutze dein Claude.ai-Abo ($20/$200) direkt — kein API-Key nötig.<br>
-      <span id="keysClaudeStatus" style="margin-top:3px;display:inline-block"></span>
+  // Claude CLI Block
+  html += `<div class="keys-provider-card">
+    <div class="keys-provider-header">
+      <div class="keys-provider-title">
+        <span>Claude</span>
+        <span style="font-size:11px;color:var(--text3);font-weight:400;letter-spacing:0">(Subscription – no API key)</span>
+      </div>
     </div>
+    <div style="font-size:11px;color:var(--text3)">Use your Claude.ai subscription ($20/$200) directly through Claude Code CLI</div>
+    <div id="keysClaudeStatus" style="font-size:12px;color:var(--text2)"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Mit Claude anmelden</button>
-      <button class="action-btn" onclick="checkClaudeStatusInKeys()">↺ Status</button>
+      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Sign In with Claude</button>
+      <button class="action-btn" onclick="checkClaudeStatusInKeys()" style="display:flex;align-items:center;gap:4px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Check</button>
     </div>
     <div id="keysClaudeMsg" style="margin-top:6px;font-size:11px;display:none"></div>
-  </div>
-  <div class="settings-divider"></div>`;
+  </div>`;
 
+  // AI Providers
   for (const prov of data.providers) {
     const allSet = prov.env_keys.every(k => k.set);
-    const statusDot = `<span style="width:7px;height:7px;border-radius:50%;background:${allSet?'var(--green)':'var(--danger,#e55)'};display:inline-block;margin-right:5px"></span>`;
-    html += `<div class="settings-group">
-      <div class="settings-label">${statusDot}${esc(prov.label)}</div>`;
-    for (const k of prov.env_keys) html += makeRow(k);
-    html += `</div><div class="settings-divider"></div>`;
+    html += `
+    <div class="keys-provider-card">
+      <div class="keys-provider-header">
+        <div class="keys-provider-title">
+          <span class="keys-provider-status ${allSet ? 'set' : 'missing'}"></span>
+          <span>${esc(prov.label)}</span>
+        </div>
+        <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:4px">${prov.env_keys.filter(k => k.set).length}/${prov.env_keys.length}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${prov.env_keys.map(k => makeKeyItem(k)).join('')}
+      </div>
+    </div>`;
   }
 
+  // Other services
   if (data.other_keys && data.other_keys.length) {
-    html += `<div class="settings-group"><div class="settings-label">Sonstige Dienste</div>`;
-    for (const k of data.other_keys) html += makeRow(k);
-    html += `</div>`;
+    html += `<div class="keys-provider-card">
+      <div class="keys-provider-header">
+        <div class="keys-provider-title">Other Services</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${data.other_keys.map(k => makeKeyItem(k)).join('')}
+      </div>
+    </div>`;
   }
 
-  // Eigenen Key hinzufügen
-  html += `<div class="settings-divider"></div>
-  <div class="settings-group">
-    <div class="settings-label">Eigenen Key / Provider hinzufügen</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Beliebige Umgebungsvariable setzen (z.B. MISTRAL_API_KEY, CUSTOM_TOKEN, …)</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <input type="text" id="customKeyName" class="key-input" placeholder="ENV_VAR_NAME" style="max-width:190px;font-family:monospace;text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/\\s/g,'_')">
-      <input type="password" id="customKeyValue" class="key-input" placeholder="Wert / API-Key">
-      <button class="action-btn primary" onclick="saveCustomKey()">Hinzufügen</button>
+  // Add custom key section
+  html += `
+  <div class="keys-provider-card">
+    <div class="keys-provider-title">Add Custom Key</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Set any environment variable (e.g., MISTRAL_API_KEY, CUSTOM_TOKEN, etc.)</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="customKeyName" class="key-input" placeholder="ENV_VAR_NAME" style="min-width:150px;font-family:monospace;text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/\\s/g,'_')">
+      <input type="password" id="customKeyValue" class="key-input" placeholder="Key / Value" style="min-width:200px;flex:1">
+      <button class="action-btn primary" onclick="saveCustomKey()">Add</button>
     </div>
   </div>`;
 
