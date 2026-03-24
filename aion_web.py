@@ -203,7 +203,33 @@ async def set_model(request: Request):
     return JSONResponse({"ok": True, "model": model, "provider": provider})
 
 @app.get("/api/history")
-async def history():
+async def history(channel: str = ""):
+    # If a non-web channel is requested, read from persistent history file
+    if channel and channel != "web":
+        hist_file = AION_DIR / "conversation_history.jsonl"
+        msgs: list = []
+        if hist_file.is_file():
+            try:
+                for line in hist_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        if entry.get("channel") != channel:
+                            continue
+                        role = entry.get("role", "")
+                        if role not in ("user", "assistant"):
+                            continue
+                        content = str(entry.get("content", ""))
+                        if content:
+                            msgs.append({"role": role, "content": content})
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        return JSONResponse({"messages": msgs[-100:]})
+
+    # Default: current web session (in-memory)
     msgs = []
     for m in _session.messages:
         if not isinstance(m, dict):
@@ -221,6 +247,52 @@ async def history():
         if content:
             msgs.append({"role": role, "content": content})
     return JSONResponse({"messages": msgs})
+
+
+@app.get("/api/channels")
+async def list_channels():
+    """Returns all channels with message history, sorted by last activity."""
+    hist_file = AION_DIR / "conversation_history.jsonl"
+    channels: dict = {}
+    if hist_file.is_file():
+        try:
+            for line in hist_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    ch = entry.get("channel", "web")
+                    if ch not in channels:
+                        channels[ch] = {"id": ch, "count": 0, "last_ts": "", "last_msg": ""}
+                    channels[ch]["count"] += 1
+                    ts = entry.get("ts", "")
+                    if ts:
+                        channels[ch]["last_ts"] = ts
+                    if entry.get("role") == "user":
+                        raw = str(entry.get("content", ""))
+                        channels[ch]["last_msg"] = raw[:80]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # Always include web channel
+    if "web" not in channels:
+        channels["web"] = {"id": "web", "count": 0, "last_ts": "", "last_msg": ""}
+
+    result = []
+    for ch_id, ch_data in sorted(channels.items(), key=lambda x: x[1]["last_ts"], reverse=True):
+        label = ch_id
+        if ch_id == "web":
+            label = "Web"
+        elif ch_id.startswith("telegram_"):
+            label = f"Telegram · {ch_id[9:]}"
+        elif ch_id.startswith("discord_"):
+            label = f"Discord · {ch_id[8:]}"
+        elif ch_id.startswith("slack_"):
+            label = f"Slack · {ch_id[6:]}"
+        result.append({**ch_data, "label": label})
+    return JSONResponse({"channels": result})
 
 @app.get("/api/character")
 async def get_character():

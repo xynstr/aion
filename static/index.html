@@ -343,15 +343,32 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 ───────────────────────────────────────────────────────────────── */
 .settings-group { display: flex; flex-direction: column; gap: 6px; }
 .settings-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); font-weight: 700; margin-bottom: 2px; }
-.settings-row { display: flex; align-items: center; gap: 8px; }
+.settings-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .settings-select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; outline: none; flex: 1; max-width: 360px; }
 .settings-select:focus { border-color: var(--text2); }
 .settings-val { background: var(--bg); border: 1px solid var(--border); color: var(--text2); padding: 7px 12px; border-radius: 7px; font-size: 11.5px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; word-break: break-all; max-width: 600px; }
 .settings-divider { height: 1px; background: var(--border); margin: 4px 0; }
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 700px; }
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
 .stat-value { font-size: 26px; font-weight: 800; color: #ffffff; line-height: 1; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
 .stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; }
+
+/* ── System Section Cards ─────────────────────────────────────────────── */
+.sys-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.sys-card-title { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); font-weight: 700; display: flex; align-items: center; gap: 7px; }
+.sys-card-title i { flex-shrink: 0; }
+.sys-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sys-cols .sys-card { min-width: 0; }
+
+/* ── Channel Bar ───────────────────────────────────────────────────────── */
+.channel-bar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 7px 16px; display: flex; align-items: center; gap: 7px; flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+.channel-bar::-webkit-scrollbar { display: none; }
+.channel-bar-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); font-weight: 700; flex-shrink: 0; }
+.ch-pill { display: flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 11px; cursor: pointer; white-space: nowrap; transition: all .15s; flex-shrink: 0; }
+.ch-pill:hover { border-color: var(--border2); color: var(--text); }
+.ch-pill.active { background: rgba(255,255,255,.08); color: #fff; border-color: var(--border2); }
+.ch-pill .ch-badge { background: var(--bg5); padding: 1px 5px; border-radius: 10px; font-size: 10px; color: var(--text3); }
+.ch-readonly { font-size: 9px; color: var(--text3); padding: 2px 7px; background: var(--bg4); border-radius: 10px; margin-left: 4px; }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(2px); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -410,22 +427,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <div class="status-dot" id="statusDot"></div>
       <div class="model-selector">
         <select class="model-select" id="modelSelect">
-          <optgroup label="── OpenAI ──">
-            <option value="gpt-4.1">gpt-4.1</option>
-            <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-            <option value="gpt-4o">gpt-4o</option>
-            <option value="gpt-4o-mini">gpt-4o-mini</option>
-            <option value="o3">o3</option>
-            <option value="o4-mini">o4-mini</option>
-          </optgroup>
-          <optgroup label="── Google Gemini ──">
-            <option value="gemini-2.5-pro">gemini-2.5-pro ★</option>
-            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
-            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-            <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-          </optgroup>
+          <option value="">Lade…</option>
         </select>
         <button class="hbtn" onclick="saveModel()">Speichern</button>
       </div>
@@ -474,6 +476,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 
       <!-- SECTION: CHAT -->
       <div class="section active" id="section-chat">
+        <div class="channel-bar" id="channelBar" style="display:none">
+          <span class="channel-bar-label">Kanäle</span>
+          <div id="channelPills" style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap"></div>
+        </div>
         <div class="messages" id="messages">
           <div class="welcome" id="welcome">
             <h2>AION</h2>
@@ -611,97 +617,100 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="page-title">System</div>
             <div class="page-subtitle">Konfiguration & Statistiken</div>
           </div>
+          <div class="page-hdr-actions">
+            <button class="action-btn" onclick="loadSettings()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Aktualisieren</button>
+          </div>
         </div>
         <div class="page-scroll">
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="bar-chart-2" style="width:13px;height:13px;stroke-width:1.75"></i> Statistiken</div>
-            <div class="stat-grid">
-              <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
-              <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
-              <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Erinnerungen</div></div>
-              <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Gespräche</div></div>
-            </div>
+
+          <!-- Stats row -->
+          <div class="stat-grid">
+            <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
+            <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
+            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Erinnerungen</div></div>
+            <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Gespräche</div></div>
           </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="cpu" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Modell</div>
+
+          <!-- KI-Modell + Provider -->
+          <div class="sys-card">
+            <div class="sys-card-title"><i data-lucide="cpu" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Modell</div>
             <div class="settings-row">
-              <select class="settings-select" id="settingsModel">
+              <select class="settings-select" id="settingsModel" style="flex:1;max-width:420px">
                 <option value="">Lade Modelle…</option>
               </select>
               <button class="action-btn primary" onclick="saveModelFromSettings()">Speichern</button>
+              <button class="action-btn" id="refreshModelsBtn" onclick="refreshProviderModels()" title="Modelle neu laden" style="display:flex;align-items:center;gap:4px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i></button>
             </div>
-            <div style="margin-top:6px;font-size:11px;color:var(--text3)">
-              Oder: Modellname direkt eingeben und auf Speichern klicken.
+            <div style="font-size:11px;color:var(--text3)">
+              Eigener Modellname:
               <input type="text" id="settingsModelCustom" placeholder="z.B. ollama/llama3.2 oder claude-sonnet-4-6"
-                style="margin-top:5px;width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px"
+                style="margin-top:4px;width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px"
                 oninput="if(this.value)document.getElementById('settingsModel').value=''">
             </div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="plug" style="width:13px;height:13px;stroke-width:1.75"></i> Aktive Provider</div>
-            <div id="providerList" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
-              <span style="font-size:11px;color:var(--text3)">Lade…</span>
+            <div style="margin-top:4px">
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:6px">Aktive Provider</div>
+              <div id="providerList" style="display:flex;flex-direction:column;gap:5px">
+                <span style="font-size:11px;color:var(--text3)">Lade…</span>
+              </div>
+            </div>
+            <div style="margin-top:4px">
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:4px">Fallback-Modelle</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Kommagetrennte Modelle als Fallback bei API-Fehler</div>
+              <div class="settings-row">
+                <input type="text" id="modelFallbackInput" class="settings-select"
+                  style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
+                  placeholder="z.B. gpt-4.1-mini, gemini-2.0-flash">
+                <button class="action-btn primary" onclick="saveModelFallback()">Speichern</button>
+              </div>
             </div>
           </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="volume-2" style="width:13px;height:13px;stroke-width:1.75"></i> Sprachausgabe (TTS)</div>
-            <div class="settings-row" style="margin-bottom:6px">
-              <span style="font-size:12px;color:var(--text2);min-width:60px">Engine</span>
-              <select class="settings-select" id="ttsEngine" style="max-width:200px" onchange="saveTTSSettings()">
-                <option value="edge">edge-tts (empfohlen)</option>
-                <option value="sapi5">sapi5 (Windows)</option>
-                <option value="pyttsx3">pyttsx3 (offline)</option>
-                <option value="off">Deaktiviert</option>
-              </select>
+
+          <!-- TTS + Kosten -->
+          <div class="sys-cols">
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="volume-2" style="width:13px;height:13px;stroke-width:1.75"></i> Sprachausgabe (TTS)</div>
+              <div class="settings-row" style="margin-bottom:6px">
+                <span style="font-size:12px;color:var(--text2);min-width:60px">Engine</span>
+                <select class="settings-select" id="ttsEngine" style="max-width:200px" onchange="saveTTSSettings()">
+                  <option value="edge">edge-tts (empfohlen)</option>
+                  <option value="sapi5">sapi5 (Windows)</option>
+                  <option value="pyttsx3">pyttsx3 (offline)</option>
+                  <option value="off">Deaktiviert</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <span style="font-size:12px;color:var(--text2);min-width:60px">Stimme</span>
+                <input type="text" class="settings-select" id="ttsVoice" placeholder="z.B. de-DE-KatjaNeural"
+                  style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
+                  onblur="saveTTSSettings()">
+              </div>
             </div>
-            <div class="settings-row">
-              <span style="font-size:12px;color:var(--text2);min-width:60px">Stimme</span>
-              <input type="text" class="settings-select" id="ttsVoice" placeholder="z.B. de-DE-KatjaNeural"
-                style="max-width:300px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
-                onblur="saveTTSSettings()">
-            </div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="git-branch" style="width:13px;height:13px;stroke-width:1.75"></i> Fallback-Modelle</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Kommagetrennte Modelle als Fallback bei API-Fehler</div>
-            <div class="settings-row">
-              <input type="text" id="modelFallbackInput" class="settings-select"
-                style="max-width:500px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
-                placeholder="z.B. gpt-4.1-mini, gemini-2.0-flash">
-              <button class="action-btn primary" onclick="saveModelFallback()">Speichern</button>
-            </div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Kosten optimieren</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
-              Günstigeres Modell für interne Checks (Completion-Check, Task-Check). Leer lassen = automatisch das billigste passende Modell.
-            </div>
-            <div class="settings-row" style="margin-bottom:8px">
-              <span style="font-size:12px;color:var(--text2);min-width:120px">Check-Modell</span>
-              <input type="text" id="checkModelInput" class="settings-select"
-                style="max-width:340px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
-                placeholder="leer = automatisch (z.B. gpt-4.1-mini)">
-            </div>
-            <div class="settings-row" style="margin-bottom:8px">
-              <span style="font-size:12px;color:var(--text2);min-width:120px">History-Länge</span>
-              <input type="number" id="maxHistoryInput" class="settings-select"
-                style="max-width:120px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
-                placeholder="40" min="5" max="200">
-              <span style="font-size:11px;color:var(--text3)">Nachrichten (älter = abgeschnitten)</span>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <button class="action-btn primary" onclick="saveCostSettings()">Speichern</button>
-              <span id="costSettingsSaveStatus" style="font-size:11px;color:var(--text3)"></span>
-            </div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="route" style="width:13px;height:13px;stroke-width:1.75"></i> Task Routing</div>
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Kosten optimieren</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Günstigeres Modell für interne Checks. Leer = automatisch.</div>
+              <div class="settings-row" style="margin-bottom:8px">
+                <span style="font-size:12px;color:var(--text2);min-width:120px">Check-Modell</span>
+                <input type="text" id="checkModelInput" class="settings-select"
+                  style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
+                  placeholder="leer = automatisch (z.B. gpt-4.1-mini)">
+              </div>
+              <div class="settings-row" style="margin-bottom:8px">
+                <span style="font-size:12px;color:var(--text2);min-width:120px">History-Länge</span>
+                <input type="number" id="maxHistoryInput" class="settings-select"
+                  style="max-width:120px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
+                  placeholder="40" min="5" max="200">
+                <span style="font-size:11px;color:var(--text3)">Nachrichten</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="action-btn primary" onclick="saveCostSettings()">Speichern</button>
+                <span id="costSettingsSaveStatus" style="font-size:11px;color:var(--text3)"></span>
+              </div>
+            </div><!-- /sys-card Kosten -->
+          </div><!-- /sys-cols TTS+Kosten -->
+
+          <!-- Task Routing -->
+          <div class="sys-card">
+            <div class="sys-card-title"><i data-lucide="route" style="width:13px;height:13px;stroke-width:1.75"></i> Task Routing</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
               Welches Modell AION für welche Aufgabe nutzt. Claude-Abo via Claude Code CLI — kein API-Key nötig.<br>
               <span id="claudeCliStatus" style="margin-top:4px;display:inline-block"></span>
@@ -731,81 +740,87 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               <span id="routingSaveStatus" style="font-size:11px;color:var(--text3)"></span>
             </div>
             <div id="claudeLoginMsg" style="margin-top:8px;font-size:11px;display:none"></div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="folder" style="width:13px;height:13px;stroke-width:1.75"></i> Verzeichnis</div>
-            <div class="settings-val" id="settingsBotDir">…</div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="shield-check" style="width:13px;height:13px;stroke-width:1.75"></i> Berechtigungen</div>
-            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-              <button class="action-btn" onclick="applyPermPreset('conservative')" style="display:flex;align-items:center;gap:5px"><i data-lucide="shield" style="width:13px;height:13px;stroke-width:1.75"></i> Conservative</button>
-              <button class="action-btn" onclick="applyPermPreset('balanced')" style="display:flex;align-items:center;gap:5px"><i data-lucide="scale" style="width:13px;height:13px;stroke-width:1.75"></i> Balanced</button>
-              <button class="action-btn" onclick="applyPermPreset('autonomous')" style="display:flex;align-items:center;gap:5px"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> Autonomous</button>
+          </div><!-- /sys-card Task Routing -->
+
+          <!-- Berechtigungen + Verzeichnis -->
+          <div class="sys-cols">
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="shield-check" style="width:13px;height:13px;stroke-width:1.75"></i> Berechtigungen</div>
+              <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+                <button class="action-btn" onclick="applyPermPreset('conservative')" style="display:flex;align-items:center;gap:5px"><i data-lucide="shield" style="width:13px;height:13px;stroke-width:1.75"></i> Conservative</button>
+                <button class="action-btn" onclick="applyPermPreset('balanced')" style="display:flex;align-items:center;gap:5px"><i data-lucide="scale" style="width:13px;height:13px;stroke-width:1.75"></i> Balanced</button>
+                <button class="action-btn" onclick="applyPermPreset('autonomous')" style="display:flex;align-items:center;gap:5px"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> Autonomous</button>
+              </div>
+              <div id="permissionsList" style="display:flex;flex-direction:column;gap:4px"></div>
             </div>
-            <div id="permissionsList" style="display:flex;flex-direction:column;gap:4px"></div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="brain" style="width:13px;height:13px;stroke-width:1.75"></i> Thinking Level</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Wie viel AION vor jeder Antwort nachdenkt. <b>deep</b> = mehr Qualität, mehr Tokens. <b>off</b> = schnellster Modus.</div>
-            <div class="settings-row" style="margin-bottom:8px">
-              <span style="font-size:12px;color:var(--text2);min-width:70px">Global</span>
-              <select class="settings-select" id="thinkingLevelGlobal" style="max-width:180px">
-                <option value="off">off – kein Thinking</option>
-                <option value="minimal">minimal</option>
-                <option value="standard" selected>standard</option>
-                <option value="deep">deep</option>
-                <option value="extreme">extreme</option>
-              </select>
-              <button class="action-btn primary" onclick="saveThinkingLevel()">Speichern</button>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="sys-card">
+                <div class="sys-card-title"><i data-lucide="folder" style="width:13px;height:13px;stroke-width:1.75"></i> Verzeichnis</div>
+                <div class="settings-val" id="settingsBotDir" style="font-size:11px;word-break:break-all">…</div>
+              </div>
+              <div class="sys-card">
+                <div class="sys-card-title"><i data-lucide="terminal" style="width:13px;height:13px;stroke-width:1.75"></i> Aktionen</div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <button class="action-btn" onclick="resetExchanges()" style="display:flex;align-items:center;gap:5px"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke-width:1.75"></i> Gesprächszähler zurücksetzen</button>
+                  <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Memory komplett leeren</button>
+                  <button class="action-btn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Alle Plugins neu laden</button>
+                </div>
+              </div>
             </div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel-Override (leer = alle):</div>
-            <div class="settings-row" style="margin-bottom:4px">
-              <input type="text" id="thinkingOverrideChannel" class="settings-select"
-                style="max-width:160px;background:var(--bg4);font-family:monospace;font-size:12px"
-                placeholder="z.B. telegram*">
-              <select class="settings-select" id="thinkingOverrideLevel" style="max-width:140px">
-                <option value="off">off</option>
-                <option value="minimal">minimal</option>
-                <option value="standard">standard</option>
-                <option value="deep">deep</option>
-                <option value="extreme">extreme</option>
-              </select>
-              <button class="action-btn primary" onclick="saveThinkingOverride()">Hinzufügen</button>
+          </div><!-- /sys-cols Perms+Dir -->
+
+          <!-- Thinking Level + Channel Allowlist -->
+          <div class="sys-cols">
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="brain" style="width:13px;height:13px;stroke-width:1.75"></i> Thinking Level</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b>deep</b> = mehr Qualität, mehr Tokens. <b>off</b> = schnellster Modus.</div>
+              <div class="settings-row" style="margin-bottom:8px">
+                <span style="font-size:12px;color:var(--text2);min-width:60px">Global</span>
+                <select class="settings-select" id="thinkingLevelGlobal" style="max-width:160px">
+                  <option value="off">off – kein Thinking</option>
+                  <option value="minimal">minimal</option>
+                  <option value="standard" selected>standard</option>
+                  <option value="deep">deep</option>
+                  <option value="extreme">extreme</option>
+                </select>
+                <button class="action-btn primary" onclick="saveThinkingLevel()">Speichern</button>
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel-Override (leer = alle):</div>
+              <div class="settings-row" style="margin-bottom:4px">
+                <input type="text" id="thinkingOverrideChannel" class="settings-select"
+                  style="max-width:130px;background:var(--bg4);font-family:monospace;font-size:12px"
+                  placeholder="z.B. telegram*">
+                <select class="settings-select" id="thinkingOverrideLevel" style="max-width:130px">
+                  <option value="off">off</option>
+                  <option value="minimal">minimal</option>
+                  <option value="standard">standard</option>
+                  <option value="deep">deep</option>
+                  <option value="extreme">extreme</option>
+                </select>
+                <button class="action-btn primary" onclick="saveThinkingOverride()">+</button>
+              </div>
+              <div id="thinkingOverridesList" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
             </div>
-            <div id="thinkingOverridesList" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="list-filter" style="width:13px;height:13px;stroke-width:1.75"></i> Channel Allowlist</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Welche Channels AION antworten darf. Leer = alle erlaubt. Wildcards möglich (z.B. <code>telegram*</code>).</div>
-            <div class="settings-row" style="margin-bottom:6px">
-              <input type="text" id="allowlistNewChannel" class="settings-select"
-                style="max-width:220px;background:var(--bg4);font-family:monospace;font-size:12px"
-                placeholder="z.B. discord_* oder web"
-                onkeydown="if(event.key==='Enter')addAllowlistEntry()">
-              <button class="action-btn primary" onclick="addAllowlistEntry()">Hinzufügen</button>
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="list-filter" style="width:13px;height:13px;stroke-width:1.75"></i> Channel Allowlist</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Welche Channels AION antworten darf. Leer = alle erlaubt. Wildcards: <code>telegram*</code></div>
+              <div class="settings-row" style="margin-bottom:6px">
+                <input type="text" id="allowlistNewChannel" class="settings-select"
+                  style="background:var(--bg4);font-family:monospace;font-size:12px"
+                  placeholder="z.B. discord_* oder web"
+                  onkeydown="if(event.key==='Enter')addAllowlistEntry()">
+                <button class="action-btn primary" onclick="addAllowlistEntry()">+</button>
+              </div>
+              <div id="allowlistEntries" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px"></div>
+              <div style="margin-top:8px;display:flex;gap:8px">
+                <button class="action-btn" onclick="saveAllowlist()">Speichern</button>
+                <button class="action-btn danger" onclick="clearAllowlist()">Alle entfernen</button>
+              </div>
             </div>
-            <div id="allowlistEntries" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px"></div>
-            <div style="margin-top:8px;display:flex;gap:8px">
-              <button class="action-btn" onclick="saveAllowlist()">Speichern</button>
-              <button class="action-btn danger" onclick="clearAllowlist()">Alle entfernen (alle erlauben)</button>
-            </div>
-          </div>
-          <div class="settings-divider"></div>
-          <div class="settings-group">
-            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="terminal" style="width:13px;height:13px;stroke-width:1.75"></i> Aktionen</div>
-            <div style="display:flex;flex-direction:column;gap:8px;max-width:380px">
-              <button class="action-btn" onclick="resetExchanges()" style="display:flex;align-items:center;gap:5px"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke-width:1.75"></i> Gesprächszähler zurücksetzen</button>
-              <button class="action-btn danger" onclick="clearMemory()" style="display:flex;align-items:center;gap:5px"><i data-lucide="trash-2" style="width:13px;height:13px;stroke-width:1.75"></i> Memory komplett leeren</button>
-              <button class="action-btn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Alle Plugins neu laden</button>
-            </div>
-          </div>
-        </div>
-      </div>
+          </div><!-- /sys-cols Thinking+Allowlist -->
+
+        </div><!-- /page-scroll -->
+      </div><!-- /section-settings -->
 
     </div><!-- /content-area -->
   </div><!-- /main -->
@@ -874,6 +889,9 @@ let currentModalCallId = null;
 // Section state
 let currentSection = 'chat';
 
+// Channel switcher state
+let _activeChannel = 'web';
+
 // Prompt state
 let _promptFile   = 'rules';
 let _promptLoaded = {};
@@ -887,13 +905,31 @@ const _MEM_LIMIT = 80;
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
-async function loadHistory() {
+async function loadHistory(channel) {
+  const ch = channel || _activeChannel || 'web';
   try {
-    const r = await fetch('/api/history');
+    const r = await fetch('/api/history' + (ch !== 'web' ? `?channel=${encodeURIComponent(ch)}` : ''));
     if (!r.ok) return;
     const data = await r.json();
-    if (!data.messages || !data.messages.length) return;
-    removeWelcome();
+    const msgEl = document.getElementById('messages');
+    // Clear existing messages (preserve welcome if no history)
+    msgEl.innerHTML = '';
+    if (!data.messages || !data.messages.length) {
+      msgEl.innerHTML = `<div class="welcome" id="welcome">
+        <h2>AION</h2>
+        <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
+        <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
+        <div class="chips">
+          <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
+          <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
+          <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
+          <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
+          <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
+          <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
+        </div>
+      </div>`;
+      return;
+    }
     for (const msg of data.messages) {
       if (msg.role === 'user') appendUserMsg(msg.content);
       else if (msg.role === 'assistant' && msg.content.trim()) appendHistoryAionMsg(msg.content);
@@ -902,15 +938,76 @@ async function loadHistory() {
   } catch {}
 }
 
+async function loadChannels() {
+  try {
+    const r = await fetch('/api/channels');
+    if (!r.ok) return;
+    const data = await r.json();
+    const channels = data.channels || [];
+    const bar  = document.getElementById('channelBar');
+    const pills = document.getElementById('channelPills');
+    if (!bar || !pills) return;
+    if (channels.length <= 1) { bar.style.display = 'none'; return; }
+    bar.style.display = '';
+    pills.innerHTML = channels.map(ch => {
+      const active = ch.id === _activeChannel ? 'active' : '';
+      const badge  = ch.count ? `<span class="ch-badge">${ch.count}</span>` : '';
+      const ro     = ch.id !== 'web' ? `<span class="ch-readonly">readonly</span>` : '';
+      return `<button class="ch-pill ${active}" onclick="switchChannel('${esc(ch.id)}')">${esc(ch.label)}${badge}${ro}</button>`;
+    }).join('');
+  } catch {}
+}
+
+async function switchChannel(id) {
+  _activeChannel = id;
+  await loadChannels(); // re-render pills with new active
+  // Clear messages + reload history for this channel
+  document.getElementById('messages').innerHTML = '';
+  await loadHistory(id);
+  // If non-web channel, disable input
+  const input   = document.getElementById('input');
+  const sendBtn = document.getElementById('sendBtn');
+  const isWeb   = id === 'web';
+  if (input)   input.disabled   = !isWeb;
+  if (sendBtn) sendBtn.disabled = !isWeb;
+  if (!isWeb) {
+    if (input) input.placeholder = 'Nur Ansicht — Antworten über ' + id.split('_')[0];
+  } else {
+    if (input) input.placeholder = 'Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)';
+  }
+}
+
 async function init() {
   try {
     const s = await (await fetch('/api/status')).json();
     syncModelSelects(s.model, document.getElementById('modelSelect'));
+    // Also build header dropdown dynamically from providers
+    const pv = await (await fetch('/api/providers')).json();
+    _buildHeaderModelDropdown(pv, s.model);
   } catch {}
   await loadHistory();
+  await loadChannels();
   if (window.lucide) lucide.createIcons();
 }
 init();
+
+function _buildHeaderModelDropdown(pv, activeModel) {
+  const sel = document.getElementById('modelSelect');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const p of (pv.providers || [])) {
+    if (!p.models?.length) continue;
+    const grp = document.createElement('optgroup');
+    grp.label = `── ${p.label} ──`;
+    for (const m of p.models) {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  if (activeModel) syncModelSelects(activeModel, sel);
+}
 
 function syncModelSelects(model, ...selects) {
   selects.forEach(sel => {
@@ -1546,6 +1643,18 @@ function _buildModelDropdown(pv) {
     sel.prepend(opt);
   }
   syncModelSelects(active, document.getElementById('modelSelect'));
+}
+
+async function refreshProviderModels() {
+  const btn = document.getElementById('refreshModelsBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const pv = await (await fetch('/api/providers')).json();
+    _renderProviders(pv);
+    _buildModelDropdown(pv);
+    showToast('✓ Modelle aktualisiert');
+  } catch(e) { showToast('✗ ' + e.message); }
+  finally { if (btn) btn.disabled = false; }
 }
 
 async function saveModelFromSettings() {
