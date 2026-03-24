@@ -148,6 +148,14 @@ async def logo_small_svg():
         return Response(content=p.read_bytes(), media_type="image/svg+xml")
     return Response(status_code=404)
 
+@app.get("/lucide.min.js", include_in_schema=False)
+async def lucide_js():
+    from fastapi.responses import Response
+    p = AION_DIR / "static" / "lucide.min.js"
+    if p.is_file():
+        return Response(content=p.read_bytes(), media_type="text/javascript")
+    return Response(status_code=404)
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     p = AION_DIR / "static" / "index.html"
