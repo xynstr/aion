@@ -538,9 +538,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </div>
         <div class="messages" id="messages">
           <div class="welcome" id="welcome">
-            <h2>AION</h2>
-            <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
-            <p>Give me a task—I can search the web, install programs, edit files, and improve my own code.</p>
             <div class="chips">
               <div class="chip" onclick="useChip(this)">What can you do?</div>
               <div class="chip" onclick="useChip(this)">Search for the latest AI news</div>
@@ -1009,9 +1006,7 @@ async function loadHistory(channel) {
     msgEl.innerHTML = '';
     if (!data.messages || !data.messages.length) {
       msgEl.innerHTML = `<div class="welcome" id="welcome">
-        <img src="aion-2026.svg" alt="AION" style="width:200px;height:auto;margin-bottom:16px">
-        <h2>AION</h2>
-        <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
+        <img src="aion-2026.svg" alt="AION" style="width:400px;height:auto;margin-bottom:32px">
         <div class="chips">
           <div class="chip" onclick="useChip(this)">What can you do?</div>
           <div class="chip" onclick="useChip(this)">Find latest AI news</div>
