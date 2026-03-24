@@ -5,6 +5,23 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-24 — Launcher Mode Selector + Telegram Voice Fix
+
+### New: Interactive Mode Selector on `aion` start
+- Running `aion` without flags now shows an arrow-key selector (↑↓ + Enter)
+- Options: `Web UI (http://localhost:7000)` or `CLI (terminal only)`
+- `aion --web` starts Web UI directly (new flag), `aion --cli` starts CLI directly (unchanged)
+- Non-TTY fallback: numbered text input (1=Web / 2=CLI)
+- File: `aion_launcher.py`
+
+### Fix: Telegram voice reply no longer sends redundant text
+- When AION responds to a voice message, only the voice note is sent — the text is suppressed
+- Images in the response are still sent before the voice note
+- Approval keyboards (Ja/Nein) are unaffected — text is kept when confirmation is needed
+- File: `plugins/telegram_bot/telegram_bot.py`
+
+---
+
 ## 2026-03-24 — STT: Vosk → Faster Whisper
 
 ### Replaced: Vosk → Faster Whisper (audio_transcriber + audio_pipeline)

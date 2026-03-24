@@ -2,8 +2,9 @@
 AION global launcher — installed as 'aion' command via pip install -e .
 
 Usage:
-  aion          → Web UI (http://localhost:7000) + opens browser
-  aion --cli    → CLI mode (terminal only)
+  aion          → interactive selector: Web UI or CLI (arrow keys)
+  aion --web    → Web UI (http://localhost:7000) directly
+  aion --cli    → CLI mode (terminal only) directly
   aion --setup  → re-run onboarding (API keys, model selection)
   aion --help   → show help
 """
@@ -139,6 +140,85 @@ def _run_config_cmd(args: list) -> None:
         print("Usage: aion config [list | get <key> | set <key> <value> | unset <key>]")
 
 
+def _choose_mode() -> str:
+    """Arrow-key selector: returns 'web' or 'cli'."""
+    items   = ["Web UI  (http://localhost:7000)", "CLI     (terminal only)"]
+    n       = len(items)
+    idx     = 0
+    _TTY    = sys.stdout.isatty()
+
+    def _esc(code: str) -> str:
+        return f"\x1b[{code}m" if _TTY else ""
+
+    def _render(sel: int) -> None:
+        for i, item in enumerate(items):
+            if i == sel:
+                print(f"  {_esc('92;1')}>{_esc('0')} {_esc('97;1')}{item}{_esc('0')}")
+            else:
+                print(f"    {_esc('2')}{item}{_esc('0')}")
+        sys.stdout.flush()
+
+    def _erase(count: int) -> None:
+        sys.stdout.write(f"\x1b[{count}A\x1b[J")
+        sys.stdout.flush()
+
+    print(f"\n  {_esc('2')}Arrow keys ↑↓  ·  Enter to select{_esc('0')}")
+
+    if not _TTY:
+        _render(idx)
+        while True:
+            val = input("  Choice (1=Web / 2=CLI): ").strip()
+            if val == "1": return "web"
+            if val == "2": return "cli"
+
+    _render(idx)
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            while True:
+                key = msvcrt.getch()
+                if key in (b'\r', b'\n'):
+                    break
+                if key in (b'\x00', b'\xe0'):
+                    k2 = msvcrt.getch()
+                    if k2 == b'H':
+                        idx = (idx - 1) % n
+                    elif k2 == b'P':
+                        idx = (idx + 1) % n
+                elif key == b'\x1b':
+                    raise KeyboardInterrupt
+                _erase(n)
+                _render(idx)
+        else:
+            import tty, termios
+            fd   = sys.stdin.fileno()
+            old  = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                while True:
+                    ch = sys.stdin.read(1)
+                    if ch in ('\r', '\n'):
+                        break
+                    if ch == '\x1b':
+                        nxt = sys.stdin.read(2)
+                        if nxt == '[A':
+                            idx = (idx - 1) % n
+                        elif nxt == '[B':
+                            idx = (idx + 1) % n
+                    _erase(n)
+                    _render(idx)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    except KeyboardInterrupt:
+        print("\n[AION] Aborted.", flush=True)
+        sys.exit(0)
+
+    _erase(n)
+    _render(idx)
+    print()
+    return "cli" if idx == 1 else "web"
+
+
 def _pause_on_error():
     """On Windows, pause so the user can read the error before the window closes."""
     if sys.platform == "win32":
@@ -173,8 +253,9 @@ def _main():
     args = sys.argv[1:]
 
     if "--help" in args or "-h" in args:
-        print("Usage: aion [--cli] [--setup] [config <subcommand>]")
-        print("  aion                      Web UI  →  http://localhost:7000")
+        print("Usage: aion [--web | --cli] [--setup] [config <subcommand>]")
+        print("  aion                      Interactive mode selector (↑↓ arrow keys)")
+        print("  aion --web                Web UI  →  http://localhost:7000")
         print("  aion --cli                CLI mode (no browser)")
         print("  aion --setup              Re-run setup (API keys, model selection)")
         print("  aion config list          Show all settings")
@@ -217,9 +298,16 @@ def _main():
         python = python.replace("pythonw.exe", "python.exe")
 
     if "--cli" in args or "-c" in args:
+        mode = "cli"
+    elif "--web" in args or "-w" in args:
+        mode = "web"
+    else:
+        mode = _choose_mode()
+
+    if mode == "cli":
         subprocess.run([python, str(AION_DIR / "aion_cli.py")])
     else:
-        print(f"[AION] Starting Web UI → http://localhost:7000")
+        print(f"[AION] Starting Web UI → http://localhost:7000", flush=True)
         _open_browser_delayed()
         subprocess.run([python, str(AION_DIR / "aion_web.py")])
 

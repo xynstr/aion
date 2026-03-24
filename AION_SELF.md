@@ -12,7 +12,23 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
-## Latest Improvements (2026-03-24 — Setup + CLI Config)
+## Latest Improvements (2026-03-24 — Launcher Selector + Telegram Voice Fix)
+
+### Interactive mode selector on start
+`aion` (no flags) now shows an arrow-key menu: **Web UI** or **CLI**.
+Direct flags still work: `aion --web` and `aion --cli`.
+Non-TTY terminals fall back to numbered input.
+File: `aion_launcher.py`
+
+### Telegram: voice reply without redundant text
+When AION answers a voice message, only the voice note is sent.
+The text is suppressed — it was redundant since it's spoken aloud.
+Images are still sent. Approval flows (Ja/Nein) are unaffected.
+File: `plugins/telegram_bot/telegram_bot.py`
+
+---
+
+## Previous Improvements (2026-03-24 — Setup + CLI Config)
 
 ### Setup Wizard expanded
 `onboarding.py` Step 8 now asks for TTS engine + voice and thinking level.

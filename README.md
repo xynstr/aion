@@ -46,11 +46,15 @@ pip install -e .
 # Guided setup (recommended for first run)
 aion --setup
 
-# Or start directly
+# Start — interactive selector (Web UI or CLI)
 aion
+
+# Or start directly
+aion --web   # Web UI → http://localhost:7000
+aion --cli   # CLI mode (terminal only)
 ```
 
-Opens automatically at **http://localhost:7000**
+`aion` shows an arrow-key selector on every start. Pick **Web UI** or **CLI** with ↑↓ + Enter.
 
 ---
 

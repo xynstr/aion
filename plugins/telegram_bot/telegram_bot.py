@@ -592,10 +592,14 @@ async def _telegram_worker(token: str):
 
                     # Response-Blöcke senden
                     if response_blocks:
+                        send_as_voice = is_voice_input and not needs_approval
                         blocks_to_send = [b for b in response_blocks if b.get("type") in ("text", "image")]
                         for i, block in enumerate(blocks_to_send):
-                            is_last = (i == len(blocks_to_send) - 1) and not (is_voice_input and not needs_approval)
+                            is_last = (i == len(blocks_to_send) - 1) and not send_as_voice
                             if block.get("type") == "text":
+                                # Bei Voice-Input: Text-Block überspringen, kommt als Sprachnachricht
+                                if send_as_voice:
+                                    continue
                                 content = block.get("content", "").strip()
                                 if content:
                                     chunks = _split_message(content, 4000)
@@ -614,8 +618,8 @@ async def _telegram_worker(token: str):
                                 url = block.get("url", "")
                                 if url:
                                     await _send_photo(chat_id, url)
-                        # Voice-Antwort am Ende — nach allen Text/Bild-Blöcken
-                        if is_voice_input and response.strip() and not needs_approval:
+                        # Voice-Antwort am Ende — nur Sprachnachricht, kein doppelter Text
+                        if send_as_voice and response.strip():
                             await _send_voice_reply(chat_id, response)
                     elif is_voice_input and response.strip() and not needs_approval:
                         sent = await _send_voice_reply(chat_id, response)
