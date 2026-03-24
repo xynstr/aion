@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -61,16 +61,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 2px 24px; height: auto;
+  padding: 15px 24px; height: auto;
   background: var(--bg2); border-bottom: 1px solid var(--border);
   flex-shrink: 0; z-index: 20;
   gap: 16px;
 }
 .header-left { display: flex; align-items: center; gap: 14px; }
-.logo-icon { width: 150px; height: 120px; flex-shrink: 0; }
-.logo-wrap { display: flex; flex-direction: column; gap: 3px; }
-.logo { font-size: 20px; font-weight: 900; letter-spacing: 4px; color: #ffffff; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; line-height: 1.2; }
-.logo-tagline { font-size: 11px; letter-spacing: 2.5px; color: var(--text3); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; text-transform: uppercase; }
+.logo-icon { width: 150px; flex-shrink: 0; }
+.logo-wrap { display: flex; flex-direction: column; gap: 2px; }
+.logo { font-size: 15px; font-weight: 900; letter-spacing: 4px; color: #ffffff; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; line-height: 1.2; }
+.logo-tagline { font-size: 9px; letter-spacing: 2.5px; color: var(--text3); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; text-transform: uppercase; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); transition: all 0.3s; flex-shrink: 0; }
 .status-dot.thinking { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); animation: dotPulse 1s ease-in-out infinite; }
 @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
@@ -524,29 +524,29 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="welcome" id="welcome">
             <h2>AION</h2>
             <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
-            <p>Give me a task — I can search the internet, install programs, edit files, and improve my own code.</p>
+            <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
             <div class="chips">
-              <div class="chip" onclick="useChip(this)">What can you do?</div>
-              <div class="chip" onclick="useChip(this)">Search for latest AI news</div>
-              <div class="chip" onclick="useChip(this)">Show me your source code</div>
-              <div class="chip" onclick="useChip(this)">Install VLC Player</div>
-              <div class="chip" onclick="useChip(this)">What system is running here?</div>
-              <div class="chip" onclick="useChip(this)">Create a new tool</div>
+              <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
+              <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
+              <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
+              <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
+              <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
+              <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
             </div>
           </div>
         </div>
-        <button id="scrollBottomBtn" class="scroll-bottom-btn" onclick="scrollChat()" title="Scroll to bottom">
+        <button id="scrollBottomBtn" class="scroll-bottom-btn" onclick="scrollChat()" title="Ganz nach unten">
           <i data-lucide="chevrons-down" style="width:15px;height:15px;stroke-width:2.5"></i>
         </button>
         <div id="attachPreview" class="attach-preview"></div>
         <div class="input-row">
           <input type="file" id="fileInput" multiple accept="image/*,text/*,.md,.json,.py,.js,.ts,.css,.html,.txt,.log,.csv,.pdf,.docx,.doc,.xlsx,.xls,.ogg,.mp3,.wav,.m4a,.flac,.aac,.opus" style="display:none" onchange="onFileSelected(event)">
-          <button class="attach-btn" title="Attach file" onclick="document.getElementById('fileInput').click()">📎</button>
+          <button class="attach-btn" title="Datei anhängen" onclick="document.getElementById('fileInput').click()">📎</button>
           <textarea id="input"
-            placeholder="Message to AION… (Enter = Send, Shift+Enter = Line break)"
+            placeholder="Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)"
             rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
-          <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none" title="Stop generation">■</button>
+          <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none" title="Generierung stoppen">■</button>
         </div>
       </div>
 
@@ -555,32 +555,32 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">Prompts</div>
-            <div class="page-subtitle">Edit system instructions for AION</div>
+            <div class="page-subtitle">Systemanweisungen für AION bearbeiten</div>
           </div>
           <div class="page-hdr-actions">
             <span id="promptStatus" class="prompt-status"></span>
-            <button class="action-btn primary" id="promptSaveBtn" onclick="savePrompt()">💾 Save</button>
+            <button class="action-btn primary" id="promptSaveBtn" onclick="savePrompt()">💾 Speichern</button>
           </div>
         </div>
         <div class="prompt-body">
           <div class="prompt-file-nav">
             <button class="prompt-item active" id="pitem-rules" onclick="promptSwitch('rules')">
-              <span class="pi-icon"><i data-lucide="scroll-text"></i></span><span class="pi-label">Rules</span>
+              <span class="pi-icon"><i data-lucide="scroll-text"></i></span><span class="pi-label">Regeln</span>
               <span class="pi-dirty" id="pdirty-rules"></span>
             </button>
             <button class="prompt-item" id="pitem-character" onclick="promptSwitch('character')">
-              <span class="pi-icon"><i data-lucide="user-round"></i></span><span class="pi-label">Character</span>
+              <span class="pi-icon"><i data-lucide="user-round"></i></span><span class="pi-label">Charakter</span>
               <span class="pi-dirty" id="pdirty-character"></span>
             </button>
             <button class="prompt-item" id="pitem-self_doc" onclick="promptSwitch('self_doc')">
-              <span class="pi-icon"><i data-lucide="book-open"></i></span><span class="pi-label">Self-Doc</span>
+              <span class="pi-icon"><i data-lucide="book-open"></i></span><span class="pi-label">Selbst-Doku</span>
               <span class="pi-dirty" id="pdirty-self_doc"></span>
             </button>
           </div>
           <div class="prompt-editor-col">
             <div class="prompt-editor-wrap">
               <textarea id="promptEditor" class="prompt-editor"
-                        spellcheck="false" placeholder="Load file…"
+                        spellcheck="false" placeholder="Datei laden…"
                         oninput="onPromptEdit()"></textarea>
             </div>
           </div>
@@ -600,7 +600,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </div>
         <div class="page-scroll">
           <div id="pluginList">
-            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Loading plugins…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Plugins…</span></div>
           </div>
         </div>
       </div>
@@ -619,11 +619,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-scroll">
           <div class="memory-search-wrap">
             <input type="text" class="memory-search" id="memorySearch"
-                   placeholder="Search…" oninput="debounceMemorySearch()">
+                   placeholder="Suchen…" oninput="debounceMemorySearch()">
             <button class="action-btn" onclick="loadMemory()">↺</button>
           </div>
           <div id="memoryList">
-            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Loading entries…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Einträge…</span></div>
           </div>
         </div>
       </div>
@@ -633,7 +633,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">API Keys</div>
-            <div class="page-subtitle">Credentials for AI providers and services</div>
+            <div class="page-subtitle">Zugangsdaten für KI-Provider und Dienste</div>
           </div>
           <button class="action-btn" onclick="loadKeys()">↺</button>
         </div>
@@ -641,7 +641,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <!-- Google OAuth -->
           <div class="settings-group" id="googleOAuthSection" style="display:none">
             <div class="settings-label">Google — OAuth</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Connect with Google account (use Gemini subscription)</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Mit Google-Account verbinden (Gemini-Abo verwenden)</div>
             <div id="googleOAuthStatus" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
             <button class="action-btn" onclick="startGoogleOAuth()" id="googleOAuthBtn">
               <span style="margin-right:6px">G</span> Mit Google verbinden
@@ -649,7 +649,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider" id="googleOAuthDivider" style="display:none"></div>
           <div id="keysList">
-            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Loading keys…</span></div>
+            <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Lade Keys…</span></div>
           </div>
         </div>
       </div>
@@ -659,7 +659,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-hdr">
           <div class="page-hdr-left">
             <div class="page-title">System</div>
-            <div class="page-subtitle">Configuration & Statistics</div>
+            <div class="page-subtitle">Konfiguration & Statistiken</div>
           </div>
           <div class="page-hdr-actions">
             <button class="action-btn" id="settingsRefreshBtn" onclick="refreshSettings()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Aktualisieren</button>
@@ -671,8 +671,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="stat-grid">
             <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
             <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
-            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Memories</div></div>
-            <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Conversations</div></div>
+            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Erinnerungen</div></div>
+            <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Gespräche</div></div>
           </div>
 
           <!-- KI-Modell + Provider -->
@@ -680,30 +680,30 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <div class="sys-card-title"><i data-lucide="cpu" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Modell</div>
             <div class="settings-row">
               <select class="settings-select" id="settingsModel" style="flex:1;max-width:420px">
-                <option value="">Loading models…</option>
+                <option value="">Lade Modelle…</option>
               </select>
               <button class="action-btn primary" onclick="saveModelFromSettings()">Save</button>
-              <button class="action-btn" id="refreshModelsBtn" onclick="refreshProviderModels()" title="Reload models" style="display:flex;align-items:center;gap:4px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i></button>
+              <button class="action-btn" id="refreshModelsBtn" onclick="refreshProviderModels()" title="Modelle neu laden" style="display:flex;align-items:center;gap:4px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i></button>
             </div>
             <div style="font-size:11px;color:var(--text3)">
               Eigener Modellname:
-              <input type="text" id="settingsModelCustom" placeholder="e.g. ollama/llama3.2 or claude-sonnet-4-6"
+              <input type="text" id="settingsModelCustom" placeholder="z.B. ollama/llama3.2 oder claude-sonnet-4-6"
                 style="margin-top:4px;width:100%;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:12px"
                 oninput="if(this.value)document.getElementById('settingsModel').value=''">
             </div>
             <div style="margin-top:4px">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:6px">Active Providers</div>
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:6px">Aktive Provider</div>
               <div id="providerList" style="display:flex;flex-direction:column;gap:5px">
-                <span style="font-size:11px;color:var(--text3)">Loading…</span>
+                <span style="font-size:11px;color:var(--text3)">Lade…</span>
               </div>
             </div>
             <div style="margin-top:4px">
-              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:4px">Fallback Models</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Comma-separated models as fallback for API errors</div>
+              <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);font-weight:700;margin-bottom:4px">Fallback-Modelle</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Kommagetrennte Modelle als Fallback bei API-Fehler</div>
               <div class="settings-row">
                 <input type="text" id="modelFallbackInput" class="settings-select"
                   style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
-                  placeholder="e.g. gpt-4.1-mini, gemini-2.0-flash">
+                  placeholder="z.B. gpt-4.1-mini, gemini-2.0-flash">
                 <button class="action-btn primary" onclick="saveModelFallback()">Save</button>
               </div>
             </div>
@@ -712,16 +712,16 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <!-- Custom Provider -->
           <div class="sys-card">
             <div class="sys-card-title"><i data-lucide="plug" style="width:13px;height:13px;stroke-width:1.75"></i> Provider hinzufügen (OpenAI-kompatibel)</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Integrate any OpenAI-compatible API — e.g. Mistral, Together AI, Perplexity, LM Studio…</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Beliebige OpenAI-kompatible API einbinden — z.B. Mistral, Together AI, Perplexity, LM Studio…</div>
             <div id="customProviderList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
               <div style="display:flex;flex-direction:column;gap:3px">
                 <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Name</span>
-                <input type="text" id="cpName" class="key-input" placeholder="e.g. Mistral">
+                <input type="text" id="cpName" class="key-input" placeholder="z.B. Mistral">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
                 <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">API Key Env-Variable</span>
-                <input type="text" id="cpApiEnv" class="key-input" placeholder="e.g. MISTRAL_API_KEY" style="font-family:monospace" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'_')">
+                <input type="text" id="cpApiEnv" class="key-input" placeholder="z.B. MISTRAL_API_KEY" style="font-family:monospace" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'_')">
               </div>
               <div style="display:flex;flex-direction:column;gap:3px">
                 <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Base URL</span>
@@ -733,7 +733,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               </div>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-              <button class="action-btn primary" onclick="saveCustomProvider()">Add Provider</button>
+              <button class="action-btn primary" onclick="saveCustomProvider()">Provider hinzufügen</button>
               <span id="cpStatus" style="font-size:11px;color:var(--text3)"></span>
             </div>
           </div>
@@ -745,34 +745,34 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               <div class="settings-row" style="margin-bottom:6px">
                 <span style="font-size:12px;color:var(--text2);min-width:60px">Engine</span>
                 <select class="settings-select" id="ttsEngine" style="max-width:200px" onchange="saveTTSSettings()">
-                  <option value="edge">edge-tts (recommended)</option>
+                  <option value="edge">edge-tts (empfohlen)</option>
                   <option value="sapi5">sapi5 (Windows)</option>
                   <option value="pyttsx3">pyttsx3 (offline)</option>
-                  <option value="off">Disabled</option>
+                  <option value="off">Deaktiviert</option>
                 </select>
               </div>
               <div class="settings-row">
-                <span style="font-size:12px;color:var(--text2);min-width:60px">Voice</span>
-                <input type="text" class="settings-select" id="ttsVoice" placeholder="e.g. de-DE-KatjaNeural"
+                <span style="font-size:12px;color:var(--text2);min-width:60px">Stimme</span>
+                <input type="text" class="settings-select" id="ttsVoice" placeholder="z.B. de-DE-KatjaNeural"
                   style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
                   onblur="saveTTSSettings()">
               </div>
             </div>
             <div class="sys-card">
               <div class="sys-card-title"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Kosten optimieren</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Cheaper model for internal checks. Empty = automatic.</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Günstigeres Modell für interne Checks. Leer = automatisch.</div>
               <div class="settings-row" style="margin-bottom:8px">
-                <span style="font-size:12px;color:var(--text2);min-width:120px">Check Model</span>
+                <span style="font-size:12px;color:var(--text2);min-width:120px">Check-Modell</span>
                 <input type="text" id="checkModelInput" class="settings-select"
                   style="background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
-                  placeholder="empty = automatic (e.g. gpt-4.1-mini)">
+                  placeholder="leer = automatisch (z.B. gpt-4.1-mini)">
               </div>
               <div class="settings-row" style="margin-bottom:8px">
-                <span style="font-size:12px;color:var(--text2);min-width:120px">History Length</span>
+                <span style="font-size:12px;color:var(--text2);min-width:120px">History-Länge</span>
                 <input type="number" id="maxHistoryInput" class="settings-select"
                   style="max-width:120px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
                   placeholder="40" min="5" max="200">
-                <span style="font-size:11px;color:var(--text3)">Messages</span>
+                <span style="font-size:11px;color:var(--text3)">Nachrichten</span>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
                 <button class="action-btn primary" onclick="saveCostSettings()">Save</button>
@@ -785,31 +785,31 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="sys-card">
             <div class="sys-card-title"><i data-lucide="route" style="width:13px;height:13px;stroke-width:1.75"></i> Task Routing</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
-              Which model AION uses for which task. Claude subscription via Claude Code CLI — no API key needed.<br>
+              Welches Modell AION für welche Aufgabe nutzt. Claude-Abo via Claude Code CLI — kein API-Key nötig.<br>
               <span id="claudeCliStatus" style="margin-top:4px;display:inline-block"></span>
             </div>
             <div style="display:grid;grid-template-columns:80px 1fr;gap:6px 10px;align-items:center;max-width:480px">
               <span style="font-size:11px;color:var(--text2)">Coding</span>
               <select id="routingCoding" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Select model —</option>
+                <option value="">— Modell wählen —</option>
               </select>
               <span style="font-size:11px;color:var(--text2)">Review</span>
               <select id="routingReview" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Select model —</option>
+                <option value="">— Modell wählen —</option>
               </select>
               <span style="font-size:11px;color:var(--text2)">Browsing</span>
               <select id="routingBrowsing" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Select model —</option>
+                <option value="">— Modell wählen —</option>
               </select>
               <span style="font-size:11px;color:var(--text2)">Default</span>
               <select id="routingDefault" class="settings-select" style="background:var(--bg4);font-size:12px">
-                <option value="">— Select model —</option>
+                <option value="">— Modell wählen —</option>
               </select>
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="action-btn primary" onclick="saveTaskRouting()">Save</button>
-              <button class="action-btn" id="claudeLoginBtn" onclick="claudeCliLogin()">Sign in with Claude</button>
-              <button class="action-btn" onclick="_loadClaudeCliStatus()">↺ Check status</button>
+              <button class="action-btn" id="claudeLoginBtn" onclick="claudeCliLogin()">Mit Claude anmelden</button>
+              <button class="action-btn" onclick="_loadClaudeCliStatus()">↺ Status prüfen</button>
               <span id="routingSaveStatus" style="font-size:11px;color:var(--text3)"></span>
             </div>
             <div id="claudeLoginMsg" style="margin-top:8px;font-size:11px;display:none"></div>
@@ -846,11 +846,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="sys-cols">
             <div class="sys-card">
               <div class="sys-card-title"><i data-lucide="brain" style="width:13px;height:13px;stroke-width:1.75"></i> Thinking Level</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b>deep</b> = more quality, more tokens. <b>off</b> = fastest mode.</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px"><b>deep</b> = mehr Qualität, mehr Tokens. <b>off</b> = schnellster Modus.</div>
               <div class="settings-row" style="margin-bottom:8px">
                 <span style="font-size:12px;color:var(--text2);min-width:60px">Global</span>
                 <select class="settings-select" id="thinkingLevelGlobal" style="max-width:160px">
-                  <option value="off">off – no thinking</option>
+                  <option value="off">off – kein Thinking</option>
                   <option value="minimal">minimal</option>
                   <option value="standard" selected>standard</option>
                   <option value="deep">deep</option>
@@ -858,11 +858,11 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
                 </select>
                 <button class="action-btn primary" onclick="saveThinkingLevel()">Save</button>
               </div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel-Override (empty = all):</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Channel-Override (leer = alle):</div>
               <div class="settings-row" style="margin-bottom:4px">
                 <input type="text" id="thinkingOverrideChannel" class="settings-select"
                   style="max-width:130px;background:var(--bg4);font-family:monospace;font-size:12px"
-                  placeholder="e.g. telegram*">
+                  placeholder="z.B. telegram*">
                 <select class="settings-select" id="thinkingOverrideLevel" style="max-width:130px">
                   <option value="off">off</option>
                   <option value="minimal">minimal</option>
@@ -876,18 +876,18 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             </div>
             <div class="sys-card">
               <div class="sys-card-title"><i data-lucide="list-filter" style="width:13px;height:13px;stroke-width:1.75"></i> Channel Allowlist</div>
-              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Which channels AION is allowed to respond to. Empty = all allowed. Wildcards: <code>telegram*</code></div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Welche Channels AION antworten darf. Leer = alle erlaubt. Wildcards: <code>telegram*</code></div>
               <div class="settings-row" style="margin-bottom:6px">
                 <input type="text" id="allowlistNewChannel" class="settings-select"
                   style="background:var(--bg4);font-family:monospace;font-size:12px"
-                  placeholder="e.g. discord_* or web"
+                  placeholder="z.B. discord_* oder web"
                   onkeydown="if(event.key==='Enter')addAllowlistEntry()">
                 <button class="action-btn primary" onclick="addAllowlistEntry()">+</button>
               </div>
               <div id="allowlistEntries" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px"></div>
               <div style="margin-top:8px;display:flex;gap:8px">
                 <button class="action-btn" onclick="saveAllowlist()">Save</button>
-                <button class="action-btn danger" onclick="clearAllowlist()">Remove all</button>
+                <button class="action-btn danger" onclick="clearAllowlist()">Alle entfernen</button>
               </div>
             </div>
           </div><!-- /sys-cols Thinking+Allowlist -->
@@ -907,9 +907,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
     <div class="modal-body">
-      <div class="detail-label">Input (Args)</div>
+      <div class="detail-label">Eingabe (Args)</div>
       <div class="detail-box" id="modalInput"></div>
-      <div class="detail-label">Result</div>
+      <div class="detail-label">Ergebnis</div>
       <div class="detail-box" id="modalResult"></div>
     </div>
   </div>
@@ -991,14 +991,14 @@ async function loadHistory(channel) {
       msgEl.innerHTML = `<div class="welcome" id="welcome">
         <h2>AION</h2>
         <p style="font-size:10px;letter-spacing:3px;color:var(--text3);font-family:'Cascadia Code','Fira Code','Consolas',monospace;margin-top:-10px;margin-bottom:8px">THINK. ACT. EVOLVE.</p>
-        <p>Give me a task — I can search the internet, install programs, edit files, and improve my own code.</p>
+        <p>Stelle mir eine Aufgabe — ich kann im Internet suchen, Programme installieren, Dateien bearbeiten und meinen eigenen Code verbessern.</p>
         <div class="chips">
-          <div class="chip" onclick="useChip(this)">What can you do?</div>
-          <div class="chip" onclick="useChip(this)">Search for latest AI news</div>
-          <div class="chip" onclick="useChip(this)">Show me your source code</div>
-          <div class="chip" onclick="useChip(this)">Install VLC Player</div>
-          <div class="chip" onclick="useChip(this)">What system is running here?</div>
-          <div class="chip" onclick="useChip(this)">Create a new tool</div>
+          <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
+          <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
+          <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
+          <div class="chip" onclick="useChip(this)">Installiere VLC Player</div>
+          <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
+          <div class="chip" onclick="useChip(this)">Erstelle ein neues Tool</div>
         </div>
       </div>`;
       return;
@@ -1044,7 +1044,7 @@ async function switchChannel(id) {
   if (input)   input.disabled   = !isWeb;
   if (sendBtn) sendBtn.disabled = !isWeb;
   if (!isWeb) {
-    if (input) input.placeholder = 'Read-only — Replies via ' + id.split('_')[0];
+    if (input) input.placeholder = 'Nur Ansicht — Antworten über ' + id.split('_')[0];
   } else {
     if (input) input.placeholder = 'Nachricht an AION… (Enter = Senden, Shift+Enter = Zeilenumbruch)';
   }
@@ -1153,7 +1153,7 @@ function loadCurrentSection() {
 
 // ── PROMPTS ───────────────────────────────────────────────────────────────────
 function promptSwitch(name) {
-  if (_promptDirty[_promptFile] && !confirm('Discard unsaved changes?')) return;
+  if (_promptDirty[_promptFile] && !confirm('Ungespeicherte Änderungen verwerfen?')) return;
   _promptDirty[_promptFile] = false; updateDirtyDot(_promptFile, false);
   document.querySelectorAll('.prompt-item').forEach(b => b.classList.remove('active'));
   document.getElementById(`pitem-${name}`).classList.add('active');
@@ -1176,7 +1176,7 @@ async function loadPrompt(name) {
 function onPromptEdit() {
   _promptDirty[_promptFile] = true;
   document.getElementById('promptEditor').classList.add('dirty');
-  document.getElementById('promptStatus').textContent = '● Unsaved';
+  document.getElementById('promptStatus').textContent = '● Nicht gespeichert';
   document.getElementById('promptStatus').className   = 'prompt-status';
   updateDirtyDot(_promptFile, true);
 }
@@ -1185,7 +1185,7 @@ async function savePrompt() {
   const content = document.getElementById('promptEditor').value;
   const btn = document.getElementById('promptSaveBtn');
   const st  = document.getElementById('promptStatus');
-  btn.disabled = true; st.textContent = 'Saving…'; st.className = 'prompt-status';
+  btn.disabled = true; st.textContent = 'Speichern…'; st.className = 'prompt-status';
   try {
     const data = await (await fetch(`/api/prompt/${_promptFile}`, {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({content}),
@@ -1194,10 +1194,10 @@ async function savePrompt() {
       _promptDirty[_promptFile] = false;
       document.getElementById('promptEditor').classList.remove('dirty');
       updateDirtyDot(_promptFile, false);
-      st.textContent = '✓ Saved'; st.className = 'prompt-status ok';
+      st.textContent = '✓ Gespeichert'; st.className = 'prompt-status ok';
       setTimeout(() => { if (!_promptDirty[_promptFile]) { st.textContent = ''; st.className = 'prompt-status'; } }, 2500);
     } else { st.textContent = `✗ ${data.error||'Fehler'}`; st.className = 'prompt-status err'; }
-  } catch { st.textContent = '✗ Network error'; st.className = 'prompt-status err'; }
+  } catch { st.textContent = '✗ Netzwerkfehler'; st.className = 'prompt-status err'; }
   finally { btn.disabled = false; }
 }
 
@@ -1216,9 +1216,9 @@ async function loadPlugins() {
   list.innerHTML = '<div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span></div>';
   try {
     const data = await (await fetch('/api/plugins')).json();
-    document.getElementById('pluginTotalBadge').textContent = `${data.total_loaded} tools loaded`;
+    document.getElementById('pluginTotalBadge').textContent = `${data.total_loaded} Tools geladen`;
     renderPlugins(data);
-  } catch(e) { list.innerHTML = `<div class="memory-empty">✗ Error: ${esc(e.message)}</div>`; }
+  } catch(e) { list.innerHTML = `<div class="memory-empty">✗ Fehler: ${esc(e.message)}</div>`; }
 }
 
 function renderPlugins(data) {
@@ -1243,14 +1243,14 @@ function renderPlugins(data) {
           <span class="plugin-count ${cntCls}">${p.tools.length} Tools</span>
           <span class="plugin-chevron">▶</span>
         </div>
-        <div class="plugin-tools">${toolsHtml || '<span style="font-size:11px;color:var(--text3)">No tools registered</span>'}</div>
+        <div class="plugin-tools">${toolsHtml || '<span style="font-size:11px;color:var(--text3)">Keine Tools registriert</span>'}</div>
       </div>`;
   }
   if (data.orphan_tools && data.orphan_tools.length) {
     const chips = data.orphan_tools.map(t => `<span class="orphan-chip">${icon('settings-2',11)} ${esc(t.name)}</span>`).join('');
     html += `<div class="orphan-section"><div class="orphan-label">Weitere Tools (ohne Plugin-Ordner)</div><div style="display:flex;flex-wrap:wrap">${chips}</div></div>`;
   }
-  list.innerHTML = html || '<div class="memory-empty"><span style="opacity:.3">No plugins found</span></div>';
+  list.innerHTML = html || '<div class="memory-empty"><span style="opacity:.3">Keine Plugins gefunden</span></div>';
   if (window.lucide) lucide.createIcons({rootNode: list});
 }
 
@@ -1261,7 +1261,7 @@ async function reloadPlugins() {
   btn.disabled = true; btn.innerHTML = '<span class="mini-spinner"></span>';
   try {
     const data = await (await fetch('/api/plugins/reload', {method:'POST'})).json();
-    if (data.ok) { showToast(`✓ ${data.count} tools loaded`); loadPlugins(); loadSettings(); }
+    if (data.ok) { showToast(`✓ ${data.count} Tools geladen`); loadPlugins(); loadSettings(); }
     else showToast('✗ ' + (data.error || 'Fehler'));
   } catch(e) { showToast('✗ ' + e.message); }
   finally { btn.disabled = false; btn.textContent = 'Reload'; }
@@ -1293,7 +1293,7 @@ async function loadMemory(append = false) {
 
 function renderMemory(entries, hasMore = false) {
   const list = document.getElementById('memoryList');
-  if (!entries.length) { list.innerHTML = '<div class="memory-empty"><span style="opacity:.25;display:flex"><i data-lucide="database" style="width:22px;height:22px;stroke-width:1.5"></i></span><span>No entries found</span></div>'; if (window.lucide) lucide.createIcons({rootNode: list}); return; }
+  if (!entries.length) { list.innerHTML = '<div class="memory-empty"><span style="opacity:.25;display:flex"><i data-lucide="database" style="width:22px;height:22px;stroke-width:1.5"></i></span><span>Keine Einträge gefunden</span></div>'; if (window.lucide) lucide.createIcons({rootNode: list}); return; }
   const cards = entries.map(e => {
     const ts  = e.timestamp ? e.timestamp.replace('T',' ').slice(0,16) : '';
     const cls = e.success === false ? 'failure' : 'success';
@@ -1308,7 +1308,7 @@ function renderMemory(entries, hasMore = false) {
       </div>`;
   }).join('');
   const moreBtn = hasMore
-    ? `<div style="text-align:center;padding:12px"><button class="action-btn" onclick="loadMemory(true)">Load more</button></div>`
+    ? `<div style="text-align:center;padding:12px"><button class="action-btn" onclick="loadMemory(true)">Mehr laden</button></div>`
     : '';
   list.innerHTML = '<div class="memory-list">' + cards + '</div>' + moreBtn;
 }
@@ -1316,10 +1316,10 @@ function renderMemory(entries, hasMore = false) {
 function debounceMemorySearch() { clearTimeout(_memDebounce); _memDebounce = setTimeout(() => loadMemory(false), 350); }
 
 async function clearMemory() {
-  if (!confirm('Clear all memory? This cannot be undone.')) return;
+  if (!confirm('Memory komplett leeren? Das kann nicht rückgängig gemacht werden.')) return;
   try {
     const data = await (await fetch('/api/memory', {method:'DELETE'})).json();
-    if (data.ok) { showToast('✓ Memory cleared'); loadMemory(); loadSettings(); }
+    if (data.ok) { showToast('✓ Memory geleert'); loadMemory(); loadSettings(); }
     else showToast('✗ ' + (data.error || 'Fehler'));
   } catch(e) { showToast('✗ ' + e.message); }
 }
@@ -1333,20 +1333,20 @@ async function loadKeys() {
     renderKeys(d);
   } catch(e) {
     document.getElementById('keysList').innerHTML =
-      `<div class="memory-empty"><span style="color:var(--danger)">Error loading keys</span></div>`;
+      `<div class="memory-empty"><span style="color:var(--danger)">Fehler beim Laden der Keys</span></div>`;
   }
 }
 
 // URLs + Hinweise pro Provider
 const _KEY_META = {
-  GEMINI_API_KEY:      { url: 'https://aistudio.google.com/apikey', label: 'Get Key (AI Studio)', hint: 'Free with Google account' },
-  OPENAI_API_KEY:      { url: 'https://platform.openai.com/api-keys', label: 'Get Key (OpenAI)', hint: 'Account + credits required' },
-  ANTHROPIC_API_KEY:   { url: 'https://console.anthropic.com/settings/keys', label: 'Get Key (Anthropic)', hint: 'Or use Claude subscription via CLI' },
-  DEEPSEEK_API_KEY:    { url: 'https://platform.deepseek.com/api_keys', label: 'Get Key (DeepSeek)', hint: 'Cheap alternative' },
-  XAI_API_KEY:         { url: 'https://console.x.ai/', label: 'Get Key (xAI)', hint: 'Grok models' },
-  TELEGRAM_BOT_TOKEN:  { url: 'https://t.me/BotFather', label: 'Token via @BotFather', hint: 'Open Telegram → /newbot' },
-  DISCORD_BOT_TOKEN:   { url: 'https://discord.com/developers/applications', label: 'Get Token', hint: 'New App → Bot → Copy Token' },
-  SLACK_BOT_TOKEN:     { url: 'https://api.slack.com/apps', label: 'Get Token', hint: 'New App → OAuth & Permissions' },
+  GEMINI_API_KEY:      { url: 'https://aistudio.google.com/apikey', label: 'Key holen (AI Studio)', hint: 'Kostenlos mit Google-Account' },
+  OPENAI_API_KEY:      { url: 'https://platform.openai.com/api-keys', label: 'Key holen (OpenAI)', hint: 'Konto + Guthaben benötigt' },
+  ANTHROPIC_API_KEY:   { url: 'https://console.anthropic.com/settings/keys', label: 'Key holen (Anthropic)', hint: 'Oder Claude-Abo via CLI nutzen' },
+  DEEPSEEK_API_KEY:    { url: 'https://platform.deepseek.com/api_keys', label: 'Key holen (DeepSeek)', hint: 'Günstige Alternative' },
+  XAI_API_KEY:         { url: 'https://console.x.ai/', label: 'Key holen (xAI)', hint: 'Grok-Modelle' },
+  TELEGRAM_BOT_TOKEN:  { url: 'https://t.me/BotFather', label: 'Token via @BotFather', hint: 'Telegram öffnen → /newbot' },
+  DISCORD_BOT_TOKEN:   { url: 'https://discord.com/developers/applications', label: 'Token holen', hint: 'New App → Bot → Token kopieren' },
+  SLACK_BOT_TOKEN:     { url: 'https://api.slack.com/apps', label: 'Token holen', hint: 'New App → OAuth & Permissions' },
 };
 
 function renderKeys(data) {
@@ -1365,7 +1365,7 @@ function renderKeys(data) {
     <div style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
         <span class="key-name">${k.key}</span>
-        <span class="key-badge ${k.set ? 'key-set' : 'key-missing'}">${k.set ? '✓ set' : '✗ missing'}</span>
+        <span class="key-badge ${k.set ? 'key-set' : 'key-missing'}">${k.set ? '✓ gesetzt' : '✗ fehlt'}</span>
         ${k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace">${esc(k.masked)}</span>` : hint}
         ${getLink}
       </div>
@@ -1379,13 +1379,13 @@ function renderKeys(data) {
 
   // Claude CLI Block — immer anzeigen
   html += `<div class="settings-group">
-    <div class="settings-label">Claude (Subscription — no API key)</div>
+    <div class="settings-label">Claude (Abo — kein API-Key)</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
-      Use your Claude.ai subscription ($20/$200) directly — no API key needed.<br>
+      Nutze dein Claude.ai-Abo ($20/$200) direkt — kein API-Key nötig.<br>
       <span id="keysClaudeStatus" style="margin-top:3px;display:inline-block"></span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Sign in with Claude</button>
+      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Mit Claude anmelden</button>
       <button class="action-btn" onclick="checkClaudeStatusInKeys()">↺ Status</button>
     </div>
     <div id="keysClaudeMsg" style="margin-top:6px;font-size:11px;display:none"></div>
@@ -1992,7 +1992,7 @@ function appendUserMsg(text) {
   d.className='msg user';
   d.innerHTML=`<div class="msg-label">Du</div>
     <div class="msg-bubble">${esc(text)}</div>
-    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Copy</button></div>`;
+    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d); scrollChat();
 }
 
@@ -2002,7 +2002,7 @@ function appendAionBubble() {
   const id='bubble-'+Date.now()+'-'+Math.random().toString(36).slice(2);
   d.innerHTML=`<div class="msg-label">AION</div>
     <div class="msg-bubble streaming" id="${id}"></div>
-    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Copy</button></div>`;
+    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d); scrollChat();
   return document.getElementById(id);
 }
@@ -2020,9 +2020,9 @@ function appendApprovalButtons() {
   bar.className = 'approval-bar';
   bar.id = 'approvalBar';
   bar.innerHTML = `
-    <span class="approval-bar-label">Waiting for confirmation</span>
-    <button class="approval-btn confirm" onclick="sendApproval(true)">Confirm</button>
-    <button class="approval-btn cancel"  onclick="sendApproval(false)">Cancel</button>`;
+    <span class="approval-bar-label">Warte auf Bestätigung</span>
+    <button class="approval-btn confirm" onclick="sendApproval(true)">Bestätigen</button>
+    <button class="approval-btn cancel"  onclick="sendApproval(false)">Abbrechen</button>`;
   document.getElementById('messages').appendChild(bar);
   scrollChat();
 }
@@ -2047,7 +2047,7 @@ function appendHistoryAionMsg(text) {
   d.className='msg aion history';
   d.innerHTML=`<div class="msg-label">AION</div>
     <div class="msg-bubble">${renderMd(text)}</div>
-    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Copy</button></div>`;
+    <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d);
 }
 
@@ -2081,7 +2081,7 @@ function copyMsg(btn) {
     const orig = btn.textContent;
     btn.textContent = '✓ Kopiert';
     setTimeout(() => btn.textContent = orig, 1500);
-  }).catch(() => showToast('Copy failed'));
+  }).catch(() => showToast('Kopieren fehlgeschlagen'));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2138,8 +2138,8 @@ function appendInlineTool(callId, toolName, args) {
     <div class="inline-acc-body">
       <div class="iacc-section-label">Eingabe</div>
       <div class="iacc-code">${highlightJSON(argsStr)}</div>
-      <div class="iacc-section-label">Result</div>
-      <div class="iacc-code result" id="taccr-${callId}"><span style="color:var(--text3);font-style:italic">running…</span></div>
+      <div class="iacc-section-label">Ergebnis</div>
+      <div class="iacc-code result" id="taccr-${callId}"><span style="color:var(--text3);font-style:italic">läuft…</span></div>
     </div>`;
   document.getElementById('messages').appendChild(d);
   if (window.lucide) lucide.createIcons({rootNode: d});
@@ -2173,7 +2173,7 @@ function openModal(callId) {
   document.getElementById('modalTitle').innerHTML  = `${toolIcon(data.name)} ${esc(data.name)} <span style="color:${sc};font-size:16px;margin-left:5px">${sh}</span>`;
   document.getElementById('modalInput').innerHTML  = highlightJSON(fmtJson(data.args));
   document.getElementById('modalResult').innerHTML = data.status==='running'
-    ? '<span style="color:var(--text3);font-style:italic">Executing…</span>'
+    ? '<span style="color:var(--text3);font-style:italic">Wird ausgeführt…</span>'
     : highlightJSON(fmtJson(data.result));
   document.getElementById('toolModal').classList.add('show');
 }
@@ -2266,14 +2266,14 @@ async function _processFileOnServer(f) {
     } else {
       pendingTextFiles.splice(idx, 1);
       // Tell AION about the failure so it can suggest a fix
-      const hint = d.hint || d.error || 'unknown error';
+      const hint = d.hint || d.error || 'unbekannter Fehler';
       const msg  = `[Datei-Upload] Ich habe versucht "${f.name}" zu verarbeiten, bin aber gescheitert: ${hint}. Was kann ich tun?`;
       document.getElementById('input').value = msg;
       showToast(`⚠ ${f.name}: ${d.error}`, true);
     }
     renderAttachPreview();
   } catch(err) {
-    showToast(`Error processing: ${err}`, true);
+    showToast(`Fehler beim Verarbeiten: ${err}`, true);
     pendingTextFiles.splice(pendingTextFiles.indexOf(placeholder), 1);
     renderAttachPreview();
   }
@@ -2418,10 +2418,10 @@ async function resetChat() {
       <div class="welcome-icon">◈</div><h2>AION</h2>
       <p>Konversation zurückgesetzt.</p>
       <div class="chips">
-        <div class="chip" onclick="useChip(this)">What can you do?</div>
-        <div class="chip" onclick="useChip(this)">Search for latest AI news</div>
-        <div class="chip" onclick="useChip(this)">Show me your source code</div>
-        <div class="chip" onclick="useChip(this)">What system is running here?</div>
+        <div class="chip" onclick="useChip(this)">Was kannst du alles?</div>
+        <div class="chip" onclick="useChip(this)">Suche aktuelle KI-News</div>
+        <div class="chip" onclick="useChip(this)">Zeig mir deinen Quellcode</div>
+        <div class="chip" onclick="useChip(this)">Welches System läuft hier?</div>
       </div>
     </div>`;
 }
@@ -2459,7 +2459,7 @@ async function saveCostSettings() {
     const d = await r.json();
     const el = document.getElementById('costSettingsSaveStatus');
     if (d.ok) {
-      if (el) { el.textContent = '✓ Saved'; setTimeout(() => { el.textContent = ''; }, 2500); }
+      if (el) { el.textContent = '✓ Gespeichert'; setTimeout(() => { el.textContent = ''; }, 2500); }
       showToast('✓ Kosten-Einstellungen gespeichert');
     } else {
       if (el) el.textContent = '✗ Fehler';
