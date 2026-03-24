@@ -74,6 +74,7 @@ _startup_model = _get_model()
 # ── Session ───────────────────────────────────────────────────────────────────
 
 _session = AionSession(channel="web")
+_cancel_event: asyncio.Event | None = None
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
@@ -131,6 +132,14 @@ async def favicon():
     )
     return Response(content=svg, media_type="image/svg+xml")
 
+@app.get("/aion-2026.svg", include_in_schema=False)
+async def logo_svg():
+    from fastapi.responses import Response
+    p = AION_DIR / "static" / "aion-2026.svg"
+    if p.is_file():
+        return Response(content=p.read_bytes(), media_type="image/svg+xml")
+    return Response(status_code=404)
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     p = AION_DIR / "static" / "index.html"
@@ -139,11 +148,15 @@ async def index():
     return HTMLResponse("<h1>index.html nicht gefunden</h1>", status_code=404)
 
 async def _stream_chat_with_images(user_input: str, images: list | None) -> AsyncGenerator[str, None]:
+    global _cancel_event
+    _cancel_event = asyncio.Event()
     try:
-        async for event in _session.stream(user_input, images=images):
+        async for event in _session.stream(user_input, images=images, cancel_event=_cancel_event):
             yield _sse(event)
     except Exception as e:
         yield _sse({"type": "error", "text": f"[AION Fehler] {e}"})
+    finally:
+        _cancel_event = None
 
 @app.post("/api/chat")
 async def chat(request: Request):
@@ -165,6 +178,14 @@ async def chat(request: Request):
             "Access-Control-Allow-Origin": "*",
         },
     )
+
+@app.post("/api/stop")
+async def stop_generation():
+    global _cancel_event
+    if _cancel_event:
+        _cancel_event.set()
+        return JSONResponse({"ok": True, "stopped": True})
+    return JSONResponse({"ok": True, "stopped": False})
 
 @app.post("/api/reset")
 async def reset():
@@ -280,17 +301,21 @@ async def list_channels():
     if "web" not in channels:
         channels["web"] = {"id": "web", "count": 0, "last_ts": "", "last_msg": ""}
 
+    # Nur sinnvolle Kanäle anzeigen:
+    # - "web" immer
+    # - platform_CHATID (z.B. telegram_123456789, discord_...) — mit konkreter ID
+    # Generische/Legacy-Einträge wie "telegram", "discord", "default" werden ignoriert
+    _KNOWN_PREFIXES = ("telegram_", "discord_", "slack_", "alexa_")
     result = []
     for ch_id, ch_data in sorted(channels.items(), key=lambda x: x[1]["last_ts"], reverse=True):
-        label = ch_id
         if ch_id == "web":
             label = "Web"
-        elif ch_id.startswith("telegram_"):
-            label = f"Telegram · {ch_id[9:]}"
-        elif ch_id.startswith("discord_"):
-            label = f"Discord · {ch_id[8:]}"
-        elif ch_id.startswith("slack_"):
-            label = f"Slack · {ch_id[6:]}"
+        elif any(ch_id.startswith(p) for p in _KNOWN_PREFIXES):
+            suffix = ch_id.split("_", 1)[1]
+            platform = ch_id.split("_", 1)[0].capitalize()
+            label = f"{platform} · {suffix}"
+        else:
+            continue  # "default", "telegram", "discord" ohne ID überspringen
         result.append({**ch_data, "label": label})
     return JSONResponse({"channels": result})
 
@@ -659,38 +684,50 @@ async def list_providers():
     """Returns all registered LLM providers and their models.
     Wenn ein Provider eine list_models_fn registriert hat, werden die Modelle
     dynamisch von der Provider-API abgerufen (Timeout 4s, Fallback auf statische Liste)."""
-    registry  = getattr(_aion_module, "_provider_registry", [])
-    providers = []
-    for entry in registry:
-        models          = list(entry.get("models", []))
-        list_models_fn  = entry.get("list_models_fn")
-        if list_models_fn:
+    registry = getattr(_aion_module, "_provider_registry", [])
+
+    async def _fetch_provider_models(entry: dict) -> dict:
+        """Fragt Modelle eines Providers ab — parallel, mit 10s Timeout pro Provider."""
+        models = list(entry.get("models", []))
+        fn = entry.get("list_models_fn")
+        if fn:
             try:
-                dyn_models = await asyncio.wait_for(list_models_fn(), timeout=4.0)
-                if dyn_models:
-                    models = dyn_models
+                dyn = await asyncio.wait_for(fn(), timeout=10.0)
+                if dyn:
+                    models = dyn
             except Exception:
                 pass  # Fallback auf statische Liste
-        providers.append({
+        return {
             "label":  entry.get("label", entry.get("prefix", "?")),
             "prefix": entry.get("prefix", ""),
             "models": models,
-        })
+            "env_keys": entry.get("env_keys", []),
+        }
+
+    # Alle Provider-Abfragen parallel starten
+    providers = list(await asyncio.gather(
+        *[_fetch_provider_models(e) for e in registry],
+        return_exceptions=False,
+    ))
     # OpenAI — immer als Default-Fallback inkludieren
     # Modelle dynamisch abrufen falls OPENAI_API_KEY gesetzt, sonst statische Fallback-Liste
-    _openai_static = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o3", "o4-mini"]
+    _openai_static = [
+        "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
+        "gpt-4o", "gpt-4o-mini",
+        "o4-mini", "o3", "o3-mini", "o1", "o1-mini",
+        "chatgpt-4o-latest",
+    ]
     _openai_models = _openai_static
     _openai_key    = _read_env_file().get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
     if _openai_key:
         try:
             import httpx as _httpx
-            async with _httpx.AsyncClient(timeout=4.0) as _hc:
+            async with _httpx.AsyncClient(timeout=10.0) as _hc:
                 _r = await _hc.get(
                     "https://api.openai.com/v1/models",
                     headers={"Authorization": f"Bearer {_openai_key}"},
                 )
                 if _r.status_code == 200:
-                    # Nur Chat-fähige Modelle — GPT-*, o1-*, o3-*, o4-*; keine Embeddings/Whisper/DALL-E
                     _prefixes = ("gpt-", "o1-", "o1", "o3-", "o3", "o4-", "chatgpt-")
                     _ids = sorted(
                         [m["id"] for m in _r.json().get("data", [])
@@ -712,6 +749,76 @@ async def list_providers():
         "active_model":    _aion_module.MODEL,
         "total_providers": len(providers),
     })
+
+
+def _register_custom_providers():
+    """Liest custom_providers aus config.json und registriert sie im Provider-Registry."""
+    from openai import AsyncOpenAI
+    cfg = _load_config()
+    for cp in cfg.get("custom_providers", []):
+        name     = cp.get("name", "Custom")
+        base_url = cp.get("base_url", "").rstrip("/")
+        api_env  = cp.get("api_key_env", "")
+        models   = cp.get("models", [])
+        prefix   = cp.get("prefix", models[0].split("/")[0] if models else name.lower())
+        if not base_url or not models:
+            continue
+        def _make_build_fn(bu, ae):
+            def _build(model):
+                key = os.environ.get(ae, "") or "custom"
+                return AsyncOpenAI(api_key=key, base_url=bu)
+            return _build
+        _aion_module.register_provider(
+            prefix=prefix,
+            build_fn=_make_build_fn(base_url, api_env),
+            label=name,
+            models=models,
+            env_keys=[api_env] if api_env else [],
+        )
+
+# Custom Provider beim Start registrieren
+try:
+    _register_custom_providers()
+except Exception as _e:
+    print(f"[aion_web] Custom providers: {_e}")
+
+
+@app.get("/api/custom-providers")
+async def get_custom_providers():
+    cfg = _load_config()
+    return JSONResponse({"providers": cfg.get("custom_providers", [])})
+
+
+@app.post("/api/custom-providers")
+async def save_custom_provider(request: Request):
+    body      = await request.json()
+    name      = (body.get("name") or "").strip()
+    base_url  = (body.get("base_url") or "").strip().rstrip("/")
+    api_env   = (body.get("api_key_env") or "").strip().upper()
+    models_raw = (body.get("models") or "")
+    models    = [m.strip() for m in models_raw.split(",") if m.strip()]
+    prefix    = (body.get("prefix") or "").strip()
+    if not name or not base_url or not models:
+        return JSONResponse({"error": "name, base_url und models sind erforderlich"}, status_code=400)
+    if not prefix:
+        prefix = models[0].split("/")[0] if "/" in models[0] else models[0].split("-")[0]
+    cfg = _load_config()
+    custom = [p for p in cfg.get("custom_providers", []) if p.get("name") != name]
+    custom.append({"name": name, "base_url": base_url, "api_key_env": api_env,
+                   "models": models, "prefix": prefix})
+    cfg["custom_providers"] = custom
+    _save_config(cfg)
+    _register_custom_providers()
+    return JSONResponse({"ok": True, "registered": name})
+
+
+@app.delete("/api/custom-providers/{name}")
+async def delete_custom_provider(name: str):
+    cfg = _load_config()
+    cfg["custom_providers"] = [p for p in cfg.get("custom_providers", []) if p.get("name") != name]
+    _save_config(cfg)
+    _register_custom_providers()
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/config")

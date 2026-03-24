@@ -22,7 +22,10 @@ GEMINI_MODELS = [
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-thinking-exp",
     "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
 ]
 
 
@@ -334,27 +337,30 @@ def _switch_model(model: str = "", **kwargs) -> dict:
 
 
 async def _list_gemini_models_dynamic():
-    """Ruft die verfügbaren Gemini-Modelle dynamisch von der API ab.
+    """Ruft die verfügbaren Gemini-Modelle dynamisch von der REST API ab (non-blocking via httpx).
     Fallback auf GEMINI_MODELS wenn die API nicht erreichbar ist oder der Key fehlt."""
     try:
-        import google.genai as genai
+        import httpx
         api_key = os.environ.get("GEMINI_API_KEY", "")
         if not api_key:
             return GEMINI_MODELS
-        client = genai.Client(api_key=api_key)
-        models = []
-        for m in client.models.list():
-            name = m.name or ""
-            # Nur Content-Generation-Modelle (keine Embedding- oder AQA-Modelle)
-            supported = getattr(m, "supported_generation_methods", None) or []
-            if "generateContent" in supported:
-                # Name kommt als "models/gemini-2.0-flash" — Prefix entfernen
-                short = name.replace("models/", "")
-                if short:
-                    models.append(short)
-        return models if models else GEMINI_MODELS
+        async with httpx.AsyncClient(timeout=8.0) as c:
+            r = await c.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                params={"key": api_key, "pageSize": 100},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                models = []
+                for m in data.get("models", []):
+                    name = m.get("name", "").replace("models/", "")
+                    methods = m.get("supportedGenerationMethods", [])
+                    if name and "generateContent" in methods:
+                        models.append(name)
+                return sorted(models) if models else GEMINI_MODELS
     except Exception:
-        return GEMINI_MODELS
+        pass
+    return GEMINI_MODELS
 
 
 def register(api):

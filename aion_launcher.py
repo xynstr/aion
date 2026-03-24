@@ -396,11 +396,17 @@ def _main():
         mode = _choose_mode()
 
     if mode == "cli":
-        subprocess.run([python, str(AION_DIR / "aion_cli.py")])
+        try:
+            subprocess.run([python, str(AION_DIR / "aion_cli.py")])
+        except KeyboardInterrupt:
+            print("\n[AION] Beendet.", flush=True)
     else:
         print(f"[AION] Starting Web UI → http://localhost:7000", flush=True)
         _open_browser_delayed()
-        subprocess.run([python, str(AION_DIR / "aion_web.py")])
+        try:
+            subprocess.run([python, str(AION_DIR / "aion_web.py")])
+        except KeyboardInterrupt:
+            print("\n[AION] Beendet.", flush=True)
 
 
 if __name__ == "__main__":

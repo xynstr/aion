@@ -12,7 +12,35 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
-## Latest Improvements (2026-03-24 — ANSI Fix + Auto-Update System)
+## Latest Improvements (2026-03-24 — Credentials Vault)
+
+### New: Credentials Vault Plugin
+`plugins/credentials/credentials.py` — sicherer lokaler Speicher für Zugangsdaten.
+
+**Verzeichnis:** `credentials/` (vollständig gitignoriert)
+**Verschlüsselung:** Fernet (AES-128-CBC + HMAC-SHA256) — Schlüssel in `credentials/.vault.key`
+**Format:** Pro Dienst eine Markdown-Datei, z.B. `credentials/facebook.md.enc`
+
+Tools:
+- `credential_write(service, content)` — speichert Zugangsdaten verschlüsselt
+- `credential_read(service)` — liest und entschlüsselt
+- `credential_list()` — listet alle gespeicherten Dienste
+- `credential_delete(service)` — löscht einen Eintrag dauerhaft
+
+Beispiele:
+- "Speichere meine Facebook-Zugangsdaten: E-Mail: foo@bar.com, Passwort: 1234"
+  → AION ruft `credential_write("facebook", "## Facebook\n- E-Mail: foo@bar.com\n- Passwort: 1234")` auf
+- "Was sind meine OpenAI-Zugangsdaten?"
+  → AION ruft `credential_read("openai")` auf
+- "Welche Credentials habe ich gespeichert?"
+  → AION ruft `credential_list()` auf
+
+**Wichtig:** Schlüsseldatei `credentials/.vault.key` niemals teilen oder committen.
+Regelmäßiges Backup des gesamten `credentials/`-Ordners empfohlen.
+
+---
+
+## Previous: ANSI Fix + Auto-Update System
 
 ### Fix: ANSI codes in PowerShell
 The arrow-key mode selector showed raw escape codes in PowerShell on Windows 10.

@@ -58,11 +58,7 @@ async def _list_deepseek_models_dynamic():
 
 
 def register(api):
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    if not api_key:
-        print("[Plugin] deepseek_provider: no DEEPSEEK_API_KEY — provider not registered (add to .env to enable)")
-        return
-
+    # Immer registrieren — API-Key-Prüfung erfolgt zur Laufzeit via _model_available()
     if not hasattr(_aion_module, "register_provider"):
         print("[Plugin] deepseek_provider: aion.py has no register_provider — skipping")
         return

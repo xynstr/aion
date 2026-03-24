@@ -187,14 +187,24 @@ def ask_claude(
     - context_files: Liste von Filepfaden — Inhalt wird automatisch angehängt
     - task_type: "coding" / "review" / "analysis" (optional, für Logging)
     """
+    # Vorab-Check: Claude muss angemeldet sein, bevor wir den Prozess starten
     claude_bin = _find_claude()
     if not claude_bin:
         return {
             "ok": False,
             "error": (
-                "claude CLI nicht gefunden. "
-                "Bitte Claude Code installieren: https://claude.ai/download "
+                "Claude CLI nicht gefunden — Claude ist nicht konfiguriert. "
+                "Bitte Claude Code installieren (https://claude.ai/download) "
                 "und einmalig 'claude login' im Terminal ausführen."
+            ),
+        }
+    if not _claude_authenticated():
+        return {
+            "ok": False,
+            "error": (
+                "Claude ist nicht angemeldet — kein Claude-Abo verbunden und kein ANTHROPIC_API_KEY hinterlegt. "
+                "Bitte 'claude login' im Terminal ausführen oder einen API-Key unter Keys hinterlegen. "
+                "ask_claude ist nur mit aktivem Claude-Abo oder konfiguriertem API-Key nutzbar."
             ),
         }
 

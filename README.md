@@ -87,6 +87,32 @@ AION supports multiple providers simultaneously. Switch between them at any time
 
 ---
 
+## 🔐 Credentials Vault
+
+AION includes a built-in encrypted vault for storing API keys, passwords, and login data per service.
+
+```
+credentials/
+├── facebook.md.enc       ← AES-encrypted markdown per service
+├── openai.md.enc
+├── telegram.md.enc
+└── .vault.key            ← encryption key (never commit this)
+```
+
+The entire `credentials/` folder is **gitignored**. Files are encrypted with Fernet (AES-128-CBC + HMAC-SHA256).
+
+**Usage — just tell AION:**
+- *"Save my Facebook credentials: email foo@bar.com, password 1234"*
+- *"What are my OpenAI credentials?"*
+- *"Show all saved credentials"*
+- *"Delete my Telegram credentials"*
+
+AION automatically calls `credential_write`, `credential_read`, `credential_list`, or `credential_delete`.
+
+> ⚠️ Back up your `credentials/` folder and `.vault.key` regularly. Without the key, encrypted files cannot be recovered.
+
+---
+
 ## 📦 Installation
 
 ### Option A — Guided Setup (recommended)

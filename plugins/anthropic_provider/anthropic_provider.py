@@ -30,12 +30,18 @@ ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1"
 ANTHROPIC_PREFIX   = "claude"
 
 KNOWN_MODELS = [
+    # Claude 4.x (neueste Generation)
+    "claude-opus-4-5",
+    "claude-sonnet-4-5",
     "claude-opus-4-6",
     "claude-sonnet-4-6",
     "claude-haiku-4-5-20251001",
+    # Claude 3.x
+    "claude-3-7-sonnet-20250219",
     "claude-3-5-sonnet-20241022",
     "claude-3-5-haiku-20241022",
     "claude-3-opus-20240229",
+    "claude-3-haiku-20240307",
 ]
 
 
@@ -81,11 +87,7 @@ async def _list_anthropic_models_dynamic():
 
 
 def register(api):
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        print("[Plugin] anthropic_provider: no ANTHROPIC_API_KEY — provider not registered (add to .env to enable)")
-        return
-
+    # Immer registrieren — API-Key-Prüfung erfolgt zur Laufzeit via _model_available()
     if not hasattr(_aion_module, "register_provider"):
         print("[Plugin] anthropic_provider: aion.py has no register_provider — skipping")
         return

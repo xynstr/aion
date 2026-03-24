@@ -8,6 +8,7 @@
 *.pfx
 secrets/
 credentials/
+!plugins/credentials/
 
 # ── AION Runtime-Dateien (persönliche Daten, kein Git) ─────────────────────────
 aion_memory.json

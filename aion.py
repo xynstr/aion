@@ -217,6 +217,22 @@ def _get_check_model() -> str:
     return MODEL
 
 
+def _model_available(model: str) -> bool:
+    """Prüft ob der Provider für das Modell konfiguriert ist (alle API-Keys gesetzt).
+
+    Provider ohne env_keys (z.B. Ollama, lokale Modelle) gelten immer als verfügbar.
+    Unbekannte Prefixe → prüft OPENAI_API_KEY als Fallback-Provider.
+    """
+    for entry in _provider_registry:
+        if model.startswith(entry["prefix"]):
+            env_keys = entry.get("env_keys") or []
+            if not env_keys:
+                return True  # Kein Key nötig (z.B. Ollama)
+            return all(os.environ.get(k, "").strip() for k in env_keys)
+    # Unbekannter Prefix → OpenAI-Fallback
+    return bool(os.environ.get("OPENAI_API_KEY", "").strip())
+
+
 def _get_fallback_models(current_model: str) -> list[str]:
     """Returns available fallback models — only providers with set API keys.
 
@@ -1400,7 +1416,7 @@ class AionSession:
         except Exception as e:
             print(f"[AION:{self.channel}] History-Load Fehler: {e}")
 
-    async def stream(self, user_input: str, images: list | None = None):
+    async def stream(self, user_input: str, images: list | None = None, cancel_event: "asyncio.Event | None" = None):
         """Async-Generator: liefert Event-Dicts für jeden Verarbeitungsschritt.
 
         images: optionale Liste von Base64-Data-URLs (z.B. "data:image/jpeg;base64,...")
@@ -1495,11 +1511,14 @@ class AionSession:
             _check_model  = _get_check_model()
             _check_client = _build_client(_check_model) if _check_model != MODEL else _client
             for _iter in range(MAX_TOOL_ITERATIONS):
+                if cancel_event and cancel_event.is_set():
+                    yield {"type": "done", "full_response": final_text, "cancelled": True}
+                    return
 
                 # ── Model Failover ─────────────────────────────────────────
                 _tried_fb: set = set()
                 stream = None
-                for _fb_model in ([MODEL] + _fallback_list):
+                for _fb_model in (([MODEL] if _model_available(MODEL) else []) + _fallback_list):
                     if _fb_model in _tried_fb:
                         continue
                     _tried_fb.add(_fb_model)
@@ -1537,6 +1556,9 @@ class AionSession:
                 tool_calls_acc: dict[int, dict] = {}
 
                 async for chunk in stream:
+                    if cancel_event and cancel_event.is_set():
+                        yield {"type": "done", "full_response": text_content, "cancelled": True}
+                        return
                     choice = chunk.choices[0]
                     delta  = choice.delta
 

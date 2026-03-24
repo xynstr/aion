@@ -26,7 +26,10 @@ GROK_PREFIX   = "grok"
 
 KNOWN_MODELS = [
     "grok-3",
+    "grok-3-fast",
     "grok-3-mini",
+    "grok-3-mini-fast",
+    "grok-2-1212",
     "grok-2",
     "grok-beta",
 ]
@@ -62,11 +65,7 @@ async def _list_grok_models_dynamic():
 
 
 def register(api):
-    api_key = os.environ.get("XAI_API_KEY", "")
-    if not api_key:
-        print("[Plugin] grok_provider: no XAI_API_KEY — provider not registered (add to .env to enable)")
-        return
-
+    # Immer registrieren — API-Key-Prüfung erfolgt zur Laufzeit via _model_available()
     if not hasattr(_aion_module, "register_provider"):
         print("[Plugin] grok_provider: aion.py has no register_provider — skipping")
         return
