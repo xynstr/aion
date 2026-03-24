@@ -39,23 +39,30 @@ def _find_claude() -> str | None:
         return found
 
     home = os.path.expanduser("~")
-    candidates = [
-        # Windows: npm global install
-        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
-        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude"),
-        # Windows: direkte Installation
-        os.path.join(home, ".claude", "local", "claude.exe"),
-        os.path.join(home, ".claude", "local", "claude"),
-        # WinGet
-        *glob.glob(
-            os.path.join(
-                os.environ.get("LOCALAPPDATA", ""),
-                "Microsoft", "WinGet", "Packages",
-                "Anthropic.Claude*", "**", "claude.exe"
+    if sys.platform == "win32":
+        candidates = [
+            os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
+            os.path.join(os.environ.get("APPDATA", ""), "npm", "claude"),
+            os.path.join(home, ".claude", "local", "claude.exe"),
+            os.path.join(home, ".claude", "local", "claude"),
+            *glob.glob(
+                os.path.join(
+                    os.environ.get("LOCALAPPDATA", ""),
+                    "Microsoft", "WinGet", "Packages",
+                    "Anthropic.Claude*", "**", "claude.exe"
+                ),
+                recursive=True,
             ),
-            recursive=True,
-        ),
-    ]
+        ]
+    else:
+        # macOS / Linux: npm global bin + common prefix paths
+        candidates = [
+            os.path.join(home, ".npm-global", "bin", "claude"),
+            os.path.join(home, ".local", "bin", "claude"),
+            os.path.join(home, ".claude", "local", "claude"),
+            "/usr/local/bin/claude",
+            "/usr/bin/claude",
+        ]
     for c in candidates:
         if c and os.path.exists(c):
             return c

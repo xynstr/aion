@@ -55,16 +55,17 @@ _whisper_model = None
 # ── Config-Helfer ─────────────────────────────────────────────────────────────
 
 def _get_tts_config() -> tuple[str, str]:
-    """Reads tts_engine + tts_voice aus config.json. Fallback: sapi5 / de-DE-KatjaNeural."""
+    """Reads tts_engine + tts_voice aus config.json. Fallback: plattformabhängig."""
+    _default_engine = "sapi5" if sys.platform == "win32" else "edge"
     try:
         if _CONFIG_FILE.exists():
             cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
-            engine = cfg.get("tts_engine", "sapi5")
+            engine = cfg.get("tts_engine", _default_engine)
             voice  = cfg.get("tts_voice",  "de-DE-KatjaNeural")
             return engine, voice
     except Exception:
         pass
-    return "sapi5", "de-DE-KatjaNeural"
+    return _default_engine, "de-DE-KatjaNeural"
 
 
 # ── Interne Helfer ───────────────────────────────────────────────────────────
@@ -74,12 +75,13 @@ def _find_ffmpeg() -> str | None:
     found = shutil.which("ffmpeg")
     if found:
         return found
-    # WinGet-Fallback: Gyan.FFmpeg installiert in AppData\Local\Microsoft\WinGet\Packages
-    import glob, os
-    winget_base = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages")
-    matches = glob.glob(os.path.join(winget_base, "Gyan.FFmpeg*", "**", "ffmpeg.exe"), recursive=True)
-    if matches:
-        return matches[0]
+    if sys.platform == "win32":
+        # WinGet-Fallback: Gyan.FFmpeg installiert in AppData\Local\Microsoft\WinGet\Packages
+        import glob as _glob, os as _os
+        winget_base = _os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages")
+        matches = _glob.glob(_os.path.join(winget_base, "Gyan.FFmpeg*", "**", "ffmpeg.exe"), recursive=True)
+        if matches:
+            return matches[0]
     return None
 
 def _ffmpeg_ok() -> bool:
