@@ -8,12 +8,18 @@ import sys
 import json
 import re
 
-# UTF-8 on Windows
+# UTF-8 + ANSI/VT100 on Windows
 if sys.platform == "win32":
     os.system("chcp 65001 >nul 2>&1")
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleMode(
+            ctypes.windll.kernel32.GetStdHandle(-11), 0x0007)
     except Exception:
         pass
 
@@ -63,6 +69,88 @@ def ask(prompt: str, default: str = "") -> str:
 def ask_hidden(prompt: str) -> str:
     print(f"  {_c(C_DIM, '(input is visible — normal for a setup wizard)')}")
     return ask(prompt)
+
+
+def _select(items: list, default: int = 0) -> int:
+    """Interactive arrow-key selector. Returns selected index.
+    Use ↑/↓ to navigate, Enter to confirm.
+    Falls back to numbered input when stdout is not a TTY."""
+    n   = len(items)
+    idx = max(0, min(default, n - 1))
+
+    def _render(sel: int) -> None:
+        for i, item in enumerate(items):
+            if i == sel:
+                print(f"  {_c('92;1', '>')} {_c('97;1', item)}")
+            else:
+                print(f"    {_c(C_DIM, item)}")
+        sys.stdout.flush()
+
+    def _erase(count: int) -> None:
+        sys.stdout.write(f"\x1b[{count}A\x1b[J")
+        sys.stdout.flush()
+
+    if not _TTY:
+        # Non-interactive fallback
+        for i, item in enumerate(items, 1):
+            marker = _c(C_GREEN, "*") if i - 1 == default else " "
+            print(f"  {marker} {_c(C_WHITE, str(i))}  {item}")
+        print()
+        while True:
+            val = ask(f"Choice (1-{n})", str(default + 1))
+            if val.isdigit() and 1 <= int(val) <= n:
+                return int(val) - 1
+            warn(f"Enter a number between 1 and {n}.")
+
+    print(f"  {_c(C_DIM, 'Arrow keys ↑↓  ·  Enter to select')}")
+    _render(idx)
+
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            while True:
+                key = msvcrt.getch()
+                if key in (b'\r', b'\n'):
+                    break
+                if key in (b'\x00', b'\xe0'):
+                    k2 = msvcrt.getch()
+                    if k2 == b'H':        # Up
+                        idx = (idx - 1) % n
+                    elif k2 == b'P':      # Down
+                        idx = (idx + 1) % n
+                elif key == b'\x1b':
+                    raise KeyboardInterrupt
+                _erase(n)
+                _render(idx)
+        else:
+            import tty, termios
+            fd  = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                while True:
+                    ch = sys.stdin.read(1)
+                    if ch in ('\r', '\n'):
+                        break
+                    if ch == '\x1b':
+                        seq = sys.stdin.read(2)
+                        if seq == '[A':
+                            idx = (idx - 1) % n
+                        elif seq == '[B':
+                            idx = (idx + 1) % n
+                    elif ch == '\x03':
+                        raise KeyboardInterrupt
+                    _erase(n)
+                    _render(idx)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    except Exception:
+        pass  # keep last idx
+
+    _erase(n)
+    print(f"  {_c(C_GREEN, '>')} {_c('97;1', items[idx])}")
+    return idx
+
 
 def section(title: str, step: str) -> None:
     print()
@@ -191,21 +279,15 @@ def step1_provider() -> str:
     print()
 
     provider_list = list(PROVIDERS.keys())
-    for i, pid in enumerate(provider_list, 1):
+    items = []
+    for pid in provider_list:
         p = PROVIDERS[pid]
-        num   = _c(C_WHITE, str(i))
-        label = _c(C_CYAN, f"{p['label']:<26}")
-        note  = _c(C_DIM, p["note"])
-        key_note = _c(C_DIM, "(no key needed)") if not p["key_env"] else ""
-        print(f"    {num}  {label}  {note}  {key_note}")
+        key_note = "  (no key needed)" if not p["key_env"] else ""
+        items.append(f"{p['label']:<22}  {p['note']}{key_note}")
 
-    print()
-
-    while True:
-        choice = ask(f"Choice (1-{len(provider_list)})", "1")
-        if choice.isdigit() and 1 <= int(choice) <= len(provider_list):
-            return provider_list[int(choice) - 1]
-        warn(f"Please enter a number between 1 and {len(provider_list)}.")
+    idx = _select(items, default=0)
+    ok(f"Provider: {PROVIDERS[provider_list[idx]]['label']}")
+    return provider_list[idx]
 
 # ── Step 2: Primary API Key ───────────────────────────────────────────────────
 
@@ -250,37 +332,14 @@ def step3_model(provider: str) -> str:
     print(f"  {_c(C_DIM, 'Available models for')} {_c(C_CYAN, p['label'])}:")
     print()
 
-    for i, (name, desc) in enumerate(model_list, 1):
-        is_default = name == default_model
-        marker = _c(C_GREEN, " *") if is_default else "  "
-        num    = _c(C_WHITE, str(i))
-        mname  = _c(C_CYAN, f"{name:<36}")
-        mdesc  = _c(C_DIM, desc)
-        print(f"    {marker} {num}  {mname}  {mdesc}")
-
-    print()
-    print(f"  {_c(C_DIM, '* = default  |  Enter number or model name directly')}")
-    print()
-
     default_idx = next(
-        (str(i) for i, (n, _) in enumerate(model_list, 1) if n == default_model), "1"
+        (i for i, (n, _) in enumerate(model_list) if n == default_model), 0
     )
-
-    while True:
-        choice = ask(f"Model (1-{len(model_list)})", default_idx)
-        if choice.isdigit():
-            idx = int(choice)
-            if 1 <= idx <= len(model_list):
-                return model_list[idx - 1][0]
-            warn(f"Please enter a number between 1 and {len(model_list)}.")
-            continue
-        known = [n for n, _ in model_list]
-        if choice in known:
-            return choice
-        if choice:
-            warn(f"Unknown model '{choice}'. Use anyway?")
-            if ask("Confirm? (y/n)", "y").lower() != "n":
-                return choice
+    items = [f"{name:<40}  {desc}" for name, desc in model_list]
+    idx = _select(items, default=default_idx)
+    chosen = model_list[idx][0]
+    ok(f"Model: {chosen}")
+    return chosen
 
 # ── Step 4: Additional Providers ─────────────────────────────────────────────
 
@@ -402,17 +461,11 @@ def step6_profile() -> dict:
 
     print()
     print(f"  {_c(C_DIM, 'Address:')}")
-    print(f"    {_c(C_WHITE, '1')}  informal (you)")
-    print(f"    {_c(C_WHITE, '2')}  formal (Sir/Ma'am)")
-    anrede = "informal" if ask("Address (1/2)", "1") != "2" else "formal"
+    anrede = ["informal", "formal"][_select(["informal  (you)", "formal  (Sir/Ma'am)"], default=0)]
 
     print()
     print(f"  {_c(C_DIM, 'Primary language:')}")
-    print(f"    {_c(C_WHITE, '1')}  German")
-    print(f"    {_c(C_WHITE, '2')}  English")
-    print(f"    {_c(C_WHITE, '3')}  mixed")
-    lang_map = {"1": "German", "2": "English", "3": "mixed"}
-    lang = lang_map.get(ask("Language (1/2/3)", "1"), "German")
+    lang = ["German", "English", "mixed"][_select(["German", "English", "mixed"], default=0)]
 
     print()
     print(f"  {_c(C_DIM, 'Primary use (comma-separated, e.g. \"1,3\"):')}")
@@ -423,16 +476,14 @@ def step6_profile() -> dict:
     print(f"    {_c(C_WHITE, '5')}  General")
     use_map = {"1": "Coding", "2": "Research", "3": "Productivity",
                "4": "Creative writing", "5": "General"}
-    use_input = ask("Selection", "5")
+    use_input = ask("Selection (e.g. 1,3)", "5")
     uses = [use_map[p.strip()] for p in use_input.split(",") if p.strip() in use_map] or ["General"]
 
     print()
     print(f"  {_c(C_DIM, 'Response style:')}")
-    print(f"    {_c(C_WHITE, '1')}  Short & concise")
-    print(f"    {_c(C_WHITE, '2')}  Normal")
-    print(f"    {_c(C_WHITE, '3')}  Detailed")
-    style_map = {"1": "Short & concise", "2": "Normal", "3": "Detailed"}
-    style = style_map.get(ask("Style (1/2/3)", "2"), "Normal")
+    style = ["Short & concise", "Normal", "Detailed"][_select(
+        ["Short & concise", "Normal", "Detailed"], default=1
+    )]
 
     print()
     extra = ask("Anything AION should know from the start? (optional, Enter = skip)", "")
@@ -482,14 +533,11 @@ def step7_permissions() -> dict:
     section("Permissions — what AION may do autonomously", "Step 7/9:")
     print(f"  {_c(C_DIM, 'Controls what AION does without asking you first.')}")
     print()
-    print(f"    {_c(C_WHITE, '1')}  {_c(C_CYAN, 'Conservative')}  {_c(C_DIM, '— asks before anything that touches the system')}")
-    print(f"    {_c(C_WHITE, '2')}  {_c(C_CYAN, 'Balanced')}      {_c(C_DIM, '— search/read/write free, shell/install/code needs OK  (recommended)')}")
-    print(f"    {_c(C_WHITE, '3')}  {_c(C_CYAN, 'Autonomous')}    {_c(C_DIM, '— AION decides everything on its own')}")
-    print()
-
-    choice = ask("Preset (1/2/3)", "2")
-    preset_map = {"1": "conservative", "2": "balanced", "3": "autonomous"}
-    preset_name = preset_map.get(choice, "balanced")
+    preset_name = ["conservative", "balanced", "autonomous"][_select([
+        "Conservative  — asks before anything that touches the system",
+        "Balanced      — search/read/write free, shell/install needs OK  (recommended)",
+        "Autonomous    — AION decides everything on its own",
+    ], default=1)]
     perms = dict(_PERM_PRESETS[preset_name])
     ok(f"Preset '{preset_name}' selected.")
     print()
@@ -571,14 +619,12 @@ def step8_advanced() -> dict:
 
     # Browser mode
     print(f"  {_c(C_CYAN, 'Browser automation (Playwright)')}")
-    print(f"  {_c(C_DIM, 'When AION controls a browser, should it run in the background (headless)')}")
-    print(f"  {_c(C_DIM, 'or show a visible browser window?')}")
+    print(f"  {_c(C_DIM, 'Headless = background, Visible = shows browser window')}")
     print()
-    print(f"    {_c(C_WHITE, '1')}  Headless  {_c(C_DIM, '— runs in background, no window  (recommended)')}")
-    print(f"    {_c(C_WHITE, '2')}  Visible   {_c(C_DIM, '— shows browser window (useful for debugging)')}")
-    print()
-    bmode = ask("Browser mode (1/2)", "1")
-    result["browser_headless"] = (bmode != "2")
+    result["browser_headless"] = (_select([
+        "Headless  — runs in background, no window  (recommended)",
+        "Visible   — shows browser window (useful for debugging)",
+    ], default=0) == 0)
     ok(f"Browser: {'headless' if result['browser_headless'] else 'visible'}.")
     print()
 
@@ -704,14 +750,13 @@ def step8_advanced() -> dict:
     print(f"  {_c(C_CYAN, 'Voice output (TTS)')}")
     print(f"  {_c(C_DIM, 'AION can read responses aloud.')}")
     print()
-    print(f"    {_c(C_WHITE, '1')}  off        {_c(C_DIM, '— no voice  (default, recommended for most setups)')}")
-    print(f"    {_c(C_WHITE, '2')}  edge-tts   {_c(C_DIM, '— Microsoft neural TTS via internet  (best quality)')}")
-    print(f"    {_c(C_WHITE, '3')}  sapi5      {_c(C_DIM, '— Windows built-in TTS  (offline, no install)')}")
-    print(f"    {_c(C_WHITE, '4')}  pyttsx3    {_c(C_DIM, '— cross-platform offline TTS')}")
-    print()
-    tts_map = {"1": "off", "2": "edge", "3": "sapi5", "4": "pyttsx3"}
-    tts_choice = ask("TTS engine (1-4)", "1")
-    result["tts_engine"] = tts_map.get(tts_choice, "off")
+    tts_idx = _select([
+        "off       — no voice  (default, recommended for most setups)",
+        "edge-tts  — Microsoft neural TTS via internet  (best quality)",
+        "sapi5     — Windows built-in TTS  (offline, no install)",
+        "pyttsx3   — cross-platform offline TTS",
+    ], default=0)
+    result["tts_engine"] = ["off", "edge", "sapi5", "pyttsx3"][tts_idx]
     if result["tts_engine"] != "off":
         ok(f"TTS: {result['tts_engine']}")
         voice_default = "de-DE-KatjaNeural" if result["tts_engine"] == "edge" else ""
@@ -730,16 +775,14 @@ def step8_advanced() -> dict:
     # Thinking Level
     print(f"  {_c(C_CYAN, 'Thinking depth')}")
     print(f"  {_c(C_DIM, 'How much internal reasoning AION does before answering.')}")
-    print(f"  {_c(C_DIM, 'More thinking = better quality, but slower and higher cost.')}")
     print()
-    print(f"    {_c(C_WHITE, '1')}  standard   {_c(C_DIM, '— balanced quality/speed  (recommended)')}")
-    print(f"    {_c(C_WHITE, '2')}  deep       {_c(C_DIM, '— thorough reasoning for complex tasks')}")
-    print(f"    {_c(C_WHITE, '3')}  minimal    {_c(C_DIM, '— light thinking  (faster)')}")
-    print(f"    {_c(C_WHITE, '4')}  off        {_c(C_DIM, '— no thinking  (fastest, cheapest)')}")
-    print()
-    thinking_map = {"1": "standard", "2": "deep", "3": "minimal", "4": "off"}
-    thinking_choice = ask("Thinking level (1-4)", "1")
-    result["thinking_level"] = thinking_map.get(thinking_choice, "standard")
+    thinking_idx = _select([
+        "standard  — balanced quality/speed  (recommended)",
+        "deep      — thorough reasoning for complex tasks",
+        "minimal   — light thinking  (faster)",
+        "off       — no thinking  (fastest, cheapest)",
+    ], default=0)
+    result["thinking_level"] = ["standard", "deep", "minimal", "off"][thinking_idx]
     ok(f"Thinking level: {result['thinking_level']}")
     print()
 
