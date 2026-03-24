@@ -27,11 +27,13 @@ def _ensure_dependencies():
     except ImportError:
         req = AION_DIR / "requirements.txt"
         if req.is_file():
-            print("[AION] Installing dependencies…")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-r", str(req), "-q"],
+            print("[AION] Installing dependencies…", flush=True)
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(req)],
                 check=False,
             )
+            if result.returncode != 0:
+                print("[AION] Warning: some packages failed to install (see above).", flush=True)
 
 
 def _run_onboarding():
@@ -39,16 +41,18 @@ def _run_onboarding():
     if not onboarding.is_file():
         print("[AION] onboarding.py not found — skipping", flush=True)
         return
+
+    # Run in-process so output always appears in the same console window.
+    # Using subprocess risks pythonw.exe creating a windowless process that
+    # closes immediately before the user can read anything.
+    if str(AION_DIR) not in sys.path:
+        sys.path.insert(0, str(AION_DIR))
     sys.stdout.flush()
-    result = subprocess.run(
-        [sys.executable, "-u", str(onboarding)],
-        stdin=sys.stdin,
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-    )
-    if result.returncode != 0:
-        print("\n[AION] Setup cancelled.", flush=True)
-        sys.exit(1)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("onboarding", str(onboarding))
+    mod  = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.run_onboarding()
 
 
 def _open_browser_delayed(url: str = "http://localhost:7000", delay: float = 2.0):
@@ -135,7 +139,37 @@ def _run_config_cmd(args: list) -> None:
         print("Usage: aion config [list | get <key> | set <key> <value> | unset <key>]")
 
 
+def _pause_on_error():
+    """On Windows, pause so the user can read the error before the window closes."""
+    if sys.platform == "win32":
+        try:
+            input("\nPress Enter to close...")
+        except Exception:
+            pass
+
+
 def main():
+    try:
+        _main()
+    except SystemExit:
+        raise
+    except Exception as e:
+        import traceback
+        msg = traceback.format_exc()
+        # Write to log file so it's always readable
+        try:
+            log = AION_DIR / "aion_error.log"
+            log.write_text(msg, encoding="utf-8")
+            print(f"\n[AION] Fatal error — details saved to: {log}", flush=True)
+        except Exception:
+            pass
+        print(f"\n[AION] Fatal error: {e}", flush=True)
+        print(msg, flush=True)
+        _pause_on_error()
+        sys.exit(1)
+
+
+def _main():
     args = sys.argv[1:]
 
     if "--help" in args or "-h" in args:
@@ -177,10 +211,14 @@ def main():
         print("\n[AION] First run — starting setup…\n")
         _run_onboarding()
 
-    # Launch
+    # Launch — force python.exe (not pythonw.exe) so the console stays open
+    python = sys.executable
+    if sys.platform == "win32":
+        python = python.replace("pythonw.exe", "python.exe")
+
     if "--cli" in args or "-c" in args:
-        subprocess.run([sys.executable, str(AION_DIR / "aion_cli.py")])
+        subprocess.run([python, str(AION_DIR / "aion_cli.py")])
     else:
         print(f"[AION] Starting Web UI → http://localhost:7000")
         _open_browser_delayed()
-        subprocess.run([sys.executable, str(AION_DIR / "aion_web.py")])
+        subprocess.run([python, str(AION_DIR / "aion_web.py")])

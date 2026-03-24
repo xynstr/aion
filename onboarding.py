@@ -1096,11 +1096,24 @@ def run_onboarding() -> None:
     except KeyboardInterrupt:
         print()
         warn("Onboarding cancelled (Ctrl+C).")
-        sys.exit(1)
+        _pause_exit(1)
     except Exception as e:
+        import traceback
         print()
         err(f"Unexpected error: {e}")
-        sys.exit(1)
+        print()
+        print(traceback.format_exc())
+        _pause_exit(1)
+
+
+def _pause_exit(code: int) -> None:
+    """Pause before exit on Windows so the user can read the error."""
+    if sys.platform == "win32":
+        try:
+            input("\nPress Enter to close...")
+        except Exception:
+            pass
+    sys.exit(code)
 
 
 if __name__ == "__main__":

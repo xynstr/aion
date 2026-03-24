@@ -27,6 +27,11 @@ try:
     from rich import box as rbox
 except ImportError:
     print("rich not installed — run: pip install rich")
+    if sys.platform == "win32":
+        try:
+            input("Press Enter to close...")
+        except Exception:
+            pass
     sys.exit(1)
 
 console = Console(highlight=False)

@@ -21,7 +21,8 @@ python-dotenv>=1.0.0
 edge-tts>=6.1.0
 
 # Speech-to-Text (optional — audio_transcriber + audio_pipeline plugins)
-faster-whisper>=1.0.0      # Offline STT, multilingual, replaces Vosk
+# faster-whisper>=1.0.0    # Offline STT — requires C++ runtime on Windows, install manually if needed:
+#                          #   pip install faster-whisper
 
 # File processing (Web UI uploads)
 pypdf>=4.0.0
