@@ -74,9 +74,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); transition: all 0.3s; flex-shrink: 0; }
 .status-dot.thinking { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); animation: dotPulse 1s ease-in-out infinite; }
 @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
-.model-selector { display: flex; align-items: center; gap: 6px; }
-.model-select { background: var(--bg4); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; outline: none; }
-.model-select:focus { border-color: var(--text2); }
 .hbtn { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all .15s; white-space: nowrap; }
 .hbtn:hover { border-color: var(--text); color: var(--text); }
 .hbtn.danger:hover { border-color: var(--red); color: var(--red); }
@@ -465,12 +462,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     <div class="header-left">
       <img src="aion-2026-small.svg" alt="AION" class="logo-icon" title="AION">
       <div class="status-dot" id="statusDot"></div>
-      <div class="model-selector">
-        <select class="model-select" id="modelSelect">
-          <option value="">Loading…</option>
-        </select>
-        <button class="hbtn" onclick="saveModel()">Save</button>
-      </div>
     </div>
     <button class="hbtn danger" onclick="resetChat()">↺ Reset</button>
   </div>
@@ -1079,12 +1070,9 @@ async function init() {
   try {
     const s = await (await fetch('/api/status')).json();
     syncModelSelects(s.model, document.getElementById('modelSelect'));
-    // Also build header dropdown dynamically from providers
-    const pv = await (await fetch('/api/providers')).json();
-    _buildHeaderModelDropdown(pv, s.model);
   } catch {}
-  await loadHistory();
-  await loadChannels();
+  // Load history and channels in parallel instead of sequentially
+  await Promise.all([loadHistory(), loadChannels()]);
   if (window.lucide) lucide.createIcons();
   // Scroll-to-bottom Button: einblenden wenn nicht ganz unten
   (function() {
@@ -1101,24 +1089,6 @@ async function init() {
   setInterval(checkUpdateBanner, 6 * 60 * 60 * 1000);
 }
 init();
-
-function _buildHeaderModelDropdown(pv, activeModel) {
-  const sel = document.getElementById('modelSelect');
-  if (!sel) return;
-  sel.innerHTML = '';
-  for (const p of (pv.providers || [])) {
-    if (!p.models?.length) continue;
-    const grp = document.createElement('optgroup');
-    grp.label = `── ${p.label} ──`;
-    for (const m of p.models) {
-      const opt = document.createElement('option');
-      opt.value = m; opt.textContent = m;
-      grp.appendChild(opt);
-    }
-    sel.appendChild(grp);
-  }
-  if (activeModel) syncModelSelects(activeModel, sel);
-}
 
 function syncModelSelects(model, ...selects) {
   selects.forEach(sel => {
