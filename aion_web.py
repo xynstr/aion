@@ -395,19 +395,23 @@ async def list_plugins():
             try:
                 source     = plugin_file.read_text(encoding="utf-8", errors="replace")
                 tool_names = re.findall(r'register_tool\s*\(\s*name\s*=\s*["\']([^"\']+)["\']', source)
+                has_register = "def register(" in source
             except Exception:
                 tool_names = []
+                has_register = False
             tools_info = []
             for tname in tool_names:
                 entry = {"name": tname, "loaded": tname in all_tools}
                 if tname in all_tools:
                     entry["description"] = all_tools[tname]["description"]
                 tools_info.append(entry)
+            # Plugin is loaded if it has tools OR has a register() function (service plugin)
+            is_loaded = (any(t["loaded"] for t in tools_info) if tools_info else False) or has_register
             plugins.append({
                 "name":   plugin_dir.name,
                 "file":   str(plugin_file),
                 "tools":  tools_info,
-                "loaded": any(t["loaded"] for t in tools_info) if tools_info else False,
+                "loaded": is_loaded,
             })
     # Tools ohne zugeordnetes Plugin (z.B. via create_plugin flach registriert)
     assigned = {t["name"] for p in plugins for t in p["tools"]}
