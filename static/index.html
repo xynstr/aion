@@ -820,6 +820,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
               <select id="routingDefault" class="settings-select" style="background:var(--bg4);font-size:12px">
                 <option value="">— Select model —</option>
               </select>
+              <span style="font-size:11px;color:var(--text2)">Check</span>
+              <select id="routingCheck" class="settings-select" style="background:var(--bg4);font-size:12px">
+                <option value="">— auto (cheapest) —</option>
+              </select>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:6px;max-width:480px;line-height:1.5">
+              <i data-lucide="info" style="width:11px;height:11px;stroke-width:1.75;vertical-align:middle"></i>
+              <b>Check model</b>: After each task, AION asks this model YES/NO whether the task is done. A fast, cheap model (e.g. Haiku, Flash, Mini) is ideal — no reasoning needed.
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="action-btn primary" onclick="saveTaskRouting()">Save</button>
@@ -1762,7 +1770,7 @@ async function loadSettings() {
       const pv = await (await fetch('/api/providers')).json();
       _renderProviders(pv);
       _buildModelDropdown(pv);
-      _buildRoutingDropdowns(pv, cfg.task_routing || {});
+      _buildRoutingDropdowns(pv, cfg.task_routing || {}, cfg.check_model || '');
     } catch {}
     loadCustomProviders();
   } catch {}
@@ -1813,7 +1821,7 @@ function _buildModelDropdown(pv) {
   syncModelSelects(active, document.getElementById('modelSelect'));
 }
 
-function _buildRoutingDropdowns(pv, routing) {
+function _buildRoutingDropdowns(pv, routing, checkModel) {
   const fields = {
     routingCoding:   {key: 'coding',   placeholder: 'claude-opus-4-6'},
     routingReview:   {key: 'review',   placeholder: 'claude-sonnet-4-6'},
@@ -1842,6 +1850,28 @@ function _buildRoutingDropdowns(pv, routing) {
       const opt = document.createElement('option');
       opt.value = cur; opt.textContent = cur; opt.selected = true;
       sel.appendChild(opt);
+    }
+  }
+  // Check model dropdown
+  const chkSel = document.getElementById('routingCheck');
+  if (chkSel) {
+    const cur = checkModel || '';
+    chkSel.innerHTML = '<option value="">— auto (cheapest) —</option>';
+    for (const p of groups) {
+      const grp = document.createElement('optgroup');
+      grp.label = p.label;
+      for (const m of p.models) {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        if (m === cur) opt.selected = true;
+        grp.appendChild(opt);
+      }
+      chkSel.appendChild(grp);
+    }
+    if (cur && !Array.from(chkSel.options).some(o => o.value === cur)) {
+      const opt = document.createElement('option');
+      opt.value = cur; opt.textContent = cur; opt.selected = true;
+      chkSel.appendChild(opt);
     }
   }
 }
@@ -1912,7 +1942,7 @@ async function refreshProviderModels() {
     _buildModelDropdown(pv);
     // Routing-Dropdowns mit aktuellen gespeicherten Werten neu befüllen
     const cfg = await (await fetch('/api/config')).json();
-    _buildRoutingDropdowns(pv, (cfg.config || {}).task_routing || {});
+    _buildRoutingDropdowns(pv, (cfg.config || {}).task_routing || {}, (cfg.config || {}).check_model || '');
     showToast('✓ Modelle aktualisiert');
   } catch(e) { showToast('✗ ' + e.message); }
   finally { if (btn) btn.disabled = false; }
@@ -2497,19 +2527,20 @@ async function saveTaskRouting() {
     const v = (document.getElementById(id)?.value || '').trim();
     if (v) routing[key] = v;
   }
+  const checkModel = (document.getElementById('routingCheck')?.value || '').trim();
   try {
     const r = await fetch('/api/config/settings', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ task_routing: routing }),
+      body: JSON.stringify({ task_routing: routing, check_model: checkModel }),
     });
     const d = await r.json();
     const el = document.getElementById('routingSaveStatus');
     if (d.ok) {
-      showToast('✓ Task Routing gespeichert');
-      if (el) { el.textContent = '✓ gespeichert'; setTimeout(() => { if(el) el.textContent = ''; }, 3000); }
+      showToast('✓ Task Routing saved');
+      if (el) { el.textContent = '✓ saved'; setTimeout(() => { if(el) el.textContent = ''; }, 3000); }
     } else {
-      showToast('✗ ' + (d.error || 'Fehler'));
-      if (el) el.textContent = '✗ ' + (d.error || 'Fehler');
+      showToast('✗ ' + (d.error || 'Error'));
+      if (el) el.textContent = '✗ ' + (d.error || 'Error');
     }
   } catch(e) { showToast('✗ ' + e.message); }
 }
