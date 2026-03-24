@@ -65,6 +65,9 @@ def _set_model(model: str):
     else:
         from openai import AsyncOpenAI
         _aion_module.client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    # System-Prompt-Cache invalidieren: Modell-Name ist Teil des Cache-Keys
+    if hasattr(_aion_module, "invalidate_sys_prompt_cache"):
+        _aion_module.invalidate_sys_prompt_cache()
 
 _startup_model = _get_model()
 
@@ -309,6 +312,9 @@ async def reload_plugins():
         from plugin_loader import load_plugins
         load_plugins(_aion_module._plugin_tools)
         _include_plugin_routers()   # neu registrierte Router sofort einbinden
+        # System-Prompt-Cache invalidieren: Plugin-Anzahl ist Teil des Cache-Keys
+        if hasattr(_aion_module, "invalidate_sys_prompt_cache"):
+            _aion_module.invalidate_sys_prompt_cache()
         tools = [n for n in _aion_module._plugin_tools if not n.startswith("__")]
         return JSONResponse({"ok": True, "tools": tools, "count": len(tools)})
     except Exception as e:
@@ -692,6 +698,7 @@ async def save_settings(request: Request):
     allowed = {
         "tts_engine", "tts_voice", "model_fallback", "browser_headless", "task_routing",
         "thinking_level", "thinking_overrides", "channel_allowlist",
+        "check_model", "max_history_turns",
     }
     for k, v in body.items():
         if k in allowed:

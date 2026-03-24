@@ -60,6 +60,9 @@ TOOLS_DIR    = PLUGINS_DIR
 CHARACTER_FILE = BOT_DIR / "character.md"
 MAX_MEMORY          = 300
 MAX_TOOL_ITERATIONS = 50
+MAX_HISTORY_TURNS   = 40   # Maximale Anzahl Nachrichten in der Conversation History pro Turn
+                            # (user + assistant + tool-Messages zusammen). Älteste werden zuerst
+                            # entfernt. Kann in config.json als "max_history_turns" überschrieben werden.
 CHUNK_SIZE          = 100000
 LOG_FILE            = BOT_DIR / "aion_events.log"
 LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
@@ -179,6 +182,39 @@ def _build_client(model: str):
                 print(f"[AION] Provider '{entry['label']}' failed for '{model}': {e}")
     # Default: OpenAI
     return AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+
+
+# Mapping: Modell-Prefix → günstigstes Modell desselben Providers für interne Checks
+# (Completion-Check, Task-Check — brauchen nur YES/NO, kein teures Modell nötig)
+_CHEAP_CHECK_MODELS: dict[str, str] = {
+    "gemini":    "gemini-2.0-flash-lite",   # Günstigstes Gemini
+    "gpt-":      "gpt-4.1-mini",            # Günstigstes GPT
+    "chatgpt-":  "gpt-4.1-mini",
+    "o1":        "gpt-4.1-mini",            # o-Modelle → mini-Fallback
+    "o3":        "gpt-4.1-mini",
+    "o4":        "gpt-4.1-mini",
+    "claude":    "claude-haiku-4-5-20251001",  # Günstigstes Claude
+    "deepseek":  "deepseek-chat",           # Günstigstes DeepSeek
+    "grok":      "grok-3-mini",             # Günstigstes Grok
+    # Ollama/lokale Modelle → gleiches Modell (kostenlos, kein Unterschied)
+}
+
+
+def _get_check_model() -> str:
+    """Gibt das günstigste geeignete Modell für interne YES/NO-Checks zurück.
+
+    Priorität:
+    1. config.json → "check_model" (explizite Überschreibung durch User)
+    2. Per-Provider-Günstig-Mapping (_CHEAP_CHECK_MODELS)
+    3. Aktuelles MODEL als Fallback
+    """
+    cfg_model = _load_config().get("check_model", "").strip()
+    if cfg_model:
+        return cfg_model
+    for prefix, cheap in _CHEAP_CHECK_MODELS.items():
+        if MODEL.startswith(prefix):
+            return cheap
+    return MODEL
 
 
 def _get_fallback_models(current_model: str) -> list[str]:
@@ -458,7 +494,23 @@ def _load_changelog_snippet() -> str:
     return ""
 
 
+# System-Prompt-Cache: {cache_key → prompt_string}
+# cache_key = (channel, MODEL, plugin_count) — invalidiert bei Modell-Wechsel oder Plugin-Reload
+_sys_prompt_cache: dict[tuple, str] = {}
+
+
+def invalidate_sys_prompt_cache() -> None:
+    """Leert den System-Prompt-Cache. Aufzurufen nach Plugin-Reload oder Modell-Wechsel."""
+    _sys_prompt_cache.clear()
+
+
 def _build_system_prompt(channel: str = "") -> str:
+    # Cache-Key: (channel, aktives Modell, Anzahl geladener Plugin-Tools)
+    # Bei Änderungen (Modell-Wechsel, Plugin-Reload) wird der Cache automatisch ungültig.
+    _cache_key = (channel, MODEL, len(_plugin_tools))
+    if _cache_key in _sys_prompt_cache:
+        return _sys_prompt_cache[_cache_key]
+
     character = _load_character()
 
     # Dynamic plugin block from README first lines (filled by plugin_loader)
@@ -495,10 +547,12 @@ def _build_system_prompt(channel: str = "") -> str:
         rules = rules.replace("{BOT_SELF}",      str(BOT_DIR / "AION_SELF.md"))
         perms_block = "\n\n" + _permissions_prompt(_load_permissions())
         thinking_block = _get_thinking_prompt(channel)
-        return rules + plugin_block + changelog_block + perms_block + thinking_block
+        _result = rules + plugin_block + changelog_block + perms_block + thinking_block
+        _sys_prompt_cache[_cache_key] = _result
+        return _result
 
     # Fallback: hardcodierter Prompt (wird genutzt wenn prompts/rules.md fehlt)
-    return f"""You are AION (Autonomous Intelligent Operations Node) — an autonomous, \
+    _result = f"""You are AION (Autonomous Intelligent Operations Node) — an autonomous, \
 selbst-lernender KI-Assistent.
 
 === DEIN CHARAKTER ===
@@ -508,6 +562,8 @@ selbst-lernender KI-Assistent.
 Always respond in the same language the user writes in. Mirror the user's language automatically.
 If the user writes German → respond in German. English → English. Never switch unless the user does first.
 {plugin_block}{changelog_block}"""
+    _sys_prompt_cache[_cache_key] = _result
+    return _result
 
 # ── Memory System ─────────────────────────────────────────────────────────
 
@@ -1381,7 +1437,21 @@ class AionSession:
             user_msg = {"role": "user", "content": user_content}
         else:
             user_msg = {"role": "user", "content": user_input}
-        messages          = self.messages + [user_msg]
+        # History-Truncation: älteste Nachrichten kürzen um Token-Kosten zu begrenzen.
+        # Limit aus config.json ("max_history_turns") oder Konstante MAX_HISTORY_TURNS.
+        # Wichtig: Tool-Messages immer zusammen mit ihrem assistant-Tool-Call-Message
+        # behalten — sonst API-Fehler "dangling tool_call". Daher runden wir auf Paare.
+        _max_hist = int(_load_config().get("max_history_turns", MAX_HISTORY_TURNS))
+        _hist = self.messages
+        if len(_hist) > _max_hist:
+            # Vom Ende behalten: neueste _max_hist Nachrichten
+            # Ersten user-Message als Ankerpunkt suchen damit kein orphan tool-result bleibt
+            _trimmed = _hist[-_max_hist:]
+            # Falls erste Message eine tool-result-Message ist → eine weiter kürzen
+            while _trimmed and _trimmed[0].get("role") == "tool":
+                _trimmed = _trimmed[1:]
+            _hist = _trimmed
+        messages          = _hist + [user_msg]
         final_text        = ""
         collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
         collected_audio:  list[dict] = []  # {path, format} aus audio_tts
@@ -1417,8 +1487,14 @@ class AionSession:
             _tools_called_this_turn: list[str] = []   # Alle Tools die in diesem Turn aufgerufen wurden
             _task_check_done = False  # Task-Check läuft max. einmal pro Turn
             _fallback_list = _get_fallback_models(MODEL)
+            # Tool-Schemas einmalig pro Turn bauen — NICHT in jeder Iteration!
+            # Spart 10K-25K Input-Tokens × (Anzahl Iterationen - 1) pro Turn.
+            tools = _build_tool_schemas()
+            # Günstigstes Modell für interne Checks (Completion-Check, Task-Check).
+            # Spart bis zu 30× Kosten pro Check (z.B. gpt-4.1-mini statt gpt-4.1).
+            _check_model  = _get_check_model()
+            _check_client = _build_client(_check_model) if _check_model != MODEL else _client
             for _iter in range(MAX_TOOL_ITERATIONS):
-                tools  = _build_tool_schemas()
 
                 # ── Model Failover ─────────────────────────────────────────
                 _tried_fb: set = set()
@@ -1689,8 +1765,9 @@ class AionSession:
                             user_text = user_input if isinstance(user_input, str) else str(user_input)[:300]
 
                             # Option A — sprachunabhängiger LLM-Check (max 5 Tokens, sehr günstig)
-                            check_raw = await _client.chat.completions.create(
-                                model=MODEL,
+                            # Nutzt _check_client/_check_model (günstigstes Modell desselben Providers)
+                            check_raw = await _check_client.chat.completions.create(
+                                model=_check_model,
                                 messages=[
                                     {"role": "system", "content": (
                                         "You are a strict checker. Answer only YES or NO.\n"
@@ -1780,8 +1857,8 @@ class AionSession:
                                     try:
                                         user_text_short = user_input if isinstance(user_input, str) else str(user_input)
                                         tools_summary = ", ".join(_tools_called_this_turn[-10:])
-                                        task_check_raw = await _client.chat.completions.create(
-                                            model=MODEL,
+                                        task_check_raw = await _check_client.chat.completions.create(
+                                            model=_check_model,
                                             messages=[
                                                 {"role": "system", "content": (
                                                     "You are a strict task-completion checker. Answer only YES or NO.\n"

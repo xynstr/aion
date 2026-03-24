@@ -677,6 +677,30 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <div class="settings-divider"></div>
           <div class="settings-group">
+            <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="zap" style="width:13px;height:13px;stroke-width:1.75"></i> KI-Kosten optimieren</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+              Günstigeres Modell für interne Checks (Completion-Check, Task-Check). Leer lassen = automatisch das billigste passende Modell.
+            </div>
+            <div class="settings-row" style="margin-bottom:8px">
+              <span style="font-size:12px;color:var(--text2);min-width:120px">Check-Modell</span>
+              <input type="text" id="checkModelInput" class="settings-select"
+                style="max-width:340px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;font-family:monospace;outline:none"
+                placeholder="leer = automatisch (z.B. gpt-4.1-mini)">
+            </div>
+            <div class="settings-row" style="margin-bottom:8px">
+              <span style="font-size:12px;color:var(--text2);min-width:120px">History-Länge</span>
+              <input type="number" id="maxHistoryInput" class="settings-select"
+                style="max-width:120px;background:var(--bg4);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;outline:none"
+                placeholder="40" min="5" max="200">
+              <span style="font-size:11px;color:var(--text3)">Nachrichten (älter = abgeschnitten)</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="action-btn primary" onclick="saveCostSettings()">Speichern</button>
+              <span id="costSettingsSaveStatus" style="font-size:11px;color:var(--text3)"></span>
+            </div>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="settings-group">
             <div class="settings-label" style="display:flex;align-items:center;gap:6px"><i data-lucide="route" style="width:13px;height:13px;stroke-width:1.75"></i> Task Routing</div>
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
               Welches Modell AION für welche Aufgabe nutzt. Claude-Abo via Claude Code CLI — kein API-Key nötig.<br>
@@ -1445,6 +1469,13 @@ async function loadSettings() {
       const inp = document.getElementById('modelFallbackInput');
       if (inp) inp.value = cfg.model_fallback.join(', ');
     }
+    // Cost optimization settings
+    {
+      const cmInp = document.getElementById('checkModelInput');
+      if (cmInp) cmInp.value = cfg.check_model || '';
+      const mhInp = document.getElementById('maxHistoryInput');
+      if (mhInp) mhInp.value = cfg.max_history_turns != null ? cfg.max_history_turns : '';
+    }
     // Task routing
     const routing = cfg.task_routing || {};
     const fields = {routingCoding:'coding', routingReview:'review', routingBrowsing:'browsing', routingDefault:'default'};
@@ -2025,6 +2056,30 @@ async function saveTTSSettings() {
     const d = await r.json();
     if (d.ok) showToast('✓ TTS gespeichert');
     else showToast('✗ ' + (d.error || 'Fehler'));
+  } catch(e) { showToast('✗ ' + e.message); }
+}
+
+// ── KI-KOSTEN OPTIMIEREN ───────────────────────────────────────────────────────
+async function saveCostSettings() {
+  const checkModel   = (document.getElementById('checkModelInput')?.value || '').trim();
+  const maxHistory   = parseInt(document.getElementById('maxHistoryInput')?.value || '', 10);
+  const payload = {};
+  payload.check_model       = checkModel;
+  if (!isNaN(maxHistory) && maxHistory >= 5) payload.max_history_turns = maxHistory;
+  try {
+    const r = await fetch('/api/config/settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    const el = document.getElementById('costSettingsSaveStatus');
+    if (d.ok) {
+      if (el) { el.textContent = '✓ Gespeichert'; setTimeout(() => { el.textContent = ''; }, 2500); }
+      showToast('✓ Kosten-Einstellungen gespeichert');
+    } else {
+      if (el) el.textContent = '✗ Fehler';
+      showToast('✗ ' + (d.error || 'Fehler'));
+    }
   } catch(e) { showToast('✗ ' + e.message); }
 }
 
