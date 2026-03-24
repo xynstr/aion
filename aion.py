@@ -1889,6 +1889,9 @@ class AionSession:
                                                     "Answer YES for:\n"
                                                     "- Informational questions where the information was provided "
                                                     "(e.g. 'show me X', 'list Y', 'what is Z?' → if answered, it is YES)\n"
+                                                    "- Web search or browsing requests — if web_search or web_fetch was called "
+                                                    "and results were returned, the task IS complete. Do not ask for more.\n"
+                                                    "- News, trends, or research queries — a summary with multiple results = YES\n"
                                                     "- Status checks, diagnostics, read-only queries\n"
                                                     "- Questions about what failed/broke — reporting the status IS the task\n"
                                                     "- Tasks where the user must confirm before the next step\n"
@@ -1902,9 +1905,9 @@ class AionSession:
                                                     "NEVER force code changes — fixing bugs requires explicit user instruction."
                                                 )},
                                                 {"role": "user", "content": (
-                                                    f"User request: {user_text_short[:200]}\n"
+                                                    f"User request: {user_text_short[:300]}\n"
                                                     f"Tools called: {tools_summary}\n"
-                                                    f"AI final response: {final_text[:300]}\n"
+                                                    f"AI final response: {final_text[:800]}\n"
                                                     "Task fully complete? YES or NO"
                                                 )},
                                             ],
