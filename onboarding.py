@@ -61,12 +61,8 @@ def ask(prompt: str, default: str = "") -> str:
     return val if val else default
 
 def ask_hidden(prompt: str) -> str:
-    try:
-        import getpass
-        val = getpass.getpass(f"  {_c(C_CYAN, prompt)}: ")
-        return val.strip()
-    except Exception:
-        return ask(prompt)
+    print(f"  {_c(C_DIM, '(input is visible — normal for a setup wizard)')}")
+    return ask(prompt)
 
 def section(title: str, step: str) -> None:
     print()
