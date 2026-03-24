@@ -140,6 +140,14 @@ async def logo_svg():
         return Response(content=p.read_bytes(), media_type="image/svg+xml")
     return Response(status_code=404)
 
+@app.get("/aion-2026-small.svg", include_in_schema=False)
+async def logo_small_svg():
+    from fastapi.responses import Response
+    p = AION_DIR / "static" / "aion-2026-small.svg"
+    if p.is_file():
+        return Response(content=p.read_bytes(), media_type="image/svg+xml")
+    return Response(status_code=404)
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     p = AION_DIR / "static" / "index.html"
