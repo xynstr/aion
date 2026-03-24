@@ -8,6 +8,9 @@ version = "1.0.0"
 description = "AION — Autonomous Intelligent Operations Node"
 requires-python = ">=3.10"
 
+[project.urls]
+Repository = "https://github.com/xynstr/aion"
+
 [project.scripts]
 aion = "aion_launcher:main"
 

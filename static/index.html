@@ -31,6 +31,33 @@
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 14px; overflow: hidden; }
 .app { display: flex; flex-direction: column; height: 100vh; }
 
+/* ── Update Banner ──────────────────────────────────────────────────────── */
+#updateBanner {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #1a1500;
+  border-bottom: 1px solid var(--yellow);
+  color: var(--yellow);
+  font-size: 13px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+#updateBanner a { color: var(--yellow); text-decoration: underline; }
+#updateBanner .ub-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--yellow);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: .7;
+}
+#updateBanner .ub-close:hover { opacity: 1; }
+
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .header {
   display: flex; align-items: center; justify-content: space-between;
@@ -416,6 +443,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 </head>
 <body>
 <div class="app">
+
+  <!-- Update Banner -->
+  <div id="updateBanner">
+    <span>⚡</span>
+    <span id="updateBannerText"></span>
+    <button class="ub-close" onclick="dismissUpdateBanner()" title="Schließen">×</button>
+  </div>
 
   <!-- Header — persistent -->
   <div class="header">
@@ -977,6 +1011,31 @@ async function switchChannel(id) {
   }
 }
 
+async function checkUpdateBanner() {
+  if (sessionStorage.getItem('updateBannerDismissed')) return;
+  try {
+    const r = await fetch('/api/update-status');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.update_available) {
+      const banner = document.getElementById('updateBanner');
+      const text   = document.getElementById('updateBannerText');
+      const cur = d.current_version || '?';
+      const lat = d.latest_version  || '?';
+      const url = d.release_url     || '';
+      text.innerHTML = url
+        ? `AION <b>${lat}</b> verfügbar (aktuell: ${cur}) — <code>aion update</code> ausführen &nbsp;·&nbsp; <a href="${url}" target="_blank" rel="noopener">Release-Notes</a>`
+        : `AION <b>${lat}</b> verfügbar (aktuell: ${cur}) — <code>aion update</code> ausführen`;
+      banner.style.display = 'flex';
+    }
+  } catch {}
+}
+
+function dismissUpdateBanner() {
+  document.getElementById('updateBanner').style.display = 'none';
+  sessionStorage.setItem('updateBannerDismissed', '1');
+}
+
 async function init() {
   try {
     const s = await (await fetch('/api/status')).json();
@@ -988,6 +1047,9 @@ async function init() {
   await loadHistory();
   await loadChannels();
   if (window.lucide) lucide.createIcons();
+  checkUpdateBanner();
+  // Alle 6h erneut prüfen (bei offenem Browser-Tab)
+  setInterval(checkUpdateBanner, 6 * 60 * 60 * 1000);
 }
 init();
 

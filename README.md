@@ -50,8 +50,11 @@ aion --setup
 aion
 
 # Or start directly
-aion --web   # Web UI → http://localhost:7000
-aion --cli   # CLI mode (terminal only)
+aion --web    # Web UI → http://localhost:7000
+aion --cli    # CLI mode (terminal only)
+
+# Update to the latest version (git pull + reinstall)
+aion update
 ```
 
 `aion` shows an arrow-key selector on every start. Pick **Web UI** or **CLI** with ↑↓ + Enter.
@@ -114,6 +117,9 @@ XAI_API_KEY=xai-...
 
 # Active model (also changeable via Web UI)
 AION_MODEL=gemini-2.5-flash
+
+# Auto-updates (optional) — checks GitHub Releases once per day
+AION_GITHUB_REPO=xynstr/aion
 
 # Messaging (optional)
 TELEGRAM_BOT_TOKEN=123456:ABC...
@@ -436,6 +442,8 @@ Hot-reload: `POST /api/plugins/reload` or **🔌 Plugins → ↺ Reload** in the
 | `GET` | `/api/oauth/google/start` | Begin Google OAuth for Gemini |
 | `GET` | `/api/oauth/google/callback` | OAuth callback handler |
 | `POST` | `/api/alexa` | Amazon Alexa Skill endpoint |
+| `GET` | `/api/update-status` | Current update state (version, available, release URL) |
+| `POST` | `/api/update-trigger` | Force an immediate update check |
 
 SSE events from `/api/chat`:
 
@@ -485,6 +493,7 @@ AION/
 │   ├── memory_plugin/           # Conversation history (JSONL, channel-aware)
 │   ├── audio_pipeline/          # Transcription (ffmpeg+Vosk) + TTS (edge-tts/pyttsx3)
 │   ├── heartbeat/               # Keep-alive + autonomous todo processing
+│   ├── updater/                 # Daily GitHub release check + channel notifications
 │   ├── restart_tool/            # Process restart with user confirmation
 │   ├── todo_tools/              # Task management
 │   ├── smart_patch/             # Fuzzy code patching
@@ -521,10 +530,36 @@ AION/
 
 ---
 
+## 🔄 Updates
+
+AION checks for new releases automatically once per day and notifies you across all active channels.
+
+```bash
+# Update to the latest version
+aion update
+```
+
+This runs `git pull` + `pip install -e .` in one step — no manual commands needed.
+
+**Automatic notifications:** When a new version is available, AION sends a message to every configured channel (Telegram, Discord, Slack) and shows a banner in the Web UI.
+
+**Setup** — add to `.env`:
+```env
+AION_GITHUB_REPO=xynstr/aion
+```
+
+**Manual check** — ask AION in chat:
+```
+"check_for_updates"
+```
+
+---
+
 ## 🐛 Troubleshooting
 
 | Problem | Solution |
 |---------|---------|
+| Menu shows raw codes like `[2m>` | Update to latest — ANSI/VT100 is now enabled automatically on Windows |
 | `aion --setup` does nothing | Run `pip install -r requirements.txt && pip install -e .` first, then retry |
 | Onboarding wizard doesn't appear | Delete `aion_onboarding_complete.flag` and run `aion --setup` |
 | `No module named 'google'` | `pip install google-genai` (or re-run `pip install -r requirements.txt`) |

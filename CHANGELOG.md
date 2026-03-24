@@ -5,6 +5,45 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-24 — ANSI Fix + Auto-Update System
+
+### Fix: ANSI/VT100 rendering in PowerShell
+- Arrow-key selector showed raw escape codes (`[2m`, `[92;1m>`) in PowerShell on Windows 10
+- Root cause: VT100 processing is not enabled by default on Windows terminals
+- Fix: `_enable_win_vt()` calls `ctypes.SetConsoleMode` with `ENABLE_VIRTUAL_TERMINAL_PROCESSING`
+  before rendering the selector
+- File: `aion_launcher.py`
+
+### New: `aion update` command
+- Pulls the latest version from GitHub and reinstalls in one step
+- Runs `git pull` followed by `pip install -e .` in the project directory
+- Prints the new version number after a successful update
+- No manual git/pip commands needed for users
+- File: `aion_launcher.py`
+
+### New: Updater Plugin (`plugins/updater/`)
+- Background thread checks GitHub Releases API once per day (first check after 60s)
+- Compares latest release tag with local version from `pyproject.toml`
+- On new version: notifies all configured channels (Telegram, Discord, Slack) with version diff and `aion update` instruction
+- FastAPI endpoints: `GET /api/update-status`, `POST /api/update-trigger`
+- AION tools: `update_status`, `check_for_updates`
+- Configured via `AION_GITHUB_REPO=xynstr/aion` in `.env`
+- File: `plugins/updater/updater.py`
+
+### New: Update banner in Web UI
+- Polls `/api/update-status` on page load and every 6h
+- Shows a dismissible yellow banner when a new version is available
+- Displays current and latest version with a link to the GitHub release notes
+- Dismissed state persists for the browser session (`sessionStorage`)
+- File: `static/index.html`
+
+### New: Startup update notice in CLI
+- If an update has been detected (from a previous daily check), a yellow notice is shown
+  before the mode selector on the next `aion` start
+- File: `aion_launcher.py`
+
+---
+
 ## 2026-03-24 — Launcher Mode Selector + Telegram Voice Fix
 
 ### New: Interactive Mode Selector on `aion` start

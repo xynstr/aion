@@ -6,6 +6,7 @@ Usage:
   aion --web    → Web UI (http://localhost:7000) directly
   aion --cli    → CLI mode (terminal only) directly
   aion --setup  → re-run onboarding (API keys, model selection)
+  aion update   → pull latest version from GitHub & reinstall
   aion --help   → show help
 """
 
@@ -140,8 +141,24 @@ def _run_config_cmd(args: list) -> None:
         print("Usage: aion config [list | get <key> | set <key> <value> | unset <key>]")
 
 
+def _enable_win_vt():
+    """Aktiviert ANSI/VT100-Verarbeitung im Windows-Terminal (PowerShell, cmd)."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ENABLE_VT = 0x0004
+            k32 = ctypes.windll.kernel32
+            h   = k32.GetStdHandle(-11)        # STD_OUTPUT_HANDLE
+            m   = ctypes.c_ulong()
+            k32.GetConsoleMode(h, ctypes.byref(m))
+            k32.SetConsoleMode(h, m.value | ENABLE_VT)
+        except Exception:
+            pass
+
+
 def _choose_mode() -> str:
     """Arrow-key selector: returns 'web' or 'cli'."""
+    _enable_win_vt()
     items   = ["Web UI  (http://localhost:7000)", "CLI     (terminal only)"]
     n       = len(items)
     idx     = 0
@@ -219,6 +236,73 @@ def _choose_mode() -> str:
     return "cli" if idx == 1 else "web"
 
 
+def _run_update():
+    """Führt git pull + pip install -e . aus um AION zu aktualisieren."""
+    _enable_win_vt()
+    git_dir = AION_DIR / ".git"
+    if not git_dir.is_dir():
+        print("[AION] Kein .git-Verzeichnis gefunden — Update nicht möglich.")
+        print("       Klone das Repository mit 'git clone' um Updates zu erhalten.")
+        return
+
+    print("[AION] Update wird gestartet…\n", flush=True)
+
+    # 1. git pull
+    print("  → git pull", flush=True)
+    result = subprocess.run(["git", "pull"], cwd=str(AION_DIR), check=False)
+    if result.returncode != 0:
+        print("\n[AION] git pull fehlgeschlagen. Bitte manuell prüfen.", flush=True)
+        return
+
+    # 2. pip install -e .
+    print("\n  → pip install -e .", flush=True)
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-e", "."],
+        cwd=str(AION_DIR), check=False,
+    )
+    if result.returncode != 0:
+        print("\n[AION] pip install fehlgeschlagen. Bitte manuell prüfen.", flush=True)
+        return
+
+    # Neue Version anzeigen
+    try:
+        import re, tomllib  # noqa: F401
+        text = (AION_DIR / "pyproject.toml").read_text(encoding="utf-8")
+        data = tomllib.loads(text)
+        new_ver = data.get("project", {}).get("version", "?")
+    except Exception:
+        try:
+            import re
+            text = (AION_DIR / "pyproject.toml").read_text(encoding="utf-8")
+            m = re.search(r'^\s*version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+            new_ver = m.group(1) if m else "?"
+        except Exception:
+            new_ver = "?"
+
+    print(f"\n[AION] Update erfolgreich! Version {new_ver} ist jetzt aktiv.", flush=True)
+    print("       Starte 'aion' um die neue Version zu nutzen.\n", flush=True)
+
+
+def _check_update_banner():
+    """Zeigt einen Hinweis an wenn eine neuere Version verfügbar ist (nicht-blockierend)."""
+    try:
+        import sys as _sys
+        if str(AION_DIR) not in _sys.path:
+            _sys.path.insert(0, str(AION_DIR))
+        from plugins.updater.updater import _update_state
+        if _update_state.get("update_available"):
+            latest  = _update_state.get("latest_version", "?")
+            current = _update_state.get("current_version", "?")
+            _enable_win_vt()
+            print(
+                f"\n  \x1b[93;1m⚡ Update verfügbar: {current} → {latest}"
+                f" — 'aion update' ausführen\x1b[0m",
+                flush=True,
+            )
+    except Exception:
+        pass
+
+
 def _pause_on_error():
     """On Windows, pause so the user can read the error before the window closes."""
     if sys.platform == "win32":
@@ -253,11 +337,12 @@ def _main():
     args = sys.argv[1:]
 
     if "--help" in args or "-h" in args:
-        print("Usage: aion [--web | --cli] [--setup] [config <subcommand>]")
+        print("Usage: aion [--web | --cli] [--setup] [config <subcommand>] [update]")
         print("  aion                      Interactive mode selector (↑↓ arrow keys)")
         print("  aion --web                Web UI  →  http://localhost:7000")
         print("  aion --cli                CLI mode (no browser)")
         print("  aion --setup              Re-run setup (API keys, model selection)")
+        print("  aion update               Pull latest version & reinstall")
         print("  aion config list          Show all settings")
         print("  aion config get <key>     Read a setting")
         print("  aion config set <key> <v> Write a setting")
@@ -272,6 +357,10 @@ def _main():
         print("  thinking_level    Reasoning depth: off / minimal / standard / deep / extreme")
         print("  browser_headless  Browser mode: true/false")
         sys.exit(0)
+
+    if args and args[0] == "update":
+        _run_update()
+        return
 
     if args and args[0] == "config":
         _run_config_cmd(args[1:])
@@ -296,6 +385,8 @@ def _main():
     python = sys.executable
     if sys.platform == "win32":
         python = python.replace("pythonw.exe", "python.exe")
+
+    _check_update_banner()
 
     if "--cli" in args or "-c" in args:
         mode = "cli"

@@ -12,7 +12,38 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
-## Latest Improvements (2026-03-24 — Launcher Selector + Telegram Voice Fix)
+## Latest Improvements (2026-03-24 — ANSI Fix + Auto-Update System)
+
+### Fix: ANSI codes in PowerShell
+The arrow-key mode selector showed raw escape codes in PowerShell on Windows 10.
+`_enable_win_vt()` now activates VT100 processing via `ctypes.SetConsoleMode` before
+the menu is rendered. Colors and arrows work correctly in all Windows terminals.
+File: `aion_launcher.py`
+
+### New: `aion update` command
+Run `aion update` to pull the latest version and reinstall without any manual steps.
+Executes `git pull` + `pip install -e .` in the project root and reports the new version.
+File: `aion_launcher.py`
+
+### New: Updater Plugin
+`plugins/updater/updater.py` runs a background thread that checks GitHub Releases once
+per day (60s after startup, then every 24h). When a newer version is found:
+- All active channels (Telegram, Discord, Slack) receive a notification with version info
+  and the `aion update` instruction
+- `/api/update-status` returns the current state (version, available, release URL)
+- `/api/update-trigger` forces an immediate check
+- Tools: `update_status`, `check_for_updates`
+Configured via `AION_GITHUB_REPO=xynstr/aion` in `.env`.
+
+### New: Web UI update banner
+The browser polls `/api/update-status` on load and every 6h.
+A dismissible yellow banner appears when an update is available, showing the current and
+latest version with a link to the GitHub release notes.
+File: `static/index.html`
+
+---
+
+## Previous Improvements (2026-03-24 — Launcher Selector + Telegram Voice Fix)
 
 ### Interactive mode selector on start
 `aion` (no flags) now shows an arrow-key menu: **Web UI** or **CLI**.
