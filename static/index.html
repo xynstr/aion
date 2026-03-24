@@ -1352,46 +1352,40 @@ function renderKeys(data) {
   const el = document.getElementById('keysList');
   let html = '';
 
-  const makeKeyItem = (k) => {
+  const makeRow = (k) => {
     const meta = _KEY_META[k.key] || {};
     const getLink = meta.url
-      ? `<a href="${esc(meta.url)}" target="_blank" class="action-btn" style="font-size:10px;padding:4px 8px;text-decoration:none">${esc(meta.label||'Get Key')} ↗</a>`
+      ? `<a href="${esc(meta.url)}" target="_blank" class="action-btn" style="font-size:10px;padding:4px 8px;text-decoration:none">${esc(meta.label||'Get')} ↗</a>`
       : '';
     const hint = meta.hint
       ? `<span style="font-size:10px;color:var(--text3)">${esc(meta.hint)}</span>`
       : '';
-    const masked = k.set ? `<span style="font-size:10px;color:var(--text3);font-family:monospace;letter-spacing:1px">${esc(k.masked)}</span>` : '';
-
     return `
-    <div class="keys-item">
-      <div class="keys-item-header">
-        <span class="keys-item-name">${k.key}</span>
-        <span class="keys-badge ${k.set ? 'set' : 'missing'}">${k.set ? '✓ SET' : '✗ MISSING'}</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${masked || hint ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">${masked}${getLink}</div>` : ''}
-        <div class="keys-item-input">
-          <input type="password" class="key-input" id="key-${k.key}" style="flex:1;min-width:200px"
-                 placeholder="${k.set ? 'Leave empty to keep current' : 'Paste key here…'}">
-          <button class="action-btn primary" onclick="saveKey('${k.key}')">Save</button>
-        </div>
-      </div>
-    </div>`;
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px;font-size:11px;color:var(--text);font-family:monospace;width:200px">${k.key}</td>
+      <td style="padding:10px 12px;font-size:10px;color:var(--text3);">
+        <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${k.set?'rgba(74,222,128,0.1)':'rgba(255,107,107,0.1)'}"><span style="color:${k.set?'var(--green)':'var(--red)'};font-weight:700">${k.set?'✓':'✗'}</span> ${k.set?'SET':'MISSING'}</span>
+      </td>
+      <td style="padding:10px 12px;font-size:10px;color:var(--text3);width:200px">${k.set ? esc(k.masked) : (hint || '—')}</td>
+      <td style="padding:10px 12px">${getLink}</td>
+      <td style="padding:10px 12px;display:flex;gap:6px;align-items:center">
+        <input type="password" class="key-input" id="key-${k.key}" style="width:140px;padding:6px 8px;font-size:11px"
+               placeholder="${k.set?'Keep':'Paste'}">
+        <button class="action-btn primary" onclick="saveKey('${k.key}')" style="padding:6px 12px;font-size:11px">Save</button>
+      </td>
+    </tr>`;
   };
 
-  // Claude CLI Block
-  html += `<div class="keys-provider-card">
-    <div class="keys-provider-header">
-      <div class="keys-provider-title">
-        <span>Claude</span>
-        <span style="font-size:11px;color:var(--text3);font-weight:400;letter-spacing:0">(Subscription – no API key)</span>
-      </div>
+  // Claude CLI
+  html += `<div style="margin-bottom:20px">
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--blue,#2ea3f5)"></span> Claude (Subscription)
     </div>
-    <div style="font-size:11px;color:var(--text3)">Use your Claude.ai subscription ($20/$200) directly through Claude Code CLI</div>
-    <div id="keysClaudeStatus" style="font-size:12px;color:var(--text2)"></div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Sign In with Claude</button>
-      <button class="action-btn" onclick="checkClaudeStatusInKeys()" style="display:flex;align-items:center;gap:4px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Check</button>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Use Claude.ai subscription ($20/$200) — no API key needed</div>
+    <div id="keysClaudeStatus" style="font-size:11px;color:var(--text2);margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="action-btn" id="keysClaudeLoginBtn" onclick="claudeCliLoginFromKeys()">Sign In</button>
+      <button class="action-btn" onclick="checkClaudeStatusInKeys()">↺ Check Status</button>
     </div>
     <div id="keysClaudeMsg" style="margin-top:6px;font-size:11px;display:none"></div>
   </div>`;
@@ -1399,42 +1393,41 @@ function renderKeys(data) {
   // AI Providers
   for (const prov of data.providers) {
     const allSet = prov.env_keys.every(k => k.set);
+    const count = prov.env_keys.filter(k => k.set).length;
     html += `
-    <div class="keys-provider-card">
-      <div class="keys-provider-header">
-        <div class="keys-provider-title">
-          <span class="keys-provider-status ${allSet ? 'set' : 'missing'}"></span>
-          <span>${esc(prov.label)}</span>
-        </div>
-        <span style="font-size:10px;color:var(--text3);background:var(--bg4);padding:2px 8px;border-radius:4px">${prov.env_keys.filter(k => k.set).length}/${prov.env_keys.length}</span>
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">
+        <span style="width:6px;height:6px;border-radius:50%;background:${allSet?'var(--green)':'var(--red)'}"></span>
+        ${esc(prov.label)} <span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:auto">${count}/${prov.env_keys.length}</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        ${prov.env_keys.map(k => makeKeyItem(k)).join('')}
-      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        ${prov.env_keys.map(k => makeRow(k)).join('')}
+      </table>
     </div>`;
   }
 
   // Other services
   if (data.other_keys && data.other_keys.length) {
-    html += `<div class="keys-provider-card">
-      <div class="keys-provider-header">
-        <div class="keys-provider-title">Other Services</div>
+    html += `
+    <div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--text3)"></span> Other Services
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        ${data.other_keys.map(k => makeKeyItem(k)).join('')}
-      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        ${data.other_keys.map(k => makeRow(k)).join('')}
+      </table>
     </div>`;
   }
 
-  // Add custom key section
+  // Add custom key
   html += `
-  <div class="keys-provider-card">
-    <div class="keys-provider-title">Add Custom Key</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Set any environment variable (e.g., MISTRAL_API_KEY, CUSTOM_TOKEN, etc.)</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="customKeyName" class="key-input" placeholder="ENV_VAR_NAME" style="min-width:150px;font-family:monospace;text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/\\s/g,'_')">
-      <input type="password" id="customKeyValue" class="key-input" placeholder="Key / Value" style="min-width:200px;flex:1">
-      <button class="action-btn primary" onclick="saveCustomKey()">Add</button>
+  <div style="margin-top:24px;padding:14px;background:var(--bg4);border:1px solid var(--border);border-radius:8px">
+    <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">Add Custom Key</div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:10px">Set any environment variable (MISTRAL_API_KEY, CUSTOM_TOKEN, etc.)</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <input type="text" id="customKeyName" class="key-input" placeholder="ENV_VAR_NAME" style="max-width:150px;font-family:monospace;text-transform:uppercase;padding:6px 8px;font-size:11px" oninput="this.value=this.value.toUpperCase().replace(/\\s/g,'_')">
+      <input type="password" id="customKeyValue" class="key-input" placeholder="Value" style="flex:1;min-width:150px;padding:6px 8px;font-size:11px">
+      <button class="action-btn primary" onclick="saveCustomKey()" style="padding:6px 12px;font-size:11px">Add</button>
     </div>
   </div>`;
 
