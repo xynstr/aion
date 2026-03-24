@@ -12,7 +12,27 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
-## Latest Improvements (2026-03-24)
+## Latest Improvements (2026-03-24 — Setup + CLI Config)
+
+### Setup Wizard expanded
+`onboarding.py` Step 8 now asks for TTS engine + voice and thinking level.
+All settings written to `config.json` automatically.
+
+### `aion config` CLI tool
+Full config management without starting the web server:
+- `aion config list` — show all settings
+- `aion config get <key>` — read a value
+- `aion config set <key> <value>` — write a value (JSON-aware)
+- `aion config unset <key>` — remove a value
+Available in the terminal REPL (`aion --cli`) as `/config` commands.
+
+### CLI parity achieved
+Every setting configurable in the Web UI can now also be set from the CLI:
+`aion config set tts_engine edge`, `aion config set thinking_level deep`, etc.
+
+---
+
+## Previous Improvements (2026-03-24)
 
 ### 0. Critical Bug-Fixes: Onboarding, Approval-Flow, Provider-Dedup
 

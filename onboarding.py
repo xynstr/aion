@@ -703,6 +703,50 @@ def step8_advanced() -> dict:
     info("No Docker configuration needed here — uses the same .env and config.json.")
     print()
 
+    # TTS Engine
+    print()
+    print(f"  {_c(C_CYAN, 'Voice output (TTS)')}")
+    print(f"  {_c(C_DIM, 'AION can read responses aloud.')}")
+    print()
+    print(f"    {_c(C_WHITE, '1')}  off        {_c(C_DIM, '— no voice  (default, recommended for most setups)')}")
+    print(f"    {_c(C_WHITE, '2')}  edge-tts   {_c(C_DIM, '— Microsoft neural TTS via internet  (best quality)')}")
+    print(f"    {_c(C_WHITE, '3')}  sapi5      {_c(C_DIM, '— Windows built-in TTS  (offline, no install)')}")
+    print(f"    {_c(C_WHITE, '4')}  pyttsx3    {_c(C_DIM, '— cross-platform offline TTS')}")
+    print()
+    tts_map = {"1": "off", "2": "edge", "3": "sapi5", "4": "pyttsx3"}
+    tts_choice = ask("TTS engine (1-4)", "1")
+    result["tts_engine"] = tts_map.get(tts_choice, "off")
+    if result["tts_engine"] != "off":
+        ok(f"TTS: {result['tts_engine']}")
+        voice_default = "de-DE-KatjaNeural" if result["tts_engine"] == "edge" else ""
+        voice = ask(f"Voice name (Enter = default{', e.g. ' + voice_default if voice_default else ''})", "")
+        if voice:
+            result["tts_voice"] = voice
+            ok(f"Voice: {voice}")
+        else:
+            if voice_default:
+                result["tts_voice"] = voice_default
+            info(f"Voice: default{' (' + voice_default + ')' if voice_default else ''}")
+    else:
+        info("TTS: disabled")
+    print()
+
+    # Thinking Level
+    print(f"  {_c(C_CYAN, 'Thinking depth')}")
+    print(f"  {_c(C_DIM, 'How much internal reasoning AION does before answering.')}")
+    print(f"  {_c(C_DIM, 'More thinking = better quality, but slower and higher cost.')}")
+    print()
+    print(f"    {_c(C_WHITE, '1')}  standard   {_c(C_DIM, '— balanced quality/speed  (recommended)')}")
+    print(f"    {_c(C_WHITE, '2')}  deep       {_c(C_DIM, '— thorough reasoning for complex tasks')}")
+    print(f"    {_c(C_WHITE, '3')}  minimal    {_c(C_DIM, '— light thinking  (faster)')}")
+    print(f"    {_c(C_WHITE, '4')}  off        {_c(C_DIM, '— no thinking  (fastest, cheapest)')}")
+    print()
+    thinking_map = {"1": "standard", "2": "deep", "3": "minimal", "4": "off"}
+    thinking_choice = ask("Thinking level (1-4)", "1")
+    result["thinking_level"] = thinking_map.get(thinking_choice, "standard")
+    ok(f"Thinking level: {result['thinking_level']}")
+    print()
+
     return result
 
 
@@ -917,6 +961,12 @@ def write_config(model: str, permissions: dict | None = None, advanced: dict | N
             cfg["browser_headless"] = advanced["browser_headless"]
         if "task_routing" in advanced:
             cfg["task_routing"] = advanced["task_routing"]
+        if "tts_engine" in advanced:
+            cfg["tts_engine"] = advanced["tts_engine"]
+        if "tts_voice" in advanced:
+            cfg["tts_voice"] = advanced["tts_voice"]
+        if "thinking_level" in advanced:
+            cfg["thinking_level"] = advanced["thinking_level"]
     config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     ok(f"config.json written ({config_path})")
 
@@ -987,6 +1037,14 @@ def completion_banner(model: str, name: str, extra_count: int,
             active.append("Slack")
         if active:
             print(f"  {_c(C_DIM, 'Channels:  ')}{_c(C_CYAN, ', '.join(active))}")
+
+    # Show TTS
+    if advanced and advanced.get("tts_engine", "off") != "off":
+        voice = advanced.get("tts_voice", "default")
+        print(f"  {_c(C_DIM, 'TTS:       ')}{_c(C_CYAN, advanced['tts_engine'])}  {_c(C_DIM, f'({voice})')}")
+    # Show thinking level
+    if advanced and advanced.get("thinking_level") and advanced["thinking_level"] != "standard":
+        print(f"  {_c(C_DIM, 'Thinking:  ')}{_c(C_CYAN, advanced['thinking_level'])}")
 
     # Show Claude CLI status
     if advanced and advanced.get("claude_cli"):

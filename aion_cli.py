@@ -132,6 +132,7 @@ async def main() -> None:
                     "[cyan]/clear[/cyan]          Clear terminal",
                     "[cyan]/model[/cyan]          Show active model",
                     "[cyan]/stats[/cyan]          Show statistics",
+                    "[cyan]/config[/cyan]         Config: /config list, set, get, unset",
                 ]),
                 title="Commands", border_style="bright_black", padding=(0, 2),
             ))
@@ -149,6 +150,51 @@ async def main() -> None:
         if cmd == "/stats":
             console.print()
             print_header(_aion)
+            continue
+
+        if cmd.startswith("/config"):
+            _parts = user_input.split(None, 3)
+            _sub   = _parts[1] if len(_parts) > 1 else "list"
+            _key   = _parts[2] if len(_parts) > 2 else None
+            _val   = _parts[3] if len(_parts) > 3 else None
+            import json as _j
+            _cfg_path = Path(__file__).parent / "config.json"
+            def _lcfg():
+                return _j.loads(_cfg_path.read_text(encoding="utf-8")) if _cfg_path.is_file() else {}
+            def _scfg(c):
+                _cfg_path.write_text(_j.dumps(c, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            if _sub == "list":
+                _c = _lcfg()
+                if _c:
+                    _w = max(len(k) for k in _c) + 2
+                    console.print()
+                    for k, v in sorted(_c.items()):
+                        console.print(f"  [dim]{k:<{_w}}[/dim] [cyan]{v}[/cyan]")
+                    console.print()
+                else:
+                    console.print("[dim]  config.json is empty[/dim]")
+            elif _sub == "get" and _key:
+                _val2 = _lcfg().get(_key)
+                if _val2 is None:
+                    console.print(f"[dim]  '{_key}' not set[/dim]")
+                else:
+                    console.print(f"\n  [dim]{_key} =[/dim]  [cyan]{_val2}[/cyan]\n")
+            elif _sub == "set" and _key and _val is not None:
+                try:
+                    _parsed = _j.loads(_val)
+                except Exception:
+                    _parsed = _val
+                _c = _lcfg(); _c[_key] = _parsed; _scfg(_c)
+                console.print(f"  [green]✓[/green]  [dim]{_key} = {_parsed!r}[/dim]")
+            elif _sub == "unset" and _key:
+                _c = _lcfg()
+                if _key in _c:
+                    del _c[_key]; _scfg(_c)
+                    console.print(f"  [green]✓[/green]  [dim]'{_key}' removed[/dim]")
+                else:
+                    console.print(f"  [yellow]![/yellow]  [dim]'{_key}' not found[/dim]")
+            else:
+                console.print("[dim]  /config [list | get <key> | set <key> <value> | unset <key>][/dim]")
             continue
 
         # ── stream response ───────────────────────────────────────────────────

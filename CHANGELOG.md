@@ -5,6 +5,35 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-24 — Setup Expansion + CLI Config Tool
+
+### New: TTS and Thinking Level in Setup Wizard
+- `onboarding.py` Step 8 now asks for TTS engine (off / edge-tts / sapi5 / pyttsx3),
+  optional voice name, and thinking level (standard / deep / minimal / off)
+- Settings are saved to `config.json` via `write_config()` and shown in the completion banner
+
+### New: `aion config` CLI Command
+- `aion config list` — show all settings from `config.json`
+- `aion config get <key>` — read one setting
+- `aion config set <key> <value>` — write a setting (JSON-aware: numbers, booleans, lists parsed)
+- `aion config unset <key>` — remove a setting
+- Files: `aion_launcher.py` (dispatcher + function), `aion_cli.py` (REPL `/config` command)
+
+### New: `/config` in CLI REPL (`aion --cli`)
+- `/config list`, `/config set`, `/config get`, `/config unset` available directly in chat
+- Settings take effect after server restart
+
+### Common config keys
+- `model` — active LLM model
+- `check_model` — cheap model for internal YES/NO checks
+- `max_history_turns` — history truncation limit (default: 40)
+- `tts_engine` — TTS engine: edge / sapi5 / pyttsx3 / off
+- `tts_voice` — TTS voice name (e.g. `de-DE-KatjaNeural`)
+- `thinking_level` — reasoning depth: off / minimal / standard / deep / extreme
+- `browser_headless` — browser mode: true/false
+
+---
+
 ## 2026-03-24 — Critical Bug-Fixes: Onboarding, Approval-Flow, Provider-Dedup
 
 ### Fixed: `aion --setup` did nothing
