@@ -1126,9 +1126,11 @@ async def google_oauth_start():
 async def google_oauth_callback(code: str = "", state: str = "", error: str = ""):
     close_script = "<script>setTimeout(()=>{window.opener?.postMessage(%s,'*');window.close()},200);</script>"
     if error:
-        return HTMLResponse(f"<html><body>{close_script % repr('{\"error\":\"'+error+'\"}')}Fehler: {error}</body></html>")
+        _err_json = '{"error":"' + error + '"}'
+        return HTMLResponse(f"<html><body>{close_script % repr(_err_json)}Fehler: {error}</body></html>")
     if state != _OAUTH_STATE.get("state"):
-        return HTMLResponse(f"<html><body>{close_script % repr('{\"error\":\"invalid_state\"}')}Ungültiger State</body></html>")
+        _state_json = '{"error":"invalid_state"}'
+        return HTMLResponse(f"<html><body>{close_script % repr(_state_json)}Ungültiger State</body></html>")
     client_id     = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
     redirect_uri  = "http://localhost:7000/api/oauth/google/callback"
@@ -1142,7 +1144,8 @@ async def google_oauth_callback(code: str = "", state: str = "", error: str = ""
             "grant_type":    "authorization_code",
         })
     if r.status_code != 200:
-        return HTMLResponse(f"<html><body>{close_script % repr('{\"error\":\"token_failed\"}')}Token-Fehler: {r.text}</body></html>")
+        _token_json = '{"error":"token_failed"}'
+        return HTMLResponse(f"<html><body>{close_script % repr(_token_json)}Token-Fehler: {r.text}</body></html>")
     tokens        = r.json()
     refresh_token = tokens.get("refresh_token", "")
     if refresh_token:
