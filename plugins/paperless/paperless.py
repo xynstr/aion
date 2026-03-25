@@ -20,7 +20,6 @@ Vor dem ersten Aufruf bitte einmalig speichern:
 
 import re
 import json
-import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,7 +29,7 @@ import requests
 
 # ── Vault-Hilfsfunktion ────────────────────────────────────────────────────────
 
-def _load_creds() -> dict:
+async def _load_creds() -> dict:
     """
     Liest Paperless-Zugangsdaten aus dem AION-Vault (Dienst: 'paperless').
     Gibt ein dict mit den Schlüsseln zurück: url, token, username, password, output_dir.
@@ -44,7 +43,7 @@ def _load_creds() -> dict:
             "Bitte sicherstellen, dass plugins/credentials/credentials.py vorhanden ist."
         )
 
-    raw = asyncio.run(_credential_read("paperless"))
+    raw = await _credential_read("paperless")
     data = json.loads(raw)
 
     if "error" in data:
@@ -180,7 +179,7 @@ async def _paperless_download(max_workers: int = 5) -> str:
     max_workers: Anzahl paralleler Download-Threads (Standard: 5)
     """
     try:
-        creds = _load_creds()
+        creds = await _load_creds()
     except RuntimeError as e:
         return json.dumps({"error": str(e)})
 
