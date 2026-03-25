@@ -1188,21 +1188,31 @@ async def _dispatch(name: str, inputs: dict) -> str:
         if "def register" not in plugin_code:
             return json.dumps({"error": "Plugin-Code muss 'def register(api):' enthalten!"})
         try:
-            # Enforce subdirectory structure: plugins/name/name.py (NEVER flat in plugins/ root)
-            plugin_dir = PLUGINS_DIR / plugin_name
-            plugin_dir.mkdir(parents=True, exist_ok=True)
-            plugin_path = plugin_dir / f"{plugin_name}.py"
-            plugin_path.write_text(plugin_code, encoding="utf-8")
+            from plugin_loader import load_plugin_safe
+            result = load_plugin_safe(plugin_name, plugin_code, _plugin_tools)
+
+            if not result["ok"]:
+                msg = f"Plugin konnte nicht geladen werden: {result['error']}"
+                if result.get("rolled_back"):
+                    msg += " — vorherige Version wiederhergestellt."
+                elif not result.get("snapshot"):
+                    msg += " — Plugin wurde nicht gespeichert (kein Rollback nötig)."
+                return json.dumps({"error": msg, "rolled_back": result.get("rolled_back", False)})
+
             # Auto-create README.md if not present
+            plugin_dir = PLUGINS_DIR / plugin_name
             readme_path = plugin_dir / "README.md"
             if not readme_path.exists():
                 readme_path.write_text(f"# {plugin_name}\n{plugin_desc}\n", encoding="utf-8")
-            from plugin_loader import load_plugins
-            load_plugins(_plugin_tools)
+
             memory.record(category="self_improvement", summary=f"Plugin erstellt: {plugin_name}",
                 lesson=f"AION hat Plugin '{plugin_name}' erstellt: {plugin_desc}", success=True)
-            return json.dumps({"ok": True, "plugin": plugin_name, "path": str(plugin_path),
-                "registered_tools": list(_plugin_tools.keys())})
+            return json.dumps({
+                "ok": True,
+                "plugin": plugin_name,
+                "registered_tools": result["tools"],
+                "snapshot": result.get("snapshot"),
+            })
         except Exception as e:
             return json.dumps({"error": str(e)})
 

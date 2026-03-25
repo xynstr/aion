@@ -1,7 +1,10 @@
 import importlib.util
+import shutil
 from pathlib import Path
+from datetime import datetime
 
 PLUGINS_DIR = Path(__file__).parent / "plugins"
+SNAPSHOTS_DIR = Path(__file__).parent / ".snapshots"
 
 # Sammelt FastAPI-Router die Plugins während load_plugins() anmelden.
 # aion_web.py liest diese Liste nach load_plugins() und bindet sie ein.
@@ -36,6 +39,127 @@ class PluginAPI:
         """
         _pending_routers.append((router, prefix, tags or []))
 
+
+# ---------------------------------------------------------------------------
+# Snapshot / Rollback
+# ---------------------------------------------------------------------------
+
+def create_snapshot(plugin_name: str) -> str | None:
+    """Erstellt einen Snapshot des aktuellen Plugin-Codes vor einer Änderung.
+    Gibt den Snapshot-Pfad zurück oder None wenn kein bestehendes Plugin gefunden."""
+    plugin_path = PLUGINS_DIR / plugin_name / f"{plugin_name}.py"
+    if not plugin_path.exists():
+        return None
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    snapshot_dir = SNAPSHOTS_DIR / plugin_name / timestamp
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(plugin_path, snapshot_dir / f"{plugin_name}.py")
+
+    _cleanup_old_snapshots(plugin_name, keep=5)
+    return str(snapshot_dir)
+
+
+def restore_snapshot(plugin_name: str, snapshot_path: str = None) -> bool:
+    """Stellt ein Plugin aus dem letzten (oder einem bestimmten) Snapshot wieder her."""
+    if snapshot_path:
+        snapshot_file = Path(snapshot_path) / f"{plugin_name}.py"
+    else:
+        plugin_snapshots = SNAPSHOTS_DIR / plugin_name
+        if not plugin_snapshots.exists():
+            return False
+        snapshots = sorted(plugin_snapshots.iterdir())
+        if not snapshots:
+            return False
+        snapshot_file = snapshots[-1] / f"{plugin_name}.py"
+
+    if not snapshot_file.exists():
+        return False
+
+    plugin_path = PLUGINS_DIR / plugin_name / f"{plugin_name}.py"
+    shutil.copy2(snapshot_file, plugin_path)
+    return True
+
+
+def list_snapshots(plugin_name: str) -> list[str]:
+    """Gibt alle verfügbaren Snapshot-Timestamps für ein Plugin zurück."""
+    plugin_snapshots = SNAPSHOTS_DIR / plugin_name
+    if not plugin_snapshots.exists():
+        return []
+    return sorted(d.name for d in plugin_snapshots.iterdir() if d.is_dir())
+
+
+def _cleanup_old_snapshots(plugin_name: str, keep: int = 5):
+    """Löscht alte Snapshots, behält nur die letzten `keep` Versionen."""
+    plugin_snapshots = SNAPSHOTS_DIR / plugin_name
+    if not plugin_snapshots.exists():
+        return
+    snapshots = sorted(plugin_snapshots.iterdir())
+    for old in snapshots[:-keep]:
+        shutil.rmtree(old, ignore_errors=True)
+
+
+def load_plugin_safe(plugin_name: str, plugin_code: str, tool_registry: dict) -> dict:
+    """Schreibt Plugin-Code, lädt es und prüft ob es korrekt registriert wurde.
+    Bei Fehler wird automatisch der letzte Snapshot wiederhergestellt.
+
+    Returns dict mit: ok, plugin, tools, snapshot, error, rolled_back
+    """
+    plugin_dir = PLUGINS_DIR / plugin_name
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    plugin_path = plugin_dir / f"{plugin_name}.py"
+
+    # 1. Snapshot des bestehenden Plugins (falls vorhanden)
+    snapshot_path = create_snapshot(plugin_name)
+
+    # 2. Neuen Code schreiben
+    plugin_path.write_text(plugin_code, encoding="utf-8")
+
+    # 3. Isoliert laden und Health-Check
+    test_registry: dict = {}
+    try:
+        spec = importlib.util.spec_from_file_location(f"plugin_{plugin_name}_healthcheck", plugin_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        if hasattr(mod, "register"):
+            api = PluginAPI(test_registry)
+            mod.register(api)
+    except Exception as exc:
+        # 4. Health-Check fehlgeschlagen → Rollback
+        rolled_back = False
+        if snapshot_path:
+            rolled_back = restore_snapshot(plugin_name, snapshot_path)
+            if rolled_back:
+                plugin_path.write_text(
+                    (Path(snapshot_path) / f"{plugin_name}.py").read_text(encoding="utf-8"),
+                    encoding="utf-8"
+                )
+        else:
+            # Kein Snapshot → kaputte Datei entfernen
+            plugin_path.unlink(missing_ok=True)
+
+        return {
+            "ok": False,
+            "error": str(exc),
+            "rolled_back": rolled_back,
+            "snapshot": snapshot_path,
+        }
+
+    # 5. Kein Fehler → vollständig in echte Registry laden
+    load_plugins(tool_registry)
+
+    return {
+        "ok": True,
+        "plugin": plugin_name,
+        "tools": [k for k in test_registry if not k.startswith("__")],
+        "snapshot": snapshot_path,
+        "rolled_back": False,
+    }
+
+
+# ---------------------------------------------------------------------------
+# README helper
+# ---------------------------------------------------------------------------
 
 def _read_readme_summary(plugin_dir: Path) -> str:
     """Liest den ersten beschreibenden Satz aus einer README.md.

@@ -143,3 +143,6 @@ temp/
 
 # AION persönliche To-do-Liste
 todo.md
+
+# Plugin snapshots
+.snapshots/
