@@ -19,10 +19,13 @@ from datetime import datetime, timezone
 UTC = timezone.utc
 from pathlib import Path
 
+def _is_reasoning_model(model: str) -> bool:
+    return bool(model and (model.startswith("o1") or model.startswith("o3") or model.startswith("o4")))
+
 def _max_tokens_param(model: str, n: int) -> dict:
     """Return the correct token-limit kwarg for the given model.
-    Reasoning models (o1/o3/o4-*) require max_completion_tokens."""
-    if model and (model.startswith("o1") or model.startswith("o3") or model.startswith("o4")):
+    Reasoning models (o1/o3/o4-*) require max_completion_tokens and no temperature."""
+    if _is_reasoning_model(model):
         return {"max_completion_tokens": n}
     return {"max_tokens": n}
 
@@ -1354,7 +1357,7 @@ async def chat_turn(messages: list[dict], user_input: str, _override_client=None
             tools=tools,
             tool_choice="auto",
             **_max_tokens_param(MODEL, 4096),
-            temperature=0.7,
+            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.7}),
         )
         msg = response.choices[0].message
 
@@ -1548,7 +1551,7 @@ class AionSession:
                             tools=tools,
                             tool_choice="auto",
                             **_max_tokens_param(_fb_model, 4096),
-                            temperature=0.7,
+                            **({} if _is_reasoning_model(_fb_model) else {"temperature": 0.7}),
                             stream=True,
                         )
                         if _fb_model != MODEL:
@@ -1833,7 +1836,7 @@ class AionSession:
                                     )},
                                 ],
                                 **_max_tokens_param(_check_model, 5),
-                                temperature=0.0,
+                                **({} if _is_reasoning_model(_check_model) else {"temperature": 0.0}),
                             )
 
                             # Gemini-Adapter → Stream-Iterator; OpenAI → Response-Objekt
@@ -1930,7 +1933,7 @@ class AionSession:
                                                 )},
                                             ],
                                             **_max_tokens_param(_check_model, 5),
-                                            temperature=0.0,
+                                            **({} if _is_reasoning_model(_check_model) else {"temperature": 0.0}),
                                         )
                                         if hasattr(task_check_raw, "choices"):
                                             task_answer = (task_check_raw.choices[0].message.content or "").strip().upper()
@@ -2167,7 +2170,7 @@ Regeln:
                 model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 **_max_tokens_param(MODEL, 600),
-                temperature=0.7,
+                **({} if _is_reasoning_model(MODEL) else {"temperature": 0.7}),
             )
             # Gemini-Adapter gibt Stream-Iterator zurück; OpenAI gibt Response-Objekt
             if _char_raw is None:
