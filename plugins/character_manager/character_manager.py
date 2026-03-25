@@ -8,7 +8,8 @@ Als Plugin hot-reloadbar per self_reload_tools.
 import json
 import re
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 
 BOT_DIR        = Path(__file__).parent.parent.parent

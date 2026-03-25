@@ -8,7 +8,8 @@ import asyncio
 import json
 import sys
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 
 BOT_DIR = Path(__file__).parent.parent.parent

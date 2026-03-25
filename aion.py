@@ -15,7 +15,8 @@ import shutil
 import sys
 import time
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 
 try:

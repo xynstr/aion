@@ -1,6 +1,7 @@
 import json
 import re
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 
 # BOT_DIR ist das Directory, in dem aion.py liegt.

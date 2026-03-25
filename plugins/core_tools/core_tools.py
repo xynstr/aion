@@ -9,7 +9,8 @@ import json
 import platform
 import sys
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime, timezone
+UTC = timezone.utc
 from pathlib import Path
 
 # AION-Root-Directory (plugins/core_tools/ → plugins/ → AION/)
