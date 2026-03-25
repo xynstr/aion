@@ -848,10 +848,11 @@ def step7_systemcheck(provider: str, api_key: str, model: str) -> bool:
                             "grok":      "https://api.x.ai/v1",
                         }.get(provider, "")
                     client = openai.OpenAI(**kwargs)
+                    _tok_param = {"max_completion_tokens": 5} if model and (model.startswith("o1") or model.startswith("o3") or model.startswith("o4")) else {"max_tokens": 5}
                     resp = client.chat.completions.create(
                         model=model,
                         messages=[{"role": "user", "content": "Reply with exactly: OK"}],
-                        max_tokens=5
+                        **_tok_param
                     )
                     reply = resp.choices[0].message.content or ""
                     ok(f"{p['label']} API responded: {reply.strip()[:40]}")

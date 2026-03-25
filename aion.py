@@ -19,6 +19,13 @@ from datetime import datetime, timezone
 UTC = timezone.utc
 from pathlib import Path
 
+def _max_tokens_param(model: str, n: int) -> dict:
+    """Return the correct token-limit kwarg for the given model.
+    Reasoning models (o1/o3/o4-*) require max_completion_tokens."""
+    if model and (model.startswith("o1") or model.startswith("o3") or model.startswith("o4")):
+        return {"max_completion_tokens": n}
+    return {"max_tokens": n}
+
 try:
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).parent / ".env")
@@ -1346,7 +1353,7 @@ async def chat_turn(messages: list[dict], user_input: str, _override_client=None
             messages=[{"role": "system", "content": effective_system}] + messages,
             tools=tools,
             tool_choice="auto",
-            max_tokens=4096,
+            **_max_tokens_param(MODEL, 4096),
             temperature=0.7,
         )
         msg = response.choices[0].message
@@ -1540,7 +1547,7 @@ class AionSession:
                             messages=[{"role": "system", "content": effective}] + messages,
                             tools=tools,
                             tool_choice="auto",
-                            max_tokens=4096,
+                            **_max_tokens_param(_fb_model, 4096),
                             temperature=0.7,
                             stream=True,
                         )
@@ -1825,7 +1832,7 @@ class AionSession:
                                         f"AI response: {final_text[:400]}"
                                     )},
                                 ],
-                                max_tokens=5,
+                                **_max_tokens_param(_check_model, 5),
                                 temperature=0.0,
                             )
 
@@ -1922,7 +1929,7 @@ class AionSession:
                                                     "Task fully complete? YES or NO"
                                                 )},
                                             ],
-                                            max_tokens=5,
+                                            **_max_tokens_param(_check_model, 5),
                                             temperature=0.0,
                                         )
                                         if hasattr(task_check_raw, "choices"):
@@ -2159,7 +2166,7 @@ Regeln:
             _char_raw = await _client.chat.completions.create(
                 model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=600,
+                **_max_tokens_param(MODEL, 600),
                 temperature=0.7,
             )
             # Gemini-Adapter gibt Stream-Iterator zurück; OpenAI gibt Response-Objekt
