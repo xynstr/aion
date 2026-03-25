@@ -20,7 +20,7 @@ from pathlib import Path
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 
-_GITHUB_REPO        = os.environ.get("AION_GITHUB_REPO", "").strip()
+_GITHUB_REPO        = os.environ.get("AION_GITHUB_REPO", "xynstr/aion").strip()
 _FIRST_CHECK_DELAY  = 60        # Sekunden nach Start bis zum ersten Check
 _CHECK_INTERVAL_H   = 24        # Stunden zwischen den Checks
 _AION_DIR           = Path(__file__).parent.parent.parent
