@@ -413,7 +413,8 @@ def step5_channels() -> dict:
         print()
         print(f"  {_c(C_DIM, '1. discord.com/developers/applications → New App → Bot')}")
         print(f"  {_c(C_DIM, '2. Copy Bot Token')}")
-        print(f"  {_c(C_DIM, '3. Enable \"Message Content Intent\" under Bot → Privileged Gateway Intents')}")
+        _msg = '3. Enable "Message Content Intent" under Bot \u2192 Privileged Gateway Intents'
+        print(f"  {_c(C_DIM, _msg)}")
         print()
         dc_token = ask("Discord Bot Token")
         if dc_token:
@@ -468,7 +469,8 @@ def step6_profile() -> dict:
     lang = ["German", "English", "mixed"][_select(["German", "English", "mixed"], default=0)]
 
     print()
-    print(f"  {_c(C_DIM, 'Primary use (comma-separated, e.g. \"1,3\"):')}")
+    _use_hint = 'Primary use (comma-separated, e.g. "1,3"):'
+    print(f"  {_c(C_DIM, _use_hint)}")
     print(f"    {_c(C_WHITE, '1')}  Coding")
     print(f"    {_c(C_WHITE, '2')}  Research")
     print(f"    {_c(C_WHITE, '3')}  Productivity")
