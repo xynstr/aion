@@ -16,20 +16,26 @@ BOT_DIR = Path(__file__).parent.parent.parent
 
 
 def _record_memory(category: str, summary: str, lesson: str, success: bool = True) -> None:
+    """Delegiert an AionMemory-Singleton — kein direktes JSON-Schreiben mehr."""
+    try:
+        import sys as _sys
+        _mem = getattr(_sys.modules.get("aion"), "memory", None)
+        if _mem is not None:
+            _mem.record(category=category, summary=summary, lesson=lesson, success=success)
+            return
+    except Exception:
+        pass
+    # Fallback: direkter Write wenn aion-Modul noch nicht geladen
     memory_file = BOT_DIR / "aion_memory.json"
     try:
         entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
     except Exception:
         entries = []
     entries.append({
-        "id":        str(uuid.uuid4())[:8],
-        "timestamp": datetime.now(UTC).isoformat(),
-        "category":  category,
-        "success":   success,
-        "summary":   str(summary)[:250],
-        "lesson":    str(lesson)[:600],
-        "error":     "",
-        "hint":      "",
+        "id": str(uuid.uuid4())[:8], "timestamp": datetime.now(UTC).isoformat(),
+        "category": category, "success": success,
+        "summary": str(summary)[:250], "lesson": str(lesson)[:600],
+        "error": "", "hint": "",
     })
     if len(entries) > 300:
         entries = entries[-300:]
