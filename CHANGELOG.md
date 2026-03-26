@@ -5,6 +5,31 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-26 — Context Compression + Snapshot Visibility + Token Optimization
+
+### Context Compression
+- `_auto_character_update()` rewritten: full rewrite every 5 conversations with fixed size cap (`CHARACTER_MAX_CHARS=5000`) — character evolves, never accumulates
+- `_compress_rules()`: LLM compresses `rules.md` when >15 KB, preserving all rules
+- `_generate_self_doc_summary()`: generates `AION_SELF_SUMMARY.md` (~3–5 KB index of 63 KB doc)
+- `_startup_compress_check()`: background task 5s after start checks all thresholds
+- `_backup_file()`: timestamped backups before every compression (max 3 kept per file)
+- SSE push notifications: `⚙ running` / `✓ done` toasts via `/api/events` during optimization
+
+### Snapshot Visibility
+- Web UI: "Snapshots" collapsible panel in Plugins section with per-plugin timestamps + Restore buttons
+- CLI: `/snapshots`, `/snapshots <plugin>`, `/snapshots restore <plugin> [<timestamp>]`
+- API: `GET /api/snapshots`, `GET /api/snapshots/{plugin}`, `POST /api/snapshots/{plugin}/restore`
+- Self-healing hint: exhausted retries now mention available plugin snapshots for recovery
+
+### Token Optimization
+- Tool schema tiering: 16 contextual plugins (`desktop`, `playwright_browser`, etc.) → `tier=2`, excluded by default (saves 1,500–2,500 tokens/turn); `config.json["tool_tier"]=2` includes all
+- `read_self_doc`: loads `AION_SELF_SUMMARY.md` by default (~3–5 KB vs 63 KB); `full=True` for complete doc
+- New tool `generate_self_doc_summary`: AION can regenerate summary on demand
+- `rules.md` truncation guard: `max_rules_chars` (default 12,000) + smart auto-compression
+- Changelog opt-in: `system_prompt_show_changelog` (default false) removes ~150 tokens/turn
+
+---
+
 ## 2026-03-26 — Personality 2.0 + Proactive AI + Desktop Automation + Self-Healing
 
 ### Evolving Personality 2.0

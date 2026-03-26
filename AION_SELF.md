@@ -12,6 +12,44 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-03-26 — Context Compression + Snapshot Visibility + Token Optimization)
+
+### Context Compression (lossless, auto-triggered)
+AION now compresses its own context files at startup and after updates — without losing information.
+- **character.md**: Fixed size limit (default 5,000 chars via `config.json["character_max_chars"]`).
+  `_auto_character_update()` now does a full **rewrite** every 5 conversations: new insights replace old
+  ones rather than appending. The character *evolves*, never grows. Backup written before each rewrite.
+- **rules.md**: LLM-compression when file exceeds 15,000 chars (`rules_compress_threshold`).
+  All rules preserved, verbose examples removed. Backup with rotation (max 3 kept).
+- **AION_SELF.md**: `read_self_doc` now loads `AION_SELF_SUMMARY.md` (~3–5 KB) by default instead
+  of the full 63 KB file (~15,000 tokens). `read_self_doc(full=True)` still loads the complete doc.
+  `generate_self_doc_summary` regenerates the summary on demand.
+- **Startup loop**: `_startup_compress_check()` runs 5 s after start (background, non-blocking).
+  Checks all thresholds and triggers compression if needed. Once per process.
+- **UI/CLI notifications**: When optimization runs, a toast notification appears bottom-right
+  (`⚙ Optimizing…` → `✓ Done`), pushed via the existing SSE `/api/events` channel.
+
+### Snapshot Visibility (UI + CLI + API)
+Plugin snapshots (code backups before hot-reloads) are now visible and actionable everywhere.
+- **Web UI**: Collapsible "Snapshots" panel in the Plugins section. Shows all snapshots per plugin
+  with timestamps. "Restore" button triggers immediate rollback + plugin reload.
+- **CLI**: `/snapshots` — list all plugins + snapshot counts.
+  `/snapshots <plugin>` — list timestamps. `/snapshots restore <plugin> [<timestamp>]` — rollback.
+- **API**: `GET /api/snapshots`, `GET /api/snapshots/{plugin}`, `POST /api/snapshots/{plugin}/restore`.
+- **Self-Healing integration**: After retry exhaustion, error message now mentions available snapshots
+  if the failing tool's plugin has backups available.
+
+### Token Optimization
+- **Tool schema tiering**: 16 rarely-used plugins (desktop, browser, telegram, discord, etc.)
+  are now `tier=2` and excluded from the default LLM tool list. Saves 1,500–2,500 tokens/turn.
+  Override with `config.json["tool_tier"] = 2` to include all tools.
+- **rules.md truncation guard**: `max_rules_chars` (default 12,000) prevents loading overly large
+  rules files on every turn. Combined with auto-compression, rules stay lean automatically.
+- **Changelog opt-in**: `system_prompt_show_changelog` (default false) removes changelog block
+  from system prompt by default (~150 tokens/turn saved).
+
+---
+
 ## Latest Improvements (2026-03-26 — Personality 2.0 + Proactive AI + Desktop + Self-Healing)
 
 ### Mood Engine
