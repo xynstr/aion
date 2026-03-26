@@ -1191,34 +1191,9 @@ async def serve_audio(filename: str):
     return FileResponse(str(audio_path), media_type=mime)
 
 def _find_claude_bin_web():
-    """Hilfsfunktion: sucht claude CLI (wiederverwendet in mehreren Endpoints)."""
-    import shutil, glob as _glob
-    found = shutil.which("claude")
-    if found:
-        return found
-    home = os.path.expanduser("~")
-    if sys.platform == "win32":
-        candidates = [
-            os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
-            os.path.join(os.environ.get("APPDATA", ""), "npm", "claude"),
-            os.path.join(home, ".claude", "local", "claude.exe"),
-            *_glob.glob(os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                "Microsoft", "WinGet", "Packages", "Anthropic.Claude*", "**", "claude.exe"),
-                recursive=True),
-        ]
-    else:
-        # macOS / Linux: npm global bin + common prefix paths
-        candidates = [
-            os.path.join(home, ".npm-global", "bin", "claude"),
-            os.path.join(home, ".local", "bin", "claude"),
-            "/usr/local/bin/claude",
-            "/usr/bin/claude",
-            os.path.join(home, ".claude", "local", "claude"),
-        ]
-    for c in candidates:
-        if c and os.path.exists(c):
-            return c
-    return None
+    """Hilfsfunktion: sucht claude CLI — delegiert an config_store.find_claude_bin()."""
+    from config_store import find_claude_bin
+    return find_claude_bin()
 
 @app.get("/api/claude-cli/status")
 async def claude_cli_status():

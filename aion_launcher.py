@@ -201,25 +201,34 @@ def _choose_mode() -> str:
                 _erase(n)
                 _render(idx)
         else:
-            import tty, termios
-            fd   = sys.stdin.fileno()
-            old  = termios.tcgetattr(fd)
             try:
-                tty.setraw(fd)
+                import tty, termios
+            except ImportError:
+                # Minimal POSIX system without tty/termios — fall back to plain input
+                _erase(n)
                 while True:
-                    ch = sys.stdin.read(1)
-                    if ch in ('\r', '\n'):
-                        break
-                    if ch == '\x1b':
-                        nxt = sys.stdin.read(2)
-                        if nxt == '[A':
-                            idx = (idx - 1) % n
-                        elif nxt == '[B':
-                            idx = (idx + 1) % n
-                    _erase(n)
-                    _render(idx)
-            finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+                    val = input("  Choice (1=Web / 2=CLI): ").strip()
+                    if val == "1": idx = 0; break
+                    if val == "2": idx = 1; break
+            else:
+                fd   = sys.stdin.fileno()
+                old  = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    while True:
+                        ch = sys.stdin.read(1)
+                        if ch in ('\r', '\n'):
+                            break
+                        if ch == '\x1b':
+                            nxt = sys.stdin.read(2)
+                            if nxt == '[A':
+                                idx = (idx - 1) % n
+                            elif nxt == '[B':
+                                idx = (idx + 1) % n
+                        _erase(n)
+                        _render(idx)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
     except KeyboardInterrupt:
         print("\n[AION] Aborted.", flush=True)
         sys.exit(0)
@@ -260,7 +269,10 @@ def _run_update():
 
     # Neue Version anzeigen
     try:
-        import re, tomllib  # noqa: F401
+        try:
+            import tomllib  # Python 3.11+
+        except ImportError:
+            import tomli as tomllib  # type: ignore[no-redef]  # Python 3.10 fallback
         text = (AION_DIR / "pyproject.toml").read_text(encoding="utf-8")
         data = tomllib.loads(text)
         new_ver = data.get("project", {}).get("version", "?")
@@ -378,7 +390,10 @@ def _main():
     # Launch — force python.exe (not pythonw.exe) so the console stays open
     python = sys.executable
     if sys.platform == "win32":
-        python = python.replace("pythonw.exe", "python.exe")
+        from pathlib import Path as _Path
+        _p = _Path(python)
+        if _p.stem.lower() == "pythonw":
+            python = str(_p.with_name("python.exe"))
 
     _check_update_banner()
 

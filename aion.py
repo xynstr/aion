@@ -1855,11 +1855,10 @@ class AionSession:
         self._last_response_blocks = []  # Letzte response_blocks (mit Bildern) für Bots wie Telegram
         # Schedule startup compression check (once per process, in background)
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.ensure_future(_startup_compress_check())
-        except Exception:
-            pass
+            loop = asyncio.get_running_loop()
+            loop.create_task(_startup_compress_check())
+        except RuntimeError:
+            pass  # No running loop in this thread — skip
 
     def _get_client(self):
         """Gibt den Session-Client zurück; erstellt ihn beim ersten Aufruf im aktuellen Loop."""

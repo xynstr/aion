@@ -794,30 +794,10 @@ def step7_permissions() -> dict:
 
 # ── Step 8: Advanced Settings ─────────────────────────────────────────────────
 
-def _find_claude_bin() -> str | None:
-    """Sucht die claude CLI (für Onboarding-Check)."""
-    import glob as _glob
-    import shutil as _shutil
-    found = _shutil.which("claude")
-    if found:
-        return found
-    home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude.cmd"),
-        os.path.join(os.environ.get("APPDATA", ""), "npm", "claude"),
-        os.path.join(home, ".claude", "local", "claude.exe"),
-        os.path.join(home, ".claude", "local", "claude"),
-        *_glob.glob(
-            os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                         "Microsoft", "WinGet", "Packages",
-                         "Anthropic.Claude*", "**", "claude.exe"),
-            recursive=True,
-        ),
-    ]
-    for c in candidates:
-        if c and os.path.exists(c):
-            return c
-    return None
+def _find_claude_bin() -> "str | None":
+    """Sucht die claude CLI — delegiert an config_store.find_claude_bin()."""
+    from config_store import find_claude_bin
+    return find_claude_bin()
 
 
 def _claude_cli_logged_in(claude_bin: str) -> bool:

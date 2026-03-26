@@ -26,8 +26,12 @@ import tempfile
 import threading
 from pathlib import Path
 
-_TOKEN_FILE   = Path.home() / ".aion_telegram_token"
-_CHATID_FILE  = Path.home() / ".aion_telegram_chatid"
+try:
+    _HOME = Path.home()
+except (RuntimeError, KeyError):
+    _HOME = Path("/tmp")  # Docker / minimal container without HOME set
+_TOKEN_FILE  = _HOME / ".aion_telegram_token"
+_CHATID_FILE = _HOME / ".aion_telegram_chatid"
 _polling_lock = threading.Lock()
 _stop_event   = threading.Event()   # set → current polling loop exits gracefully
 
