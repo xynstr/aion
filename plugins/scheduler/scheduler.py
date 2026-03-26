@@ -223,40 +223,48 @@ def _scheduler_loop() -> None:
     - Intervall-Tasks: Prüfung alle 5 Sekunden
     """
     import time
+    import logging
 
+    global _running
     last_checked_minute = -1
 
-    while _running:
-        now = datetime.now()
-        tasks = _load_tasks()
+    try:
+        while _running:
+            now = datetime.now()
+            tasks = _load_tasks()
 
-        for task in tasks:
-            interval_sec = task.get("interval_seconds")
+            for task in tasks:
+                interval_sec = task.get("interval_seconds")
 
-            if interval_sec:
-                # Intervall-Tasks: bei jedem Loop-Durchlauf prüfen
-                if _is_due(task, now):
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(_execute_task(task))
-                    finally:
-                        loop.close()
+                if interval_sec:
+                    # Intervall-Tasks: bei jedem Loop-Durchlauf prüfen
+                    if _is_due(task, now):
+                        loop = asyncio.new_event_loop()
+                        # KEIN asyncio.set_event_loop() — Loop bleibt isoliert
+                        try:
+                            loop.run_until_complete(_execute_task(task))
+                        finally:
+                            loop.close()
 
-            elif now.minute != last_checked_minute:
-                # Uhrzeit-Tasks: nur einmal pro Minute prüfen
-                if _is_due(task, now):
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(_execute_task(task))
-                    finally:
-                        loop.close()
+                elif now.minute != last_checked_minute:
+                    # Uhrzeit-Tasks: nur einmal pro Minute prüfen
+                    if _is_due(task, now):
+                        loop = asyncio.new_event_loop()
+                        # KEIN asyncio.set_event_loop() — Loop bleibt isoliert
+                        try:
+                            loop.run_until_complete(_execute_task(task))
+                        finally:
+                            loop.close()
 
-        if now.minute != last_checked_minute:
-            last_checked_minute = now.minute
+            if now.minute != last_checked_minute:
+                last_checked_minute = now.minute
 
-        time.sleep(5)  # alle 5s prüfen (Intervall-Granularität)
+            time.sleep(5)  # alle 5s prüfen (Intervall-Granularität)
+
+    except Exception as e:
+        logging.error(f"[scheduler] Loop-Absturz: {e}", exc_info=True)
+    finally:
+        _running = False  # Erlaubt Neustart nach Crash
 
 
 # ── Tool-Functionen ───────────────────────────────────────────────────────────

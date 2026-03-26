@@ -249,8 +249,7 @@ def _build_router():
     async def update_trigger():
         """Erzwingt sofortigen Update-Check (für Tests / manuelle Auslösung)."""
         import asyncio
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _check_once)
+        asyncio.get_running_loop().run_in_executor(None, _check_once)
         return JSONResponse({"ok": True, "message": "Update-Check gestartet"})
 
     return router

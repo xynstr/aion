@@ -12,9 +12,11 @@ Tools:
 """
 
 import uuid
+from collections import OrderedDict
 
-# Registry aller aktiven Sub-Agenten: agent_id -> AionSession
-_sub_sessions: dict[str, object] = {}
+# Registry aller aktiven Sub-Agenten: agent_id -> AionSession (LRU, max 20)
+MAX_SUB_SESSIONS = 20
+_sub_sessions: OrderedDict = OrderedDict()
 
 
 def _make_agent_id() -> str:
@@ -57,6 +59,9 @@ async def delegate_to_agent(
             agent_id = _make_agent_id()
         sess = AionSession(channel=agent_id)
         _sub_sessions[agent_id] = sess
+        # LRU-Limit: älteste Session entfernen wenn Limit erreicht
+        while len(_sub_sessions) > MAX_SUB_SESSIONS:
+            _sub_sessions.popitem(last=False)
 
     # Aufgabe ggf. mit Kontext anreichern
     prompt = task
