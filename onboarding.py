@@ -152,6 +152,108 @@ def _select(items: list, default: int = 0) -> int:
     return idx
 
 
+def _checkboxes(items: list, defaults: "list[int] | None" = None,
+                title: str = "") -> "list[int]":
+    """Multi-select checkbox list.
+    Space = toggle · ↑↓ = navigate · Enter = confirm
+    Returns list of selected indices. Falls back to numbered input when not a TTY."""
+    n       = len(items)
+    checked = set(defaults or [])
+    idx     = 0
+
+    def _render(cur: int) -> None:
+        if title:
+            print(f"  {_c(C_DIM, title)}")
+        for i, item in enumerate(items):
+            box    = _c(C_GREEN, "[x]") if i in checked else _c(C_DIM, "[ ]")
+            cursor = _c("92;1", ">") if i == cur else " "
+            label  = _c("97;1", item) if i == cur else _c(C_DIM, item)
+            print(f"  {cursor} {box} {label}")
+        print(f"  {_c(C_DIM, 'Space = toggle  ·  Enter = confirm')}")
+        sys.stdout.flush()
+
+    def _erase(count: int) -> None:
+        lines = count + (1 if title else 0) + 1   # items + title + hint
+        sys.stdout.write(f"\x1b[{lines}A\x1b[J")
+        sys.stdout.flush()
+
+    if not _TTY:
+        for i, item in enumerate(items, 1):
+            marker = _c(C_GREEN, "[x]") if (i - 1) in checked else "[ ]"
+            print(f"  {marker} {_c(C_WHITE, str(i))}  {item}")
+        print()
+        raw = ask(f"Select (comma-separated, e.g. 1,3  or Enter = none)", "")
+        result = set()
+        for part in raw.split(","):
+            part = part.strip()
+            if part.isdigit() and 1 <= int(part) <= n:
+                result.add(int(part) - 1)
+        return sorted(result)
+
+    print(f"  {_c(C_DIM, 'Arrow keys ↑↓  ·  Space = toggle  ·  Enter = confirm')}")
+    _render(idx)
+
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            while True:
+                key = msvcrt.getch()
+                if key in (b'\r', b'\n'):
+                    break
+                if key in (b'\x00', b'\xe0'):
+                    k2 = msvcrt.getch()
+                    if k2 == b'H':
+                        idx = (idx - 1) % n
+                    elif k2 == b'P':
+                        idx = (idx + 1) % n
+                elif key == b' ':
+                    if idx in checked:
+                        checked.discard(idx)
+                    else:
+                        checked.add(idx)
+                elif key == b'\x1b':
+                    raise KeyboardInterrupt
+                _erase(n)
+                _render(idx)
+        else:
+            import tty, termios
+            fd  = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                while True:
+                    ch = sys.stdin.read(1)
+                    if ch in ('\r', '\n'):
+                        break
+                    if ch == '\x1b':
+                        seq = sys.stdin.read(2)
+                        if seq == '[A':
+                            idx = (idx - 1) % n
+                        elif seq == '[B':
+                            idx = (idx + 1) % n
+                    elif ch == ' ':
+                        if idx in checked:
+                            checked.discard(idx)
+                        else:
+                            checked.add(idx)
+                    elif ch == '\x03':
+                        raise KeyboardInterrupt
+                    _erase(n)
+                    _render(idx)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    except Exception:
+        pass
+
+    _erase(n)
+    # Print final state
+    for i, item in enumerate(items):
+        box = _c(C_GREEN, "[x]") if i in checked else _c(C_DIM, "[ ]")
+        print(f"    {box} {_c(C_DIM, item)}")
+
+    return sorted(checked)
+
+
 def section(title: str, step: str) -> None:
     print()
     print(f"  {_c(C_LOGO, '====================================================')} ")
@@ -352,25 +454,34 @@ def step4_additional_providers(primary: str) -> dict:
     extra_keys: dict = {}
     remaining = [pid for pid in PROVIDERS if pid != primary]
 
+    items = []
     for pid in remaining:
+        p    = PROVIDERS[pid]
+        note = "(no key needed)" if not p["key_env"] else p["note"]
+        items.append(f"{p['label']}  —  {note}")
+
+    print(f"  {_c(C_DIM, 'Select with Space, confirm with Enter:')}")
+    print()
+    selected_idx = _checkboxes(items)
+    selected_pids = [remaining[i] for i in selected_idx]
+    print()
+
+    for pid in selected_pids:
         p = PROVIDERS[pid]
-        label    = _c(C_CYAN, p["label"])
-        note     = _c(C_DIM, p["note"])
-        key_note = _c(C_DIM, "(no key needed)") if not p["key_env"] else ""
-        ans = ask(f"Set up {label}  {note}  {key_note}? (y/n)", "n")
-        if ans.lower() == "y":
-            if not p["key_env"]:
-                # Ollama
-                info(f"Install: {p['key_url']}")
-                info("Then run: ollama pull llama3.2")
-                ok(f"{p['label']} enabled (no key needed)")
-            else:
-                print()
-                key = _ask_api_key(pid)
-                if key:
-                    extra_keys[p["key_env"]] = key
-                    ok(f"{p['label']} key saved.")
+        if not p["key_env"]:
+            info(f"Install: {p['key_url']}")
+            info("Then run: ollama pull llama3.2")
+            ok(f"{p['label']} enabled (no key needed)")
+        else:
+            print()
+            key = _ask_api_key(pid)
+            if key:
+                extra_keys[p["key_env"]] = key
+                ok(f"{p['label']} key saved.")
         print()
+
+    if not selected_pids:
+        info("No additional providers selected.")
 
     return extra_keys
 
@@ -384,12 +495,19 @@ def step5_channels() -> dict:
 
     result: dict = {}
 
+    channel_items = [
+        "Telegram  —  text, images, voice messages (bidirectional bot)",
+        "Discord   —  @Mentions and DMs, slash command /ask",
+        "Slack     —  @Mentions and DMs via Socket Mode",
+    ]
+    print(f"  {_c(C_DIM, 'Select with Space, confirm with Enter:')}")
+    print()
+    selected = _checkboxes(channel_items)
+    print()
+
     # ── Telegram ────────────────────────────────────────────────────────────
-    print(f"  {_c(C_CYAN, 'Telegram')}")
-    print(f"  {_c(C_DIM, 'Bidirectional bot — text, images, voice messages')}")
-    use_tg = ask("Set up Telegram? (y/n)", "n")
-    if use_tg.lower() == "y":
-        print()
+    if 0 in selected:
+        print(f"  {_c(C_CYAN, 'Telegram setup:')}")
         print(f"  {_c(C_DIM, '1. Create a bot via @BotFather on Telegram → copy token')}")
         print(f"  {_c(C_DIM, '2. Get Chat ID: open https://api.telegram.org/bot<TOKEN>/getUpdates')}")
         print()
@@ -401,16 +519,11 @@ def step5_channels() -> dict:
             ok("Telegram configured.")
         else:
             warn("Token or Chat ID missing — Telegram skipped.")
-    else:
-        info("Telegram skipped.")
-    print()
+        print()
 
     # ── Discord ─────────────────────────────────────────────────────────────
-    print(f"  {_c(C_CYAN, 'Discord')}")
-    print(f"  {_c(C_DIM, 'Bot responds to @Mentions and DMs — slash command /ask')}")
-    use_dc = ask("Set up Discord? (y/n)", "n")
-    if use_dc.lower() == "y":
-        print()
+    if 1 in selected:
+        print(f"  {_c(C_CYAN, 'Discord setup:')}")
         print(f"  {_c(C_DIM, '1. discord.com/developers/applications → New App → Bot')}")
         print(f"  {_c(C_DIM, '2. Copy Bot Token')}")
         _msg = '3. Enable "Message Content Intent" under Bot \u2192 Privileged Gateway Intents'
@@ -422,16 +535,11 @@ def step5_channels() -> dict:
             ok("Discord configured.")
         else:
             warn("No token entered — Discord skipped.")
-    else:
-        info("Discord skipped.")
-    print()
+        print()
 
     # ── Slack ────────────────────────────────────────────────────────────────
-    print(f"  {_c(C_CYAN, 'Slack')}")
-    print(f"  {_c(C_DIM, 'Bot responds to @Mentions and direct messages via Socket Mode')}")
-    use_sl = ask("Set up Slack? (y/n)", "n")
-    if use_sl.lower() == "y":
-        print()
+    if 2 in selected:
+        print(f"  {_c(C_CYAN, 'Slack setup:')}")
         print(f"  {_c(C_DIM, '1. api.slack.com/apps → New App → From scratch')}")
         print(f"  {_c(C_DIM, '2. Enable Socket Mode → generate App-Level Token (scope: connections:write)')}")
         print(f"  {_c(C_DIM, '3. OAuth & Permissions → Bot scopes: app_mentions:read, chat:write, im:history, im:read, im:write')}")
@@ -445,11 +553,134 @@ def step5_channels() -> dict:
             ok("Slack configured.")
         else:
             warn("Token(s) missing — Slack skipped.")
-    else:
-        info("Slack skipped.")
+        print()
+
+    if not selected:
+        info("No channels selected — you can add them later via .env.")
     print()
 
     return result
+
+# ── Step 5b: MCP Servers ──────────────────────────────────────────────────────
+
+MCP_SERVERS = [
+    {
+        "id":      "filesystem",
+        "label":   "Filesystem  —  read/write local folders",
+        "command": "npx",
+        "args":    ["-y", "@modelcontextprotocol/server-filesystem"],
+        "needs_vault": False,
+        "arg_prompt": "Path to expose (e.g. C:/Users/Paul/Documents)",
+        "arg_key":    None,
+    },
+    {
+        "id":      "github",
+        "label":   "GitHub  —  repos, issues, PRs, code search",
+        "command": "npx",
+        "args":    ["-y", "@modelcontextprotocol/server-github"],
+        "needs_vault": True,
+        "vault_key":   "mcp_github",
+        "vault_env":   "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "key_hint":    "Personal Access Token — github.com/settings/tokens",
+    },
+    {
+        "id":      "postgres",
+        "label":   "PostgreSQL  —  query your database",
+        "command": "npx",
+        "args":    ["-y", "@modelcontextprotocol/server-postgres"],
+        "needs_vault": True,
+        "vault_key":   "mcp_postgres",
+        "vault_env":   "POSTGRES_URL",
+        "key_hint":    "Connection string, e.g. postgresql://user:pass@localhost/db",
+    },
+    {
+        "id":      "notion",
+        "label":   "Notion  —  pages, databases, search",
+        "command": "npx",
+        "args":    ["-y", "@modelcontextprotocol/server-notion"],
+        "needs_vault": True,
+        "vault_key":   "mcp_notion",
+        "vault_env":   "NOTION_API_TOKEN",
+        "key_hint":    "Integration token — notion.so/my-integrations",
+    },
+]
+
+
+def step5b_mcp() -> dict:
+    """Returns mcp_servers dict to write to mcp_servers.json."""
+    section("MCP Integrations (optional)", "Step 5b/9:")
+    print(f"  {_c(C_DIM, 'MCP servers give AION instant access to external services.')}")
+    print(f"  {_c(C_DIM, 'Requires: npm/npx installed  ·  pip install mcp')}")
+    print()
+
+    items    = [s["label"] for s in MCP_SERVERS]
+    selected = _checkboxes(items)
+    print()
+
+    if not selected:
+        info("No MCP servers selected — add them later via mcp_servers.json.")
+        print()
+        return {}
+
+    servers: dict = {}
+    for i in selected:
+        srv = MCP_SERVERS[i]
+        sid = srv["id"]
+
+        if srv["id"] == "filesystem":
+            folder = ask("Path to expose", "C:/Users")
+            servers[sid] = {
+                "command": srv["command"],
+                "args":    srv["args"] + [folder],
+            }
+            ok(f"Filesystem configured ({folder})")
+
+        elif srv.get("needs_vault"):
+            print()
+            print(f"  {_c(C_CYAN, srv['id'].capitalize() + ' setup:')}")
+            print(f"  {_c(C_DIM, srv['key_hint'])}")
+            token = ask(f"{srv['vault_env']}")
+            if token:
+                # Store in vault
+                _write_vault(srv["vault_key"], token)
+                servers[sid] = {
+                    "command":   srv["command"],
+                    "args":      srv["args"],
+                    "vault_env": {srv["vault_env"]: srv["vault_key"]},
+                }
+                ok(f"{sid} configured (token stored in vault)")
+            else:
+                warn(f"{sid} skipped — no token entered")
+        print()
+
+    return servers
+
+
+def _write_vault(key: str, value: str) -> None:
+    """Writes a value to the credentials vault during onboarding."""
+    try:
+        import re as _re
+        from cryptography.fernet import Fernet
+        vault_dir = BOT_DIR / "credentials"
+        key_file  = vault_dir / ".vault.key"
+        vault_dir.mkdir(parents=True, exist_ok=True)
+        if key_file.exists():
+            fernet_key = key_file.read_bytes().strip()
+        else:
+            fernet_key = Fernet.generate_key()
+            key_file.write_bytes(fernet_key)
+            try:
+                key_file.chmod(0o600)
+            except Exception:
+                pass
+        fernet   = Fernet(fernet_key)
+        name     = _re.sub(r"[^\w\-]", "_", key.lower().strip())
+        name     = _re.sub(r"_+", "_", name).strip("_")
+        enc_path = vault_dir / f"{name}.md.enc"
+        enc_path.write_bytes(fernet.encrypt(value.encode("utf-8")))
+    except Exception as e:
+        warn(f"Vault write failed: {e}")
+
 
 # ── Step 6: Profile ───────────────────────────────────────────────────────────
 
@@ -1052,6 +1283,23 @@ def update_character_md(profile: dict) -> None:
     ok(f"character.md updated ({char_path})")
 
 
+def _write_mcp_servers(servers: dict) -> None:
+    """Merges new servers into mcp_servers.json (keeps existing entries)."""
+    mcp_path = BOT_DIR / "mcp_servers.json"
+    existing: dict = {"servers": {}}
+    if mcp_path.exists():
+        try:
+            existing = json.loads(mcp_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    existing.setdefault("servers", {}).update(servers)
+    mcp_path.write_text(
+        json.dumps(existing, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    ok(f"mcp_servers.json updated ({len(servers)} server(s))")
+
+
 def write_flag() -> None:
     flag_path = BOT_DIR / "aion_onboarding_complete.flag"
     flag_path.write_text("Onboarding complete.\n", encoding="utf-8")
@@ -1119,6 +1367,7 @@ def run_onboarding() -> None:
         model        = step3_model(provider)
         extra_keys   = step4_additional_providers(provider)
         channels     = step5_channels()
+        mcp_servers  = step5b_mcp()
         profile      = step6_profile()
         permissions  = step7_permissions()
         advanced     = step8_advanced()
@@ -1131,6 +1380,8 @@ def run_onboarding() -> None:
         write_env(provider, api_key, model, extra_keys, channels, advanced)
         write_config(model, permissions, advanced)
         update_character_md(profile)
+        if mcp_servers:
+            _write_mcp_servers(mcp_servers)
         write_flag()
 
         completion_banner(model, profile.get("name", ""), len(extra_keys), channels, advanced)
