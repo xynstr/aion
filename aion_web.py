@@ -1394,4 +1394,16 @@ if __name__ == "__main__":
     if _host != "127.0.0.1":
         print(f"Hinweis: Server erreichbar im Netzwerk (AION_HOST={_host}) — kein Passwortschutz aktiv.")
     print("Beenden: Strg+C\n")
-    uvicorn.run(app, host=_host, port=_port, log_level="warning")
+    try:
+        uvicorn.run(app, host=_host, port=_port, log_level="warning")
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        # Sauberes Beenden — stoppt Telegram-Polling und alle Daemon-Threads sofort
+        try:
+            from plugins.telegram_bot.telegram_bot import _stop_event
+            _stop_event.set()
+        except Exception:
+            pass
+    import os as _os
+    _os._exit(0)
