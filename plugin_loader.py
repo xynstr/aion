@@ -63,12 +63,22 @@ class PluginAPI:
     def __init__(self, tool_registry):
         self.tool_registry = tool_registry
 
-    def register_tool(self, name, description, func, input_schema=None):
-        self.tool_registry[name] = {
+    def register_tool(self, name, description, func, input_schema=None, retry_policy=None):
+        """Register a tool with the AION tool registry.
+
+        Args:
+            retry_policy: Optional dict controlling automatic retries on transient errors.
+                Example: {"max": 3, "backoff": 2.0, "on": ["network", "timeout"]}
+                Error categories: "network", "timeout", "resource", "not_found"
+        """
+        entry = {
             "description": description,
             "func": func,
             "input_schema": input_schema or {"type": "object", "properties": {}},
         }
+        if retry_policy:
+            entry["retry_policy"] = retry_policy
+        self.tool_registry[name] = entry
 
     def register_router(self, router, prefix: str = "", tags: list = None):
         """Registriert einen FastAPI-APIRouter für Plugin-eigene Web-Endpunkte.
