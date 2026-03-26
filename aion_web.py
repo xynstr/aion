@@ -74,7 +74,9 @@ _startup_model = _get_model()
 # ── Session ───────────────────────────────────────────────────────────────────
 
 _session = AionSession(channel="web")
-_cancel_event: asyncio.Event | None = None
+# Pro-Request Cancel-Events statt einem globalen — verhindert Race Conditions
+# bei gleichzeitigen Anfragen (key = Task-Objekt-ID → asyncio.Event)
+_active_cancel_events: dict[int, asyncio.Event] = {}
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
@@ -164,15 +166,16 @@ async def index():
     return HTMLResponse("<h1>index.html nicht gefunden</h1>", status_code=404)
 
 async def _stream_chat_with_images(user_input: str, images: list | None) -> AsyncGenerator[str, None]:
-    global _cancel_event
-    _cancel_event = asyncio.Event()
+    task_id = id(asyncio.current_task())
+    cancel_event = asyncio.Event()
+    _active_cancel_events[task_id] = cancel_event
     try:
-        async for event in _session.stream(user_input, images=images, cancel_event=_cancel_event):
+        async for event in _session.stream(user_input, images=images, cancel_event=cancel_event):
             yield _sse(event)
     except Exception as e:
         yield _sse({"type": "error", "text": f"[AION Fehler] {e}"})
     finally:
-        _cancel_event = None
+        _active_cancel_events.pop(task_id, None)
 
 @app.post("/api/chat")
 async def chat(request: Request):
@@ -197,9 +200,10 @@ async def chat(request: Request):
 
 @app.post("/api/stop")
 async def stop_generation():
-    global _cancel_event
-    if _cancel_event:
-        _cancel_event.set()
+    if _active_cancel_events:
+        # Neueste aktive Anfrage stoppen (last inserted in OrderedDict-Iteration)
+        last_event = next(reversed(_active_cancel_events.values()))
+        last_event.set()
         return JSONResponse({"ok": True, "stopped": True})
     return JSONResponse({"ok": True, "stopped": False})
 
@@ -236,7 +240,12 @@ async def set_model(request: Request):
         lesson=f"Nutzer hat Modell auf {model} geändert",
         success=True,
     )
-    provider = "gemini" if model.startswith("gemini") else "openai"
+    if model.startswith("gemini"):        provider = "gemini"
+    elif model.startswith("claude"):      provider = "anthropic"
+    elif model.startswith("ollama/"):     provider = "ollama"
+    elif model.startswith("deepseek"):    provider = "deepseek"
+    elif model.startswith("grok"):        provider = "xai"
+    else:                                  provider = "openai"
     return JSONResponse({"ok": True, "model": model, "provider": provider})
 
 @app.get("/api/history")
@@ -648,6 +657,13 @@ async def process_file(request: Request):
         if upload is None:
             return JSONResponse({"ok": False, "error": "No file in request"}, status_code=400)
         filename = upload.filename or "unknown"
+        MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+        # Größe prüfen ohne die komplette Datei in RAM zu lesen
+        upload.file.seek(0, 2)
+        file_size = upload.file.tell()
+        upload.file.seek(0)
+        if file_size > MAX_UPLOAD_BYTES:
+            return JSONResponse({"ok": False, "error": "Datei zu groß (max 50 MB)"}, status_code=413)
         content  = await upload.read()
         ext      = Path(filename).suffix.lower()
     except Exception as e:
@@ -956,7 +972,7 @@ async def save_thinking(request: Request):
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     level   = body.get("level", "").strip().lower()
     channel = body.get("channel", "").strip()
-    valid   = {"off", "minimal", "standard", "deep", "extreme"}
+    valid   = {"minimal", "standard", "deep", "ultra"}
     if level and level not in valid:
         return JSONResponse({"error": f"Ungültiger Level. Erlaubt: {', '.join(sorted(valid))}"}, status_code=400)
     cfg = _load_config()
@@ -1140,9 +1156,10 @@ async def google_oauth_start():
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     if not client_id:
         return JSONResponse({"error": "GOOGLE_CLIENT_ID nicht gesetzt"}, status_code=400)
-    import secrets
+    import secrets, time
     state = secrets.token_urlsafe(16)
     _OAUTH_STATE["state"] = state
+    _OAUTH_STATE["created"] = time.time()  # Ablaufzeit: 5 Minuten
     redirect_uri = "http://localhost:7000/api/oauth/google/callback"
     url = (
         f"{_GOOGLE_AUTH_URL}?response_type=code"
@@ -1161,9 +1178,15 @@ async def google_oauth_callback(code: str = "", state: str = "", error: str = ""
     if error:
         _err_json = '{"error":"' + error + '"}'
         return HTMLResponse(f"<html><body>{close_script % repr(_err_json)}Fehler: {error}</body></html>")
+    import time as _time
     if state != _OAUTH_STATE.get("state"):
         _state_json = '{"error":"invalid_state"}'
         return HTMLResponse(f"<html><body>{close_script % repr(_state_json)}Ungültiger State</body></html>")
+    if _time.time() - _OAUTH_STATE.get("created", 0) > 300:  # 5 Minuten Ablauf
+        _OAUTH_STATE.clear()
+        _exp_json = '{"error":"state_expired"}'
+        return HTMLResponse(f"<html><body>{close_script % repr(_exp_json)}OAuth-State abgelaufen — bitte erneut starten</body></html>")
+    _OAUTH_STATE.clear()  # State nach Nutzung invalidieren (CSRF-Schutz)
     client_id     = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
     client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
     redirect_uri  = "http://localhost:7000/api/oauth/google/callback"

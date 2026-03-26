@@ -59,7 +59,15 @@ def _run_onboarding():
 
 def _open_browser_delayed(url: str = "http://localhost:7000", delay: float = 2.0):
     def _open():
-        time.sleep(delay)
+        import urllib.request
+        # Warten bis der Server tatsächlich antwortet (max. 10 Sekunden)
+        for _ in range(20):
+            time.sleep(0.5)
+            try:
+                urllib.request.urlopen(url + "/favicon.ico", timeout=1)
+                break   # Server antwortet → Browser öffnen
+            except Exception:
+                continue
         webbrowser.open(url)
     threading.Thread(target=_open, daemon=True).start()
 
