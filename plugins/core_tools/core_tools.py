@@ -19,25 +19,33 @@ BOT_DIR = Path(__file__).parent.parent.parent
 
 def _record_memory(category: str, summary: str, lesson: str,
                    success: bool = True, hint: str = "") -> None:
-    """Standalone-Memory-Write: liest File, appendiert, speichert."""
+    """Delegiert an AionMemory-Singleton — kein direktes JSON-Schreiben mehr."""
+    try:
+        import sys as _sys
+        _mem = getattr(_sys.modules.get("aion"), "memory", None)
+        if _mem is not None:
+            _mem.record(category=category, summary=summary, lesson=lesson,
+                        success=success, hint=hint)
+            return
+    except Exception:
+        pass
+    # Fallback: direkter Write wenn aion-Modul noch nicht geladen
+    import json as _json, uuid as _uuid
     memory_file = BOT_DIR / "aion_memory.json"
     try:
-        entries = json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
+        entries = _json.loads(memory_file.read_text(encoding="utf-8")) if memory_file.is_file() else []
     except Exception:
         entries = []
+    from aion import MAX_MEMORY
     entries.append({
-        "id":        str(uuid.uuid4())[:8],
-        "timestamp": datetime.now(UTC).isoformat(),
-        "category":  category,
-        "success":   success,
-        "summary":   str(summary)[:250],
-        "lesson":    str(lesson)[:600],
-        "error":     "",
-        "hint":      str(hint)[:300],
+        "id": str(_uuid.uuid4())[:8], "timestamp": datetime.now(UTC).isoformat(),
+        "category": category, "success": success,
+        "summary": str(summary)[:250], "lesson": str(lesson)[:600],
+        "error": "", "hint": str(hint)[:300],
     })
-    if len(entries) > 300:
-        entries = entries[-300:]
-    memory_file.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    if len(entries) > MAX_MEMORY:
+        entries = entries[-MAX_MEMORY:]
+    memory_file.write_text(_json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def register(api):
