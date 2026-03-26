@@ -13,791 +13,114 @@
 
 ---
 
-AION is a self-contained autonomous AI agent that runs as a Python process on your machine.
-It streams responses live, executes tools, schedules tasks, controls a browser, sends messages across platforms — and can read, patch, and extend its own code.
+AION is a self-hosted AI agent that **writes its own plugins**, routes tasks across 6 providers, and works while you sleep — running 100% on your machine.
 
-> **No cloud dependency beyond the LLM API.** Everything else runs locally.
+> No cloud dependency beyond the LLM API. Everything else is local.
 
 ---
 
-## ✦ What makes AION different
+## Why AION?
 
-| Feature | AION | Typical chatbot |
-|---------|------|----------------|
-| Runs tools autonomously (up to 50 iterations) | ✅ | ❌ |
-| Modifies its own code and creates plugins | ✅ | ❌ |
-| Schedules tasks that run while you're away | ✅ | ❌ |
-| Controls a real browser (Playwright) | ✅ | ❌ |
-| Works via Telegram, Discord, Slack, Alexa | ✅ | ❌ |
-| Multi-provider with automatic failover | ✅ | ❌ |
-| Use Claude subscription instead of API key | ✅ | ❌ |
-| Personality that evolves through conversation | ✅ | ❌ |
-| 5-state mood engine — curious, focused, playful, calm, reflective | ✅ | ❌ |
-| Relationship depth — communication style deepens over 300+ exchanges | ✅ | ❌ |
-| Proactive follow-ups — surfaces your unfinished tasks every morning | ✅ | ❌ |
-| Desktop automation — screenshot, click, type, hotkey via pyautogui | ✅ | ❌ |
-| Self-healing tools — silent retry with exponential backoff | ✅ | ❌ |
-| 100% local memory + history | ✅ | ❌ |
-| Semantic RAG memory — finds meaning, not just keywords | ✅ | ❌ |
-| MCP client — instant access to 1,700+ server integrations | ✅ | ❌ |
+**🧠 It extends itself.**
+AION writes, hot-reloads, and creates its own plugins directly from chat. No manual skill files, no code editor. Just ask: *"Add a tool that checks Bitcoin prices."* The plugin is live immediately.
+
+**🎭 A personality that grows with you.**
+AION's character evolves automatically — mood adapts to context, communication style deepens over 300+ exchanges, and every morning it surfaces your unfinished tasks without being asked.
+
+**💡 No API costs for everyday tasks.**
+Connect your Claude.ai subscription ($20/mo) or Gemini free tier via OAuth. AION routes heavy tasks to powerful models and light tasks to free ones — automatically.
+
+**🖱 Controls your desktop.**
+Screenshot, click, type, hotkeys — AION sees and controls your screen via pyautogui, without a browser extension or separate daemon.
+
+---
+
+## AION vs. OpenClaw
+
+Both are self-hosted, open-source AI agents with Web UI, MCP, scheduling, and semantic memory. Here's where they differ:
+
+| | AION | OpenClaw |
+|---|---|---|
+| **Writes its own plugins from chat** | ✅ | ❌ |
+| **Evolving personality + mood engine** | ✅ | ❌ |
+| **Proactive morning briefings** | ✅ | ❌ |
+| **Use subscription (no per-token cost)** | ✅ Claude + Gemini OAuth | ❌ API key required |
+| **Desktop automation** (click, type, screenshot) | ✅ | ❌ |
+| Web UI | ✅ | ✅ |
+| Scheduled tasks / cron | ✅ | ✅ |
+| MCP integrations | ✅ 1,700+ | ✅ plugin-based |
+| Semantic RAG memory | ✅ | ✅ |
+| Browser automation | ✅ Playwright | ✅ exec-based |
+| Messaging: Telegram, Discord, Slack | ✅ | ✅ |
+| Messaging: WhatsApp, Signal, iMessage | ❌ | ✅ |
+| Mobile companion app | ❌ | ✅ |
+| AI providers | 6 (incl. Ollama) | 40+ |
+| Runtime | Python | Node.js |
+
+> OpenClaw is the better choice if you need WhatsApp/Signal/iMessage or a mobile companion app.
+> AION is the better choice if you want an agent that evolves, extends itself, and thinks proactively.
 
 ---
 
 ## ⚡ Quick Start
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-pip install -e .
-
-# Guided setup (recommended for first run)
-aion --setup
-
-# Start — interactive selector (Web UI or CLI)
-aion
-
-# Or start directly
-aion --web    # Web UI → http://localhost:7000
-aion --cli    # CLI mode (terminal only)
-
-# Update to the latest version (git pull + reinstall)
-aion update
+pip install -r requirements.txt && pip install -e .
+aion --setup    # guided setup: API keys, plugins, providers
+aion            # ↑↓ arrow-key selector: Web UI or CLI
 ```
-
-`aion` shows an arrow-key selector on every start. Pick **Web UI** or **CLI** with ↑↓ + Enter.
-
----
-
-## 🤖 Supported AI Providers
-
-AION supports multiple providers simultaneously. Switch between them at any time — even mid-conversation.
-
-### Using an API Key
-
-| Provider | Key | Best for | Cost |
-|----------|-----|----------|------|
-| **Google Gemini** | `GEMINI_API_KEY` | Speed, multimodal, free tier | Free / pay-per-use |
-| **OpenAI** | `OPENAI_API_KEY` | GPT-4.1, o3, o4-mini | Pay-per-use |
-| **Anthropic Claude** | `ANTHROPIC_API_KEY` | Code, reasoning | Pay-per-use |
-| **DeepSeek** | `DEEPSEEK_API_KEY` | Affordable reasoning | Very low cost |
-| **xAI Grok** | `XAI_API_KEY` | Latest xAI models | Pay-per-use |
-| **Ollama** | *(none)* | Fully local, offline | Free |
-
-### Using a Subscription (no API key needed)
-
-| Provider | How | Plan |
-|----------|-----|------|
-| **Google Gemini** | Google OAuth flow — built into the Keys tab | Google Cloud |
-| **Anthropic Claude** | Claude Code CLI (`claude login`) — built into onboarding | claude.ai $20/$200 |
-
-> **Tip:** Use Gemini Flash (free) for everyday tasks and Claude Opus (subscription) for complex coding — configured via Task Routing.
-
----
-
-## 🔐 Credentials Vault
-
-AION includes a built-in encrypted vault for storing API keys, passwords, and login data per service.
-
-```
-credentials/
-├── facebook.md.enc       ← AES-encrypted markdown per service
-├── openai.md.enc
-├── telegram.md.enc
-└── .vault.key            ← encryption key (never commit this)
-```
-
-The entire `credentials/` folder is **gitignored**. Files are encrypted with Fernet (AES-128-CBC + HMAC-SHA256).
-
-**Usage — just tell AION:**
-- *"Save my Facebook credentials: email foo@bar.com, password 1234"*
-- *"What are my OpenAI credentials?"*
-- *"Show all saved credentials"*
-- *"Delete my Telegram credentials"*
-
-AION automatically calls `credential_write`, `credential_read`, `credential_list`, or `credential_delete`.
-
-> ⚠️ Back up your `credentials/` folder and `.vault.key` regularly. Without the key, encrypted files cannot be recovered.
-
----
-
-## 📦 Installation
-
-### Option A — Guided Setup (recommended)
 
 ```bash
-pip install -r requirements.txt
-pip install -e .
+aion --web      # Web UI → http://localhost:7000
+aion --cli      # CLI mode (terminal only)
+aion update     # git pull + reinstall in one step
+```
+
+---
+
+## Features
+
+| | |
+|---|---|
+| 🤖 6 AI providers + automatic failover | 🔐 Credentials vault (AES-encrypted) |
+| 🔀 Task routing — best model per task type | 📱 Messaging: Telegram, Discord, Slack, Alexa |
+| 🧩 Plugin system — hot-reload, one Python file | 🤖 Multi-agent delegation |
+| 🌐 Browser automation (Playwright, 8 tools) | 🎙 Audio: TTS + STT, voice in Telegram |
+| ⏰ Scheduler (cron + interval + natural language) | 🔒 100% local — no cloud beyond the LLM API |
+| 🔌 MCP client — 1,700+ server integrations | 🧠 Semantic RAG memory (vector embeddings) |
+
+---
+
+## Supported Providers
+
+| Provider | Free option | Notes |
+|---|---|---|
+| **Google Gemini** | ✅ Free tier + Google OAuth | Recommended default |
+| **Anthropic Claude** | ✅ Claude.ai subscription ($20/mo) | Best for coding + reasoning |
+| **OpenAI** | — | GPT-4.1, o3, o4-mini |
+| **DeepSeek** | — | Very low cost |
+| **xAI Grok** | — | grok-3, grok-3-mini |
+| **Ollama** | ✅ Fully local, offline | Any model, no API key |
+
+Switch model any time: Web UI dropdown, `POST /api/model`, or just say *"Switch to claude-opus-4-6"*.
+
+---
+
+## Installation
+
+### Guided (recommended)
+```bash
+pip install -r requirements.txt && pip install -e .
 aion --setup
 ```
 
-The setup wizard configures your API keys, messaging channels, browser mode, and — optionally — Claude subscription login. Everything can be changed later via the Web UI.
+The setup wizard configures API keys, plugins, and providers. Everything can be changed later in the Web UI.
 
-### Option B — Manual
-
-```bash
-pip install -r requirements.txt
-```
-
-Create `.env` in the project directory:
-
-```env
-# At least one provider key is required
-GEMINI_API_KEY=AIza...
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-DEEPSEEK_API_KEY=sk-...
-XAI_API_KEY=xai-...
-
-# Active model (also changeable via Web UI)
-AION_MODEL=gemini-2.5-flash
-
-# Auto-updates (optional) — checks GitHub Releases once per day
-AION_GITHUB_REPO=xynstr/aion
-
-# Messaging (optional)
-TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_CHAT_ID=123456789
-DISCORD_BOT_TOKEN=...
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-
-# Web server (optional)
-AION_PORT=7000
-AION_HOST=127.0.0.1   # use 0.0.0.0 for LAN access
-```
-
-Then start:
-
-```bash
-python aion_web.py      # Web UI at http://localhost:7000
-python aion_cli.py      # CLI mode (no browser)
-```
-
-### Option C — Docker
-
+### Docker
 ```bash
 docker-compose up
 ```
-
-Playwright/Chromium pre-installed. Volumes for `.env`, config, memory, logs, and plugins. Restarts automatically.
-
----
-
-## 🖥 Web UI
-
-```
-┌────────────────────────────────────────────────────────────┐
-│  ◈ AION   [gemini-2.5-pro ▼]  [Save]          [↺ Reset]   │
-├──────────┬─────────────────────────────────────────────────┤
-│          │                                                  │
-│ 💬 Chat  │  Token streaming — responses appear live        │
-│ 📝 Prompts  Thoughts 💭 and tool calls ⚙ inline          │
-│ 🔑 Keys  │  Images and audio rendered directly in chat     │
-│ 🔌 Plugins                                                  │
-│ 🧠 Memory│                                                  │
-│ ⊞ System │                                                  │
-│          ├─────────────────────────────────────────────────┤
-│          │  [Type a message…]                      [▶]     │
-└──────────┴─────────────────────────────────────────────────┘
-```
-
-**Sidebar tabs:**
-
-| Tab | What you get |
-|-----|-------------|
-| 💬 **Chat** | Live token streaming, thoughts + tool calls as inline accordions, image + audio rendering |
-| 📝 **Prompts** | Edit `rules.md`, `character.md`, `AION_SELF.md` directly in the browser |
-| 🔑 **Keys** | Set API keys per provider, Google OAuth, Claude subscription login — all with status indicators |
-| 🔌 **Plugins** | All loaded plugins, tool list, hot-reload |
-| 🧠 **Memory** | Searchable memory entries, color-coded, deletable |
-| ⊞ **System** | Model switching, TTS settings, Task Routing, statistics, actions |
-
----
-
-## 💻 CLI Mode
-
-```bash
-aion --cli
-
-  ╔══════════════════════════════════════╗
-  ║  AION  —  CLI Mode                   ║
-  ╚══════════════════════════════════════╝
-  Model: gemini-2.5-flash  |  Tools: 56
-
-You  › Search for recent AI news and summarize the top 3
-  💭  Performing web search for recent AI developments
-  ⚙   web_search({query: "AI news 2026"})  →  OK  5 results
-  ⚙   web_fetch({url: "..."})              →  OK  8420 chars
-AION › Here are the top 3 AI stories this week: ...
-
-You  › /model gemini-2.5-pro
-  Model switched to gemini-2.5-pro
-```
-
-Internal commands: `/help`, `/clear`, `/model <name>`
-
----
-
-## 🔀 Task Routing
-
-Automatically route tasks to the best model:
-
-```json
-// config.json
-"task_routing": {
-  "coding":   "claude-opus-4-6",
-  "review":   "claude-sonnet-4-6",
-  "browsing": "gemini-2.5-flash",
-  "default":  "gemini-2.5-pro"
-}
-```
-
-AION reads this config and uses `ask_claude` automatically for code tasks — delegating to Claude while keeping all tool execution on the primary model.
-
-Configure via Web UI (System tab) or in chat:
-```
-"Use Claude for coding, Gemini for everything else"
-→ set_task_routing(coding="claude-opus-4-6", default="gemini-2.5-flash")
-```
-
----
-
-## 📱 Messaging Channels
-
-Each channel has fully isolated conversation history — no context bleeding between platforms.
-
-### Telegram
-```env
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-```
-Supports: text, images, voice messages (transcription + TTS reply)
-
-### Discord
-```env
-DISCORD_BOT_TOKEN=...
-```
-Responds to DMs and @mentions. Slash command `/ask`. Enable **MESSAGE CONTENT INTENT** in Discord Developer Portal.
-
-### Slack
-```env
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-```
-Socket Mode — no public webhook needed. Responds to DMs and @aion mentions.
-
-### Amazon Alexa
-`POST /api/alexa` — Alexa Skill endpoint. Configure the HTTPS endpoint in Alexa Developer Console.
-
----
-
-## 🌐 Browser Automation
-
-AION controls a real Chromium browser via Playwright:
-
-```
-"Open example.com, take a screenshot and send it to Telegram"
-
-→ browser_open("https://example.com")
-→ browser_screenshot()           ← image shown in chat + sent to Telegram
-→ send_telegram_message(...)
-```
-
-**Available tools:**
-
-| Tool | Action |
-|------|--------|
-| `browser_open(url)` | Load a page |
-| `browser_screenshot()` | Capture full page or element |
-| `browser_click(selector)` | Click by CSS selector |
-| `browser_fill(selector, value)` | Fill input fields |
-| `browser_get_text()` | Extract page text |
-| `browser_evaluate(js)` | Run JavaScript |
-| `browser_find(query)` | Natural language element search |
-| `browser_close()` | Close the browser |
-
-One-time setup (handled automatically in `aion --setup`):
-```bash
-pip install playwright
-python -m playwright install chromium
-```
-
-Configure headless/visible: `config.json → "browser_headless": true`
-
----
-
-## ⏰ Scheduled Tasks
-
-```
-"Every morning at 07:00: Check the weather and send me a summary via Telegram"
-"Remind me every 30 minutes to take a break"
-"Run a system health check every hour"
-```
-
-**Interval syntax:** `5m`, `30s`, `1h`, `2h30m`
-**Fixed time syntax:** `07:00`, `daily`, `weekdays`, `mo,we,fr`
-
-Manage via tools or in natural language:
-```
-schedule_list()    → show all tasks
-schedule_remove()  → delete a task
-schedule_toggle()  → enable/disable
-```
-
----
-
-## 🔊 Audio
-
-AION handles audio in all directions:
-
-| Direction | What happens |
-|-----------|-------------|
-| Voice message → AION | Transcribed offline via Vosk + ffmpeg |
-| AION → voice reply | TTS via edge-tts (Microsoft Neural) or pyttsx3 (offline) |
-| `audio_tts` in Web UI | Audio player rendered directly in chat |
-| Telegram voice | OGG OPUS via ffmpeg |
-| Discord voice | MP3/WAV file attachment |
-
-Configure TTS engine and voice in Web UI (System tab) or `.env`:
-```env
-# TTS options: edge (recommended), sapi5 (offline), pyttsx3
-```
-
----
-
-## 🤖 Multi-Agent Routing
-
-Delegate complex tasks to isolated sub-agents:
-
-```python
-delegate_to_agent("Research the top 5 Python web frameworks and compare them")
-→ spawns a new AionSession with its own history
-→ returns the result to the calling agent
-```
-
-Tools: `delegate_to_agent`, `sessions_list`, `sessions_send`, `sessions_history`
-
-Sub-agents have isolated memory and history. Recursion guard prevents infinite loops.
-
----
-
-## 🔧 Self-Modification
-
-AION can read, patch, and overwrite its own code:
-
-```
-"Add a tool that checks the current Bitcoin price"
-→ AION reads existing plugins for reference
-→ creates plugins/btc_price/btc_price.py
-→ hot-reloads without restarting
-→ new tool immediately available
-```
-
-**Code editing tools:**
-- `file_replace_lines` — replace exact line range (preferred)
-- `self_patch_code` — find-and-replace block
-- `self_modify_code` — overwrite entire file
-- `create_plugin` — scaffold new plugin with auto-generated README
-- `self_restart` — hot-reload plugins without process restart
-- `restart_with_approval` — full process restart (with user confirmation)
-
----
-
-## 🧩 Plugin Development
-
-Every plugin lives in `plugins/<name>/<name>.py` and exports a `register(api)` function:
-
-```python
-# plugins/my_plugin/my_plugin.py
-
-def register(api):
-    def my_tool(param: str = "", **_) -> dict:
-        """What this tool does — shown in the system prompt."""
-        return {"ok": True, "result": f"processed: {param}"}
-
-    api.register_tool(
-        name="my_tool",
-        description="Short description for the LLM",
-        func=my_tool,
-        input_schema={
-            "type": "object",
-            "properties": {
-                "param": {"type": "string", "description": "Input parameter"}
-            },
-            "required": ["param"]
-        }
-    )
-```
-
-**Important:** Always use keyword args — `def fn(param: str = "", **_)`, never `def fn(input: dict)`.
-
-Plugins can also expose HTTP routes without touching core:
-
-```python
-from fastapi import APIRouter
-router = APIRouter()
-
-@router.get("/api/myplugin/status")
-async def status():
-    return {"ok": True, "plugin": "myplugin"}
-
-def register(api):
-    api.register_tool(...)
-    api.register_router(router, tags=["myplugin"])
-```
-
-Hot-reload: `POST /api/plugins/reload` or **🔌 Plugins → ↺ Reload** in the Web UI.
-
----
-
-## 🌐 REST API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/status` | Server status, model, uptime |
-| `POST` | `/api/chat` | Chat (SSE stream: `token`, `thought`, `tool_result`, `approval`, `done`) |
-| `POST` | `/api/reset` | Reset conversation |
-| `POST` | `/api/model` | Switch active model |
-| `GET` | `/api/providers` | All registered providers + active model |
-| `GET` | `/api/plugins` | All plugins with tools + load status |
-| `POST` | `/api/plugins/reload` | Hot-reload all plugins |
-| `GET` | `/api/keys` | API keys (masked) grouped by provider |
-| `POST` | `/api/keys` | Save key to `.env` + update running process |
-| `GET` | `/api/memory` | Memory entries (`?search=`, `?limit=`, `?offset=`) |
-| `DELETE` | `/api/memory` | Clear all memory |
-| `GET` | `/api/config` | Configuration + statistics |
-| `POST` | `/api/config/settings` | Update settings (TTS, model_fallback, task_routing, …) |
-| `GET` | `/api/prompt/{name}` | Read a prompt file (`rules`, `character`, `self`) |
-| `POST` | `/api/prompt/{name}` | Save a prompt file |
-| `GET` | `/api/audio/{filename}` | Stream a generated audio file |
-| `GET` | `/api/claude-cli/status` | Claude CLI install + auth status |
-| `POST` | `/api/claude-cli/login` | Start Claude subscription login (opens browser) |
-| `GET` | `/api/oauth/google/start` | Begin Google OAuth for Gemini |
-| `GET` | `/api/oauth/google/callback` | OAuth callback handler |
-| `POST` | `/api/alexa` | Amazon Alexa Skill endpoint |
-| `GET` | `/api/update-status` | Current update state (version, available, release URL) |
-| `POST` | `/api/update-trigger` | Force an immediate update check |
-
-SSE events from `/api/chat`:
-
-```
-token          → partial text chunk (stream live)
-thought        → AION's inner monologue
-tool_call      → tool being called (name + args)
-tool_result    → tool result (ok/error)
-approval       → awaiting user confirmation (Ja/Nein buttons)
-done           → full_response, response_blocks (images + audio), approval_pending
-error          → error message
-```
-
----
-
-## 📁 File Structure
-
-```
-AION/
-├── aion.py                      # Core: memory, LLM loop, tool dispatch, AionSession
-├── aion_web.py                  # Web server (FastAPI + SSE)
-├── aion_cli.py                  # CLI mode
-├── aion_launcher.py             # Entry point (aion command)
-├── onboarding.py                # Setup wizard (aion --setup)
-├── plugin_loader.py             # Plugin loading + router registration
-├── static/index.html            # Web UI (Vanilla JS, no build step)
-├── Dockerfile                   # Docker image
-├── docker-compose.yml           # Docker Compose
-├── plugins/
-│   ├── core_tools/              # continue_work, read_self_doc, system_info, memory_record
-│   ├── shell_tools/             # shell_exec, winget_install, install_package
-│   ├── web_tools/               # web_search, web_fetch
-│   ├── file_tools/              # file_read, file_write (builtins in aion.py)
-│   ├── scheduler/               # Cron scheduler (time + interval)
-│   ├── telegram_bot/            # Telegram: text + images + voice
-│   ├── discord_bot/             # Discord: DMs + @mentions + /ask + voice
-│   ├── slack_bot/               # Slack: Socket Mode, DMs + mentions
-│   ├── alexa_plugin/            # Amazon Alexa Skill
-│   ├── playwright_browser/      # Browser automation (8 tools)
-│   ├── multi_agent/             # Sub-agent delegation (4 tools)
-│   ├── claude_cli_provider/     # Claude subscription via CLI (ask_claude, login, routing)
-│   ├── gemini_provider/         # Google Gemini
-│   ├── anthropic_provider/      # Anthropic Claude (API key)
-│   ├── deepseek_provider/       # DeepSeek
-│   ├── grok_provider/           # xAI Grok
-│   ├── ollama_provider/         # Local Ollama
-│   ├── memory_plugin/           # Conversation history (JSONL, channel-aware)
-│   ├── audio_pipeline/          # Transcription (ffmpeg+Vosk) + TTS (edge-tts/pyttsx3)
-│   ├── heartbeat/               # Keep-alive + autonomous todo processing
-│   ├── updater/                 # Daily GitHub release check + channel notifications
-│   ├── restart_tool/            # Process restart with user confirmation
-│   ├── todo_tools/              # Task management
-│   ├── smart_patch/             # Fuzzy code patching
-│   ├── image_search/            # Image search (Openverse + Bing)
-│   ├── docx_tool/               # Create Word documents
-│   └── moltbook/                # Social platform moltbook.com
-├── prompts/
-│   └── rules.md                 # System prompt / behavioral rules
-├── character.md                 # AION's personality — evolves automatically over time
-├── AION_SELF.md                 # Technical self-documentation — AION reads this on demand
-├── CHANGELOG.md                 # What changed (AION reads this)
-├── aion_memory.json             # Persistent memory (max. 300 entries)
-├── aion_memory_vectors.json     # RAG embedding cache (git-ignored, auto-generated)
-├── mcp_servers.json             # MCP server config (committable — no secrets)
-├── conversation_history.jsonl   # Full conversation history (channel-aware)
-├── config.json                  # Active model + settings
-└── .env                         # API keys (git-ignored)
-```
-
----
-
-## 🌐 MCP Client — 1,700+ Integrations Out of the Box
-
-AION implements the [Model Context Protocol](https://modelcontextprotocol.io/) — an open standard developed by Anthropic that connects AI agents to the world. Instead of writing custom plugins for every service, you simply add a server entry and AION automatically discovers and registers all its tools.
-
-> **One config line = dozens of new tools.** No code needed.
-
-### How it works
-
-```
-mcp_servers.json           →   mcp_client plugin connects at startup
-                           →   discovers all tools from the MCP server
-                           →   registers them as mcp_{server}_{tool}
-                           →   AION can use them immediately
-```
-
-### Setup
-
-```bash
-pip install mcp          # already in requirements.txt
-npm install -g npx       # needed for Node-based MCP servers
-```
-
-Add servers to `mcp_servers.json` (no secrets — this file is committable):
-
-```json
-{
-  "servers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "vault_env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "mcp_github"}
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/Documents"]
-    },
-    "postgres": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-postgres"],
-      "vault_env": {"POSTGRES_CONNECTION_STRING": "mcp_postgres"}
-    }
-  }
-}
-```
-
-Store secrets in the encrypted vault — they are read at connect time, never stored in config:
-
-```
-credential_write("mcp_github", "ghp_your_token_here")
-credential_write("mcp_postgres", "postgresql://user:pass@localhost/db")
-```
-
-The onboarding wizard (`aion --setup`) walks you through this interactively.
-
-### What you get
-
-| MCP Server | Tools available to AION |
-|------------|------------------------|
-| **GitHub** | Search repos, read files, create issues, open PRs, manage releases |
-| **Filesystem** | Read/write any folder you explicitly allow |
-| **Postgres** | Query tables, run SQL, inspect schema |
-| **Notion** | Read pages, create entries, search workspace |
-| **Stripe** | Customers, invoices, charges, subscriptions |
-| **Home Assistant** | Control smart home devices, query states |
-| **Linear** | Issues, projects, cycles, team updates |
-| **Jira** | Tickets, sprints, boards, comments |
-| **Spotify** | Playback, playlists, search, recommendations |
-| **Slack** | Read channels, post messages, manage threads |
-| … 1,690 more | [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/) |
-
-### Example conversations
-
-```
-"Open a GitHub issue in xynstr/aion titled 'Crash on startup'"
-→ mcp_github_create_issue(repo="xynstr/aion", title="Crash on startup", ...)
-
-"Show me the last 5 rows of the orders table"
-→ mcp_postgres_query(sql="SELECT * FROM orders ORDER BY id DESC LIMIT 5")
-
-"Mark the Notion page 'Q2 Roadmap' as done"
-→ mcp_notion_update_page(page_id="...", properties={"Status": "Done"})
-```
-
-### Security model
-
-- `mcp_servers.json` contains **no secrets** — safe to commit
-- All tokens live in the Fernet-encrypted credentials vault
-- Each server runs as a child process — fully isolated from AION's core
-- You decide which folders/databases to expose — principle of least privilege
-
----
-
-## 🧠 Agentic RAG Memory — Semantic Search with Local Embeddings
-
-Traditional chatbots search memory by keyword. AION uses **vector embeddings** — it understands *meaning*, not just words.
-
-> If you once told AION *"my budget is tight"*, it will retrieve that memory when you later ask about *"cost-effective options"* — even though neither phrase contains the other.
-
-### Architecture
-
-```
-User message
-      ↓
-Embed query via Ollama nomic-embed-text   (local, ~0ms warm, no API key)
-      ↓
-Cosine similarity against all memory vectors
-      ↓
-Top 5 results (score > 0.35) injected into system prompt
-      ↓
-LLM answers with full context awareness
-```
-
-### How it works
-
-| Step | Detail |
-|------|--------|
-| **Embeddings** | `nomic-embed-text` via Ollama REST API — runs 100% locally |
-| **Similarity** | Cosine distance in pure Python — no numpy, no heavy dependencies |
-| **Lazy indexing** | Max 10 new entries embedded per turn — no latency spikes on large stores |
-| **Persistence** | Vectors cached in `aion_memory_vectors.json` — no re-embedding on restart |
-| **Fallback** | If Ollama is offline → automatic fallback to keyword matching, no errors |
-
-### Setup
-
-```bash
-# One-time: pull the embedding model (82 MB)
-ollama pull nomic-embed-text
-
-# That's it — AION uses it automatically from now on
-```
-
-### Why this matters
-
-| | Keyword search | RAG (semantic search) |
-|--|---------------|-----------------------|
-| "budget" → finds "budget" | ✅ | ✅ |
-| "budget" → finds "cost-effective" | ❌ | ✅ |
-| "my dog" → finds "pet care preferences" | ❌ | ✅ |
-| Works offline | ✅ | ✅ (Ollama) |
-| Extra dependencies | — | none (httpx already in requirements) |
-| Fallback if model missing | — | ✅ keyword fallback |
-
-The memory vectors are git-ignored (`aion_memory_vectors.json`) — they rebuild automatically and never need to be committed.
-
----
-
-## 📝 Living Files
-
-`character.md` and `AION_SELF.md` ship with sensible defaults and **grow over time** — AION updates its own personality and self-documentation automatically as it learns. When you first clone the repo, these are clean starting points. Do not delete them; they are part of AION's identity and technical memory.
-
----
-
-## 🔒 Security Notes
-
-- `.env` is in `.gitignore` — **never commit API keys**
-- Web server binds to `127.0.0.1` by default (LAN: `AION_HOST=0.0.0.0`)
-- `shell_exec` runs arbitrary shell commands — **use only on trusted systems**
-- Code editing tools show a diff and ask for confirmation before applying changes
-- Scheduler tasks run with full AION permissions — phrase tasks carefully
-- Claude CLI login opens your default browser on the local machine only
-
----
-
-## 🔄 Updates
-
-AION checks for new releases automatically once per day and notifies you across all active channels.
-
-```bash
-# Update to the latest version
-aion update
-```
-
-This runs `git pull` + `pip install -e .` in one step — no manual commands needed.
-
-**Automatic notifications:** When a new version is available, AION sends a message to every configured channel (Telegram, Discord, Slack) and shows a banner in the Web UI.
-
-**Setup** — add to `.env`:
-```env
-AION_GITHUB_REPO=xynstr/aion
-```
-
-**Manual check** — ask AION in chat:
-```
-"check_for_updates"
-```
-
----
-
-## 🐛 Troubleshooting
-
-| Problem | Solution |
-|---------|---------|
-| Menu shows raw codes like `[2m>` | Update to latest — ANSI/VT100 is now enabled automatically on Windows |
-| `aion --setup` does nothing | Run `pip install -r requirements.txt && pip install -e .` first, then retry |
-| Onboarding wizard doesn't appear | Delete `aion_onboarding_complete.flag` and run `aion --setup` |
-| `No module named 'google'` | `pip install google-genai` (or re-run `pip install -r requirements.txt`) |
-| Gemini key shown as "set" after fresh install | Stale `.env` file — delete it and run `aion --setup` again |
-| Plugin not loading | Check `aion_events.log` — usually a missing `pip install <package>` |
-| Provider not responding | Verify the API key in `.env` matches the provider's variable name |
-| Providers listed multiple times in Web UI | Restart AION — fixed automatically with the dedup in `register_provider()` |
-| "Ja" confirmation button does nothing | Fixed in current version — update to latest and restart |
-| AION executes actions without confirmation | Fixed in current version — update to latest and restart |
-| Discord/Slack bot silent | Check token in `.env` + required permissions/intents in developer portal |
-| Playwright not found | `python -m playwright install chromium` |
-| ffmpeg not in PATH | AION auto-searches WinGet install paths; or add ffmpeg to PATH manually |
-| Port already in use | Set `AION_PORT=7001` in `.env` |
-| Claude CLI 404 after update | New web endpoints require a full AION restart (not just plugin reload) |
-| Voice messages not working | Install ffmpeg + set `tts_engine=edge` in config |
-
-Log files: `aion_events.log`, `aion_start.log`
-
----
-
-## 📋 Available Models
-
-| Provider | Models | Access |
-|----------|--------|--------|
-| **Google Gemini** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.0-flash` | API key (free tier) or Google OAuth |
-| **OpenAI** | `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `o3`, `o4-mini` | API key |
-| **Anthropic** | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001` | API key or Claude.ai subscription |
-| **DeepSeek** | `deepseek-chat`, `deepseek-reasoner` | API key |
-| **Grok (xAI)** | `grok-3`, `grok-3-mini`, `grok-2` | API key |
-| **Ollama** | any local model (`ollama/llama3.2`, `ollama/qwen2.5`, …) | Free, local |
-
-Switch model: Web UI dropdown, `POST /api/model`, or just say: *"Switch to claude-opus-4-6"*
-
----
-
-## 🧠 How the LLM Loop Works
-
-```
-User message (Web UI / CLI / Telegram / Discord / Slack / Scheduler)
-      ↓
-System prompt: character.md + plugin descriptions + memory
-      ↓
-LLM call
-      ↓
-  ┌── Tool calls → dispatch → results → continue (max 50×)
-  │
-  └── Text response:
-        ├─ Completion check: "Did AION announce something without doing it?"
-        │     YES → [System] inject → next iteration
-        └─ Task enforcer: "Is the task truly complete?"
-              NO  → [System] inject → next iteration
-              YES → done event → response sent to user
-      ↓
-Response: text + images + audio rendered in Web UI / forwarded to channel
-      ↓
-Auto-memory: every 5 conversations → pattern recognition → character.md update
-```
+Playwright/Chromium pre-installed. Volumes for `.env`, config, memory, and plugins.
 
 ---
 
@@ -805,6 +128,6 @@ Auto-memory: every 5 conversations → pattern recognition → character.md upda
 
 Made with Python · Powered by your choice of AI
 
-*AION is designed to be fully transparent — its entire codebase, prompts, and memory are readable and editable at any time.*
+*AION is fully transparent — its codebase, prompts, and memory are always readable and editable.*
 
 </div>
