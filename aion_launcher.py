@@ -411,9 +411,22 @@ def _main():
     else:
         print(f"[AION] Starting Web UI → http://localhost:7000", flush=True)
         _open_browser_delayed()
+        proc = subprocess.Popen([python, str(AION_DIR / "aion_web.py")])
         try:
-            subprocess.run([python, str(AION_DIR / "aion_web.py")])
+            proc.wait()
         except KeyboardInterrupt:
+            if sys.platform == "win32":
+                import signal as _sig
+                try:
+                    proc.send_signal(_sig.CTRL_C_EVENT)
+                except Exception:
+                    proc.terminate()
+            else:
+                proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
             print("\n[AION] Beendet.", flush=True)
 
 
