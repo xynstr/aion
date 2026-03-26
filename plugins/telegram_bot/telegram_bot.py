@@ -26,9 +26,10 @@ import tempfile
 import threading
 from pathlib import Path
 
-_TOKEN_FILE  = Path.home() / ".aion_telegram_token"
-_CHATID_FILE = Path.home() / ".aion_telegram_chatid"
+_TOKEN_FILE   = Path.home() / ".aion_telegram_token"
+_CHATID_FILE  = Path.home() / ".aion_telegram_chatid"
 _polling_lock = threading.Lock()
+_stop_event   = threading.Event()   # set → current polling loop exits gracefully
 
 # ── audio_pipeline Lazy-Import ────────────────────────────────────────────────
 
@@ -55,9 +56,18 @@ def _get_audio_pipeline():
 
 def _get_token() -> str:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    if not token and _TOKEN_FILE.is_file():
-        token = _TOKEN_FILE.read_text().strip()
-    return token
+    if token:
+        return token
+    try:
+        from config_store import load as _cs_load
+        token = _cs_load().get("telegram_token", "").strip()
+        if token:
+            return token
+    except Exception:
+        pass
+    if _TOKEN_FILE.is_file():
+        return _TOKEN_FILE.read_text().strip()
+    return ""
 
 
 def _get_chat_id() -> str:
@@ -320,7 +330,7 @@ async def _telegram_worker(token: str):
                         except Exception:
                             pass
 
-        while True:
+        while not _stop_event.is_set():
             try:
                 r = await http.get(
                     _api_url(token, "getUpdates"),
@@ -717,6 +727,21 @@ def _start_polling(token: str):
 
         t = threading.Thread(target=_run, daemon=True, name="telegram-polling")
         t.start()
+
+
+def reload_polling():
+    """Gracefully stop current polling thread and restart with current token from config."""
+    import time
+    _stop_event.set()
+    for _ in range(20):
+        alive = any(t.name == "telegram-polling" and t.is_alive() for t in threading.enumerate())
+        if not alive:
+            break
+        time.sleep(0.3)
+    _stop_event.clear()
+    token = _get_token()
+    if token:
+        _start_polling(token)
 
 
 # ── Plugin-Registrierung ──────────────────────────────────────────────────────

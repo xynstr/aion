@@ -432,6 +432,67 @@ async def save_prompt(name: str, request: Request):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
+# ── Telegram Config API ────────────────────────────────────────────────────────
+
+@app.get("/api/telegram/config")
+async def get_telegram_config():
+    cfg = _load_config()
+    token = cfg.get("telegram_token", "").strip()
+    masked = ""
+    if token:
+        parts = token.split(":")
+        if len(parts) == 2:
+            masked = f"{parts[0]}:{parts[1][:3]}***"
+        else:
+            masked = token[:6] + "***"
+    polling_active = any(
+        t.name == "telegram-polling" and t.is_alive()
+        for t in __import__("threading").enumerate()
+    )
+    return JSONResponse({
+        "token_set": bool(token),
+        "token_masked": masked,
+        "allowed_ids": cfg.get("telegram_allowed_ids", []),
+        "polling_active": polling_active,
+    })
+
+
+@app.post("/api/telegram/config")
+async def set_telegram_config(req: Request):
+    data = await req.json()
+    cfg = _load_config()
+    changed = False
+
+    if "token" in data:
+        new_token = (data["token"] or "").strip()
+        cfg["telegram_token"] = new_token
+        changed = True
+
+    if "allowed_ids" in data:
+        ids = [str(i).strip() for i in (data["allowed_ids"] or []) if str(i).strip()]
+        cfg["telegram_allowed_ids"] = ids
+        changed = True
+
+    if changed:
+        _save_config(cfg)
+
+    # Restart polling if token changed or explicitly requested
+    polling_active = False
+    if "token" in data:
+        try:
+            import plugins.telegram_bot.telegram_bot as _tb
+            _tb.reload_polling()
+            import time; time.sleep(0.5)
+            polling_active = any(
+                t.name == "telegram-polling" and t.is_alive()
+                for t in __import__("threading").enumerate()
+            )
+        except Exception:
+            pass
+
+    return JSONResponse({"ok": True, "polling_active": polling_active})
+
+
 # ── Plugins API ────────────────────────────────────────────────────────────────
 
 @app.get("/api/plugins")
