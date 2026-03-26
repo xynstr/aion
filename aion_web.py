@@ -115,6 +115,10 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
     async for event in _session.stream(user_input):
         yield _sse(event)
 
+# ── Server-Push Queue (proactive suggestions, notifications) ──────────────────
+# Plugins import this via: import aion_web as _web; _web._push_queue.put_nowait(...)
+_push_queue: asyncio.Queue = asyncio.Queue()
+
 # ── API-Routen ────────────────────────────────────────────────────────────────
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -186,6 +190,31 @@ async def chat(request: Request):
         return JSONResponse({"error": "Leere Nachricht"}, status_code=400)
     return StreamingResponse(
         _stream_chat_with_images(user_input, images),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":               "no-cache",
+            "X-Accel-Buffering":           "no",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+@app.get("/api/events")
+async def event_stream(request: Request):
+    """Persistent SSE connection for server-initiated push (proactive suggestions, notifications).
+    Heartbeat every 30 s keeps the connection alive through proxies.
+    """
+    async def _generate() -> AsyncGenerator[str, None]:
+        yield _sse({"type": "connected", "message": "AION push stream active"})
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                msg = await asyncio.wait_for(_push_queue.get(), timeout=30)
+                yield _sse(msg)
+            except asyncio.TimeoutError:
+                yield ": heartbeat\n\n"   # SSE comment line keeps connection alive
+    return StreamingResponse(
+        _generate(),
         media_type="text/event-stream",
         headers={
             "Cache-Control":               "no-cache",
