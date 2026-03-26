@@ -53,11 +53,29 @@ def register(api):
     def _continue_work(next_step: str = "", **_):
         return {"ok": True, "next_step": next_step, "status": "continuing"}
 
-    def _read_self_doc(**_):
+    def _read_self_doc(full: bool = False, **_):
+        """Read AION_SELF_SUMMARY.md by default; full=True loads the complete 63KB document."""
         self_doc = BOT_DIR / "AION_SELF.md"
-        if self_doc.is_file():
-            return self_doc.read_text(encoding="utf-8")
-        return json.dumps({"error": "AION_SELF.md nicht gefunden."})
+        summary  = BOT_DIR / "AION_SELF_SUMMARY.md"
+        if full or not summary.is_file():
+            if self_doc.is_file():
+                return self_doc.read_text(encoding="utf-8")
+            return json.dumps({"error": "AION_SELF.md nicht gefunden."})
+        return summary.read_text(encoding="utf-8")
+
+    def _generate_self_doc_summary(**_):
+        """Trigger async regeneration of AION_SELF_SUMMARY.md from AION_SELF.md."""
+        try:
+            import asyncio
+            aion_mod = __import__("sys").modules.get("aion")
+            if aion_mod and hasattr(aion_mod, "_generate_self_doc_summary"):
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(aion_mod._generate_self_doc_summary())
+                    return {"ok": True, "status": "Summary generation started in background."}
+        except Exception as e:
+            return {"error": str(e)}
+        return {"error": "aion module not available"}
 
     def _system_info(**_):
         # Runtime-State aus dem laufenden AION-Prozess holen.
@@ -152,10 +170,29 @@ def register(api):
     api.register_tool(
         name="read_self_doc",
         description=(
-            "Liest AION_SELF.md — die vollständige Selbst-Dokumentation mit allen Tools, "
-            "Plugins, Functionsweisen und Configuration. Beim Start oder bei Bedarf aufrufen."
+            "Liest die AION-Selbstdokumentation. "
+            "Standard: komprimierte Summary (~3–5 KB) — ausreichend für 95% der Fälle. "
+            "full=true: vollständige AION_SELF.md (~63 KB) nur wenn tiefe Details nötig."
         ),
         func=_read_self_doc,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "full": {
+                    "type": "boolean",
+                    "description": "true = vollständige AION_SELF.md laden (teuer). false (default) = komprimierte Summary.",
+                },
+            },
+        },
+    )
+
+    api.register_tool(
+        name="generate_self_doc_summary",
+        description=(
+            "Regeneriert AION_SELF_SUMMARY.md aus der vollständigen AION_SELF.md. "
+            "Aufrufen wenn die Selbstdokumentation wesentlich erweitert wurde."
+        ),
+        func=_generate_self_doc_summary,
         input_schema={"type": "object", "properties": {}},
     )
 
