@@ -719,6 +719,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <button class="settings-tab" onclick="switchSettingsTab('routing')">Task Routing</button>
             <button class="settings-tab" onclick="switchSettingsTab('permissions')">Permissions</button>
             <button class="settings-tab" onclick="switchSettingsTab('channels')">Channels</button>
+            <button class="settings-tab" onclick="switchSettingsTab('telegram');loadTelegramSettings()">Telegram</button>
           </div>
 
           <!-- Tab: KI-Modelle -->
@@ -945,6 +946,36 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             </div>
           </div><!-- /sys-cols Thinking+Allowlist -->
           </div><!-- /tab-channels -->
+
+          <!-- Tab: Telegram -->
+          <div class="settings-tab-content" id="tab-telegram">
+          <div class="sys-cols">
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="send" style="width:13px;height:13px;stroke-width:1.75"></i> Bot Token</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+                Get your token from <b>@BotFather</b> on Telegram.
+                <span id="telegramPollingStatus" style="margin-left:8px;font-size:11px"></span>
+              </div>
+              <div class="settings-row" style="margin-bottom:8px">
+                <input type="password" id="telegramTokenInput" class="settings-select" style="flex:1;background:var(--bg4);font-family:monospace;font-size:12px" placeholder="1234567890:AAE…">
+                <button class="action-btn" onclick="toggleTelegramTokenVisibility()">Show</button>
+                <button class="action-btn primary" onclick="saveTelegramToken()">Save</button>
+              </div>
+              <div id="telegramTokenMasked" style="font-size:11px;color:var(--text3)"></div>
+            </div>
+            <div class="sys-card">
+              <div class="sys-card-title"><i data-lucide="users" style="width:13px;height:13px;stroke-width:1.75"></i> Allowed Users (Whitelist)</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+                Empty = anyone can /start (first user becomes owner automatically).
+              </div>
+              <div id="telegramAllowedList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px"></div>
+              <div class="settings-row" style="margin-bottom:6px">
+                <input type="text" id="telegramNewId" class="settings-select" style="background:var(--bg4);font-family:monospace;font-size:12px" placeholder="Telegram User ID" onkeydown="if(event.key==='Enter')addTelegramId()">
+                <button class="action-btn primary" onclick="addTelegramId()">+ Add</button>
+              </div>
+            </div>
+          </div>
+          </div><!-- /tab-telegram -->
 
         </div><!-- /page-scroll -->
       </div><!-- /section-settings -->
@@ -2793,6 +2824,90 @@ async function startGoogleOAuth() {
     };
     window.addEventListener('message', handler);
   } catch(e) { showToast('✗ ' + e.message); }
+}
+
+// ── Telegram Settings ─────────────────────────────────────────────────────────
+let _telegramAllowedIds = [];
+
+async function loadTelegramSettings() {
+  try {
+    const r = await fetch('/api/telegram/config');
+    if (!r.ok) return;
+    const d = await r.json();
+    _telegramAllowedIds = d.allowed_ids || [];
+    document.getElementById('telegramTokenMasked').textContent =
+      d.token_set ? `Current: ${d.token_masked}` : 'No token set';
+    const status = document.getElementById('telegramPollingStatus');
+    status.textContent = d.polling_active ? '● Active' : '○ Inactive';
+    status.style.color = d.polling_active ? 'var(--green)' : 'var(--text3)';
+    renderTelegramIds();
+  } catch(e) { /* ignore */ }
+}
+
+function renderTelegramIds() {
+  const list = document.getElementById('telegramAllowedList');
+  if (_telegramAllowedIds.length === 0) {
+    list.innerHTML = '<div style="font-size:11px;color:var(--text3);font-style:italic">No restrictions — all users allowed</div>';
+    return;
+  }
+  list.innerHTML = _telegramAllowedIds.map((id, i) =>
+    `<div class="settings-row" style="gap:6px">
+      <span style="font-family:monospace;font-size:12px;flex:1">${id}</span>
+      <button class="action-btn danger" style="padding:2px 8px;font-size:11px" onclick="removeTelegramId(${i})">Remove</button>
+    </div>`
+  ).join('');
+}
+
+function addTelegramId() {
+  const inp = document.getElementById('telegramNewId');
+  const val = inp.value.trim();
+  if (!val) return;
+  if (_telegramAllowedIds.includes(val)) { showToast('ID already in list'); return; }
+  _telegramAllowedIds.push(val);
+  inp.value = '';
+  renderTelegramIds();
+  saveTelegramIds();
+}
+
+function removeTelegramId(i) {
+  _telegramAllowedIds.splice(i, 1);
+  renderTelegramIds();
+  saveTelegramIds();
+}
+
+async function saveTelegramIds() {
+  try {
+    await fetch('/api/telegram/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({allowed_ids: _telegramAllowedIds})
+    });
+  } catch(e) { showToast('✗ ' + e.message); }
+}
+
+async function saveTelegramToken() {
+  const token = document.getElementById('telegramTokenInput').value.trim();
+  if (!token) { showToast('Enter a token first'); return; }
+  try {
+    const r = await fetch('/api/telegram/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(d.polling_active ? '✓ Token saved — polling active' : '✓ Token saved');
+      document.getElementById('telegramTokenInput').value = '';
+      loadTelegramSettings();
+    } else {
+      showToast('✗ Error saving token');
+    }
+  } catch(e) { showToast('✗ ' + e.message); }
+}
+
+function toggleTelegramTokenVisibility() {
+  const inp = document.getElementById('telegramTokenInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
 function switchSettingsTab(tabName) {

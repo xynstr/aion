@@ -25,6 +25,7 @@ try:
     from rich.columns import Columns
     from rich.text import Text
     from rich import box as rbox
+    from rich.table import Table
 except ImportError:
     print("rich not installed — run: pip install rich")
     if sys.platform == "win32":
@@ -35,6 +36,125 @@ except ImportError:
     sys.exit(1)
 
 console = Console(highlight=False)
+
+# ── Onboarding Plugin Catalogue ───────────────────────────────────────────────
+# (name, description, recommended_default)
+_PLUGIN_GROUPS: list[tuple[str, str, list[tuple[str, str, bool]]]] = [
+    ("Productivity", "⭐ Recommended", [
+        ("character_manager", "Manages AION's personality + character evolution", True),
+        ("mood_engine",       "Dynamic mood system — influences tone and style",  True),
+        ("credentials",       "Encrypted local storage for API keys & passwords", True),
+        ("proactive",         "Daily memory analysis to surface open tasks",      True),
+    ]),
+    ("Messaging", "", [
+        ("telegram_bot",  "Bidirectional Telegram bot — text, images, voice", False),
+        ("discord_bot",   "Discord bot integration",                          False),
+        ("slack_bot",     "Slack bot integration",                            False),
+    ]),
+    ("AI Providers", "", [
+        ("anthropic_provider", "Claude models via Anthropic API",  False),
+        ("gemini_provider",    "Google Gemini models",             False),
+        ("ollama_provider",    "Local LLMs via Ollama",            False),
+        ("grok_provider",      "xAI Grok models",                  False),
+        ("deepseek_provider",  "DeepSeek V3 / R1 models",         False),
+    ]),
+    ("Automation", "", [
+        ("playwright_browser", "Full browser control via Playwright",    False),
+        ("desktop",            "Desktop automation: screenshot, click",  False),
+        ("mcp_client",         "Connect to any MCP server",              False),
+        ("audio_pipeline",     "Audio I/O, TTS and STT pipeline",       False),
+    ]),
+    ("Extended", "", [
+        ("multi_agent",  "Delegate tasks to isolated sub-agents", False),
+        ("web_tunnel",   "Secure HTTPS access from outside LAN",  False),
+        ("docx_tool",    "Create and edit Word documents",         False),
+        ("image_search", "Search images by keyword",              False),
+        ("moltbook",     "Moltbook platform integration",         False),
+    ]),
+]
+
+
+def _run_setup() -> None:
+    """Interactive first-time plugin selection wizard (runs before aion import)."""
+    from plugin_loader import PLUGINS_DIR, DEFAULT_ENABLED, DISABLED_FILE, _save_disabled
+
+    console.print()
+    console.print(Panel(
+        "[bold cyan]AION — First-Time Setup[/bold cyan]\n"
+        "[dim]Select which plugins to activate. Core plugins are always enabled.[/dim]",
+        border_style="cyan",
+        padding=(1, 4),
+    ))
+    console.print()
+
+    selected: set[str] = set()   # user-selected optional plugins
+
+    for group_name, group_badge, plugins in _PLUGIN_GROUPS:
+        badge_str = f" [yellow]{group_badge}[/yellow]" if group_badge else ""
+        # Build table for this group
+        t = Table(box=rbox.SIMPLE, show_header=False, padding=(0, 1), expand=False)
+        t.add_column("check", width=4)
+        t.add_column("name",  style="cyan", width=22)
+        t.add_column("desc",  style="dim")
+
+        defaults: list[str] = []
+        for name, desc, recommended in plugins:
+            mark  = "[green]✓[/green]" if recommended else "[ ]"
+            badge = " [yellow dim]REC[/yellow dim]" if recommended else ""
+            t.add_row(mark, name, desc + badge)
+            if recommended:
+                defaults.append(name)
+
+        console.print(f"  [bold white]── {group_name}[/bold white]{badge_str}")
+        console.print(t)
+
+        # Ask group-level: enable recommended defaults? (y), enable all? (a), skip? (n)
+        if defaults:
+            ans = console.input(
+                f"  Enable recommended ({', '.join(defaults)})? "
+                "[dim][[green]y[/green]=recommended | [cyan]a[/cyan]=all | Enter=skip][/dim] "
+            ).strip().lower()
+        else:
+            ans = console.input(
+                f"  Enable any in '{group_name}'? "
+                "[dim][[cyan]a[/cyan]=all | Enter=skip][/dim] "
+            ).strip().lower()
+
+        if ans == "a":
+            selected.update(n for n, _, _ in plugins)
+        elif ans in ("y", "yes") and defaults:
+            selected.update(defaults)
+        # else: skip group
+
+        console.print()
+
+    # Compute what to disable: everything not in DEFAULT_ENABLED and not selected
+    all_plugins: set[str] = set()
+    if PLUGINS_DIR.exists():
+        all_plugins = {
+            d.name for d in PLUGINS_DIR.iterdir()
+            if d.is_dir() and not d.name.startswith("_")
+        }
+    to_disable = all_plugins - DEFAULT_ENABLED - selected
+
+    # Summary
+    enabled_extra = sorted(selected)
+    console.print("  [bold]Setup Summary[/bold]")
+    console.print(f"  [dim]Core plugins (always on):[/dim] {len(DEFAULT_ENABLED)}")
+    if enabled_extra:
+        console.print(f"  [dim]Additional enabled:[/dim]     [green]{', '.join(enabled_extra)}[/green]")
+    else:
+        console.print("  [dim]Additional enabled:[/dim]     [dim](none — you can enable later via /plugins)[/dim]")
+    console.print()
+
+    try:
+        input("  Press Enter to start AION…")
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+    _save_disabled(to_disable)
+    console.print("  [green]✓[/green] [dim]Setup complete.[/dim]")
+    console.print()
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -91,6 +211,14 @@ def print_header(aion_module) -> None:
 async def main() -> None:
     console.print()
 
+    # ── First-time setup (runs before aion import so init_defaults() respects choices) ──
+    try:
+        from plugin_loader import DISABLED_FILE
+        if not DISABLED_FILE.exists():
+            _run_setup()
+    except Exception:
+        pass  # if plugin_loader not available, skip silently
+
     # ── load AION ─────────────────────────────────────────────────────────────
     with console.status("[cyan]Loading AION…[/cyan]", spinner="dots"):
         try:
@@ -138,7 +266,9 @@ async def main() -> None:
                     "[cyan]/model[/cyan]          Show active model",
                     "[cyan]/stats[/cyan]          Show statistics",
                     "[cyan]/config[/cyan]         Config: /config list, set, get, unset",
-                    "[cyan]/snapshots[/cyan]      Plugin snapshots: /snapshots [<plugin>] [restore <plugin> [<timestamp>]]",
+                    "[cyan]/plugins[/cyan]        Plugins: /plugins [enable|disable <name>]",
+                    "[cyan]/telegram[/cyan]       Telegram: /telegram [token <tok>|add <id>|remove <id>|list]",
+                    "[cyan]/snapshots[/cyan]      Snapshots: /snapshots [<plugin>] [restore <plugin> [<ts>]]",
                 ]),
                 title="Commands", border_style="bright_black", padding=(0, 2),
             ))
@@ -250,6 +380,107 @@ async def main() -> None:
                     console.print()
                 else:
                     console.print("  [dim]No snapshots yet.[/dim]")
+            continue
+
+        # ── /plugins ──────────────────────────────────────────────────────────
+        if cmd.startswith("/plugins"):
+            from plugin_loader import get_disabled, enable_plugin, disable_plugin, load_plugins, PLUGINS_DIR
+            _pparts = user_input.split(None, 2)
+            _psub   = _pparts[1] if len(_pparts) > 1 else None
+            _pname  = _pparts[2] if len(_pparts) > 2 else None
+
+            if _psub == "enable" and _pname:
+                enable_plugin(_pname)
+                load_plugins(_aion._plugin_tools)
+                if hasattr(_aion, "invalidate_sys_prompt_cache"):
+                    _aion.invalidate_sys_prompt_cache()
+                console.print(f"  [green]✓[/green]  [dim]{_pname} enabled[/dim]")
+            elif _psub == "disable" and _pname:
+                disable_plugin(_pname)
+                load_plugins(_aion._plugin_tools)
+                if hasattr(_aion, "invalidate_sys_prompt_cache"):
+                    _aion.invalidate_sys_prompt_cache()
+                console.print(f"  [green]✓[/green]  [dim]{_pname} disabled[/dim]")
+            else:
+                disabled = get_disabled()
+                console.print()
+                if PLUGINS_DIR.exists():
+                    _pw = 26
+                    for _pd in sorted(PLUGINS_DIR.iterdir()):
+                        if not _pd.is_dir() or _pd.name.startswith("_"):
+                            continue
+                        _is_off = _pd.name in disabled
+                        _status = "[red]off[/red]" if _is_off else "[green]on [/green]"
+                        console.print(f"  {_status}  [{'dim' if _is_off else 'cyan'}]{_pd.name:<{_pw}}[/{'dim' if _is_off else 'cyan'}]")
+                console.print()
+                console.print("  [dim]/plugins enable <name>  |  /plugins disable <name>[/dim]")
+                console.print()
+            continue
+
+        # ── /telegram ─────────────────────────────────────────────────────────
+        if cmd.startswith("/telegram"):
+            import json as _j
+            _tparts = user_input.split(None, 2)
+            _tsub   = _tparts[1] if len(_tparts) > 1 else None
+            _tval   = _tparts[2] if len(_tparts) > 2 else None
+            _cfg_path2 = Path(__file__).parent / "config.json"
+            def _tlcfg():
+                return _j.loads(_cfg_path2.read_text(encoding="utf-8")) if _cfg_path2.is_file() else {}
+            def _tscfg(k, v):
+                try:
+                    import config_store as _cs2
+                    _cs2.update(k, v)
+                except Exception:
+                    c = _tlcfg(); c[k] = v
+                    _cfg_path2.write_text(_j.dumps(c, indent=2, ensure_ascii=False), encoding="utf-8")
+
+            if _tsub == "token" and _tval:
+                _tscfg("telegram_token", _tval)
+                # Also write to legacy file for backward compat
+                try:
+                    (Path.home() / ".aion_telegram_token").write_text(_tval)
+                except Exception:
+                    pass
+                console.print(f"  [green]✓[/green]  [dim]Token saved ({_tval[:12]}…)[/dim]")
+            elif _tsub == "add" and _tval:
+                _allowed = _tlcfg().get("telegram_allowed_ids", [])
+                if str(_tval) not in [str(i) for i in _allowed]:
+                    _allowed.append(str(_tval))
+                    _tscfg("telegram_allowed_ids", _allowed)
+                    console.print(f"  [green]✓[/green]  [dim]{_tval} added to allowlist[/dim]")
+                else:
+                    console.print(f"  [yellow]![/yellow]  [dim]{_tval} already in allowlist[/dim]")
+            elif _tsub == "remove" and _tval:
+                _allowed = _tlcfg().get("telegram_allowed_ids", [])
+                _new = [i for i in _allowed if str(i) != str(_tval)]
+                _tscfg("telegram_allowed_ids", _new)
+                console.print(f"  [green]✓[/green]  [dim]{_tval} removed[/dim]")
+            elif _tsub == "list":
+                _allowed = _tlcfg().get("telegram_allowed_ids", [])
+                if _allowed:
+                    console.print()
+                    for _tid in _allowed:
+                        console.print(f"  [cyan]{_tid}[/cyan]")
+                    console.print()
+                else:
+                    console.print("  [dim]Allowlist empty — onboarding mode (all allowed)[/dim]")
+            else:
+                # Status overview
+                _cfg2 = _tlcfg()
+                _tok = _cfg2.get("telegram_token", "")
+                _tok_legacy = ""
+                try:
+                    _tf = Path.home() / ".aion_telegram_token"
+                    if _tf.is_file(): _tok_legacy = _tf.read_text().strip()
+                except Exception: pass
+                _active_tok = _tok or _tok_legacy
+                _allowed = _cfg2.get("telegram_allowed_ids", [])
+                console.print()
+                console.print(f"  [dim]Token:[/dim]     {'[green]set[/green] (' + _active_tok[:12] + '…)' if _active_tok else '[red]not set[/red]'}")
+                console.print(f"  [dim]Allowlist:[/dim] {len(_allowed)} IDs" if _allowed else "  [dim]Allowlist:[/dim] [dim]empty (onboarding mode)[/dim]")
+                console.print()
+                console.print("  [dim]/telegram token <token>  |  add <id>  |  remove <id>  |  list[/dim]")
+                console.print()
             continue
 
         # ── stream response ───────────────────────────────────────────────────
