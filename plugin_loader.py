@@ -1,10 +1,35 @@
 import importlib.util
+import json
 import shutil
 from pathlib import Path
 from datetime import datetime
 
-PLUGINS_DIR = Path(__file__).parent / "plugins"
-SNAPSHOTS_DIR = Path(__file__).parent / ".snapshots"
+PLUGINS_DIR    = Path(__file__).parent / "plugins"
+SNAPSHOTS_DIR  = Path(__file__).parent / ".snapshots"
+DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
+
+
+# ---------------------------------------------------------------------------
+# Enable / Disable
+# ---------------------------------------------------------------------------
+
+def get_disabled() -> set:
+    """Gibt die Menge der deaktivierten Plugin-Namen zurück."""
+    if DISABLED_FILE.exists():
+        try:
+            return set(json.loads(DISABLED_FILE.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return set()
+
+def _save_disabled(disabled: set):
+    DISABLED_FILE.write_text(json.dumps(sorted(disabled), indent=2, ensure_ascii=False), encoding="utf-8")
+
+def disable_plugin(name: str):
+    d = get_disabled(); d.add(name); _save_disabled(d)
+
+def enable_plugin(name: str):
+    d = get_disabled(); d.discard(name); _save_disabled(d)
 
 # Sammelt FastAPI-Router die Plugins während load_plugins() anmelden.
 # aion_web.py liest diese Liste nach load_plugins() und bindet sie ein.
@@ -202,7 +227,8 @@ def load_plugins(tool_registry: dict):
         PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
         return
 
-    loaded = set()
+    loaded   = set()
+    disabled = get_disabled()
 
     # Konvention 1: Unterordner — plugins/{name}/{name}.py
     # Ignoriert _backups/ und andere Unterordner die mit _ beginnen
@@ -211,6 +237,8 @@ def load_plugins(tool_registry: dict):
             continue
         if subfolder.name.startswith("_"):
             continue  # _backups/, __pycache__ etc. ignorieren
+        if subfolder.name in disabled:
+            continue  # explizit deaktiviert
         plugin_file = subfolder / f"{subfolder.name}.py"
         if plugin_file.is_file():
             _load_file(plugin_file, tool_registry)
@@ -225,4 +253,6 @@ def load_plugins(tool_registry: dict):
             continue  # Backup-Dateien (von self_patch_code erstellt) ignorieren
         if file.stem in loaded:
             continue  # bereits über Unterordner geladen
+        if file.stem in disabled:
+            continue  # explizit deaktiviert
         _load_file(file, tool_registry)

@@ -858,6 +858,38 @@ def _build_tool_schemas() -> list[dict]:
         {
             "type": "function",
             "function": {
+                "name": "plugin_disable",
+                "description": (
+                    "Deaktiviert ein Plugin — es wird beim naechsten Laden uebersprungen und seine Tools stehen nicht mehr zur Verfuegung. "
+                    "Nützlich um fehlerhafte oder nicht benoetigte Plugins zu deaktivieren ohne sie zu loeschen. "
+                    "Reaktivierung mit plugin_enable."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Plugin-Name (Ordnername in plugins/)"},
+                    },
+                    "required": ["name"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "plugin_enable",
+                "description": "Aktiviert ein zuvor deaktiviertes Plugin wieder und laedt es sofort.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Plugin-Name (Ordnername in plugins/)"},
+                    },
+                    "required": ["name"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "self_restart",
                 "description": (
                     "Laedt alle Plugins neu (Hot-Reload) ohne AION zu beenden. "
@@ -1229,6 +1261,32 @@ async def _dispatch(name: str, inputs: dict) -> str:
 
     elif name == "create_tool":
         return await _dispatch("create_plugin", inputs)
+
+    elif name == "plugin_disable":
+        pname = inputs.get("name", "").strip()
+        if not pname:
+            return json.dumps({"error": "name ist Pflichtfeld."})
+        try:
+            from plugin_loader import disable_plugin, load_plugins
+            disable_plugin(pname)
+            load_plugins(_plugin_tools)
+            return json.dumps({"ok": True, "disabled": pname,
+                "note": f"Plugin '{pname}' deaktiviert. Tools sind nicht mehr verfügbar."})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
+
+    elif name == "plugin_enable":
+        pname = inputs.get("name", "").strip()
+        if not pname:
+            return json.dumps({"error": "name ist Pflichtfeld."})
+        try:
+            from plugin_loader import enable_plugin, load_plugins
+            enable_plugin(pname)
+            load_plugins(_plugin_tools)
+            return json.dumps({"ok": True, "enabled": pname,
+                "note": f"Plugin '{pname}' aktiviert und geladen."})
+        except Exception as e:
+            return json.dumps({"error": str(e)})
 
     elif name == "self_restart":
         # Hot-Reload: Plugins neu laden ohne Prozess-Neustart (kein Datenverlust)

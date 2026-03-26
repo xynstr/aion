@@ -1228,9 +1228,12 @@ function renderPlugins(data) {
   list.innerHTML = '';
   let html = '';
   for (const p of data.plugins) {
-    const picon  = pluginIcon(p.name);
-    const cls    = p.loaded ? 'loaded' : 'unloaded';
-    const cntCls = p.loaded ? 'loaded' : '';
+    const picon    = pluginIcon(p.name);
+    const isOff    = p.disabled;
+    const cls      = isOff ? 'unloaded' : (p.loaded ? 'loaded' : 'unloaded');
+    const cntCls   = p.loaded ? 'loaded' : '';
+    const toggleLbl = isOff ? 'Enable' : 'Disable';
+    const toggleFn  = isOff ? 'enablePlugin' : 'disablePlugin';
     const toolsHtml = p.tools.map(t => `
       <div class="plugin-tool-row">
         <span class="pt-status ${t.loaded ? 'ok' : 'err'}">${t.loaded ? '✓' : '✗'}</span>
@@ -1242,10 +1245,12 @@ function renderPlugins(data) {
         <div class="plugin-hdr" onclick="togglePlugin('${esc(p.name)}')">
           <span class="plugin-icon">${picon}</span>
           <span class="plugin-name">${esc(p.name)}</span>
+          ${isOff ? '<span style="font-size:10px;color:var(--text3);margin-right:4px">disabled</span>' : ''}
           <span class="plugin-count ${cntCls}">${p.tools.length} Tools</span>
-          <span class="plugin-chevron">▶</span>
+          <button class="action-btn" style="margin-left:auto;padding:2px 8px;font-size:11px" onclick="event.stopPropagation();${toggleFn}('${esc(p.name)}')">${toggleLbl}</button>
+          <span class="plugin-chevron" style="margin-left:6px">▶</span>
         </div>
-        <div class="plugin-tools">${toolsHtml || '<span style="font-size:11px;color:var(--text3)">Keine Tools registriert</span>'}</div>
+        <div class="plugin-tools">${toolsHtml || '<span style="font-size:11px;color:var(--text3)">No tools registered</span>'}</div>
       </div>`;
   }
   if (data.orphan_tools && data.orphan_tools.length) {
@@ -1257,6 +1262,15 @@ function renderPlugins(data) {
 }
 
 function togglePlugin(name) { document.getElementById(`pc-${name}`).classList.toggle('open'); }
+
+async function disablePlugin(name) {
+  await fetch('/api/plugins/disable', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+  loadPlugins();
+}
+async function enablePlugin(name) {
+  await fetch('/api/plugins/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+  loadPlugins();
+}
 
 async function reloadPlugins() {
   const btn = document.getElementById('pluginReloadBtn');

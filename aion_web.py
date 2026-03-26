@@ -376,12 +376,14 @@ async def save_prompt(name: str, request: Request):
 
 @app.get("/api/plugins")
 async def list_plugins():
+    from plugin_loader import get_disabled
     plugins_dir = AION_DIR / "plugins"
     all_tools   = {
         name: {"description": data.get("description", ""), "schema": data.get("schema", {})}
         for name, data in _aion_module._plugin_tools.items()
         if not name.startswith("__")
     }
+    disabled = get_disabled()
     plugins = []
     if plugins_dir.is_dir():
         for plugin_dir in sorted(plugins_dir.iterdir()):
@@ -405,13 +407,17 @@ async def list_plugins():
                 if tname in all_tools:
                     entry["description"] = all_tools[tname]["description"]
                 tools_info.append(entry)
+            is_disabled = plugin_dir.name in disabled
             # Plugin is loaded if it has tools OR has a register() function (service plugin)
-            is_loaded = (any(t["loaded"] for t in tools_info) if tools_info else False) or has_register
+            is_loaded = (not is_disabled) and (
+                (any(t["loaded"] for t in tools_info) if tools_info else False) or has_register
+            )
             plugins.append({
-                "name":   plugin_dir.name,
-                "file":   str(plugin_file),
-                "tools":  tools_info,
-                "loaded": is_loaded,
+                "name":     plugin_dir.name,
+                "file":     str(plugin_file),
+                "tools":    tools_info,
+                "loaded":   is_loaded,
+                "disabled": is_disabled,
             })
     # Tools ohne zugeordnetes Plugin (z.B. via create_plugin flach registriert)
     assigned = {t["name"] for p in plugins for t in p["tools"]}
@@ -422,6 +428,33 @@ async def list_plugins():
         "orphan_tools": orphans,
         "total_loaded": len(all_tools),
     })
+
+@app.post("/api/plugins/disable")
+async def disable_plugin_route(req: Request):
+    from plugin_loader import disable_plugin, load_plugins
+    data = await req.json()
+    name = data.get("name", "").strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "name required"}, status_code=400)
+    disable_plugin(name)
+    load_plugins(_aion_module._plugin_tools)
+    if hasattr(_aion_module, "invalidate_sys_prompt_cache"):
+        _aion_module.invalidate_sys_prompt_cache()
+    return JSONResponse({"ok": True, "disabled": name})
+
+@app.post("/api/plugins/enable")
+async def enable_plugin_route(req: Request):
+    from plugin_loader import enable_plugin, load_plugins
+    data = await req.json()
+    name = data.get("name", "").strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "name required"}, status_code=400)
+    enable_plugin(name)
+    load_plugins(_aion_module._plugin_tools)
+    _include_plugin_routers()
+    if hasattr(_aion_module, "invalidate_sys_prompt_cache"):
+        _aion_module.invalidate_sys_prompt_cache()
+    return JSONResponse({"ok": True, "enabled": name})
 
 @app.post("/api/plugins/reload")
 async def reload_plugins():
