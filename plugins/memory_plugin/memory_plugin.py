@@ -11,26 +11,39 @@ BOT_DIR = Path(__file__).parent.parent.parent
 
 HISTORY_FILE  = BOT_DIR / "conversation_history.jsonl"
 HISTORY_MAX   = 1000  # Maximale Einträge — älteste werden entfernt
+_APPEND_COUNT = 0     # Zähler für gelegentliches Kürzen (alle 100 Appends)
 
 
 def _ts() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _trim_history() -> None:
+    """Kürzt die History-Datei auf HISTORY_MAX Einträge. Nur gelegentlich aufrufen."""
+    if not HISTORY_FILE.exists():
+        return
+    try:
+        lines = [l for l in HISTORY_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
+        if len(lines) > HISTORY_MAX:
+            lines = lines[-HISTORY_MAX:]
+            HISTORY_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
 def append_to_history(role: str, content: str, channel: str = "default") -> dict:
-    """Fügt einen neuen Eintrag zur Konversationshistorie hinzu (max HISTORY_MAX Einträge)."""
+    """Fügt einen neuen Eintrag zur Konversationshistorie hinzu.
+    Nutzt echtes File-Append statt Read-Modify-Write — effizienter und race-sicherer.
+    Kürzt alle 100 Einträge auf HISTORY_MAX."""
+    global _APPEND_COUNT
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     entry = {"role": role, "content": content, "ts": _ts(), "channel": channel}
     try:
-        # Bestehende Einträge lesen und neuen anhängen
-        lines = []
-        if HISTORY_FILE.exists():
-            lines = [l for l in HISTORY_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
-        lines.append(json.dumps(entry, ensure_ascii=False))
-        # Auf HISTORY_MAX kürzen (älteste zuerst entfernen)
-        if len(lines) > HISTORY_MAX:
-            lines = lines[-HISTORY_MAX:]
-        HISTORY_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        with open(HISTORY_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        _APPEND_COUNT += 1
+        if _APPEND_COUNT % 100 == 0:
+            _trim_history()
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
