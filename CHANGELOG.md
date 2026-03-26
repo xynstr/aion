@@ -5,6 +5,27 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-26 — Agentic RAG Memory + MCP Support
+
+### Agentic RAG Memory
+- `AionMemory.get_context_semantic()` — async semantic search via Ollama `nomic-embed-text` embeddings
+- Cosine similarity replaces keyword matching for memory retrieval
+- Lazy embedding: up to 10 new entries embedded per turn (no startup delay)
+- Vectors cached in `aion_memory_vectors.json` (gitignored, user-specific)
+- Automatic fallback to keyword matching if Ollama is unavailable
+- File: `aion.py` (AionMemory class, lines ~597–730)
+
+### MCP Client Plugin
+- New plugin `plugins/mcp_client/` — connects AION to any MCP server
+- Server config via `mcp_servers.json` (committable, no secrets)
+- Secrets injected from credentials vault (`vault_env` field in config)
+- Server tools auto-registered as `mcp_{server}_{tool}` on startup
+- Lazy reconnect on session failure
+- Management tools: `mcp_list_servers`, `mcp_connect_server`
+- Requires: `pip install mcp`
+
+---
+
 ## 2026-03-24 — ANSI Fix + Auto-Update System
 
 ### Fix: ANSI/VT100 rendering in PowerShell

@@ -65,7 +65,8 @@ except ImportError:
 
 BOT_DIR      = Path(__file__).parent.resolve()
 CONFIG_FILE  = BOT_DIR / "config.json"
-MEMORY_FILE  = Path(os.environ.get("AION_MEMORY_FILE", BOT_DIR / "aion_memory.json"))
+MEMORY_FILE   = Path(os.environ.get("AION_MEMORY_FILE", BOT_DIR / "aion_memory.json"))
+VECTORS_FILE  = BOT_DIR / "aion_memory_vectors.json"
 PLUGINS_DIR  = Path(os.environ.get("AION_PLUGINS_DIR", BOT_DIR / "plugins"))
 TOOLS_DIR    = PLUGINS_DIR
 CHARACTER_FILE = BOT_DIR / "character.md"
@@ -596,8 +597,10 @@ If the user writes German → respond in German. English → English. Never swit
 
 class AionMemory:
     def __init__(self):
-        self._entries: list[dict] = []
+        self._entries:     list[dict]        = []
+        self._embed_cache: dict[str, list]   = {}   # id → embedding vector
         self._load()
+        self._load_vectors()
 
     def _load(self):
         if MEMORY_FILE.is_file():
@@ -647,6 +650,96 @@ class AionMemory:
                if sc > 0][:max_entries]
         if not top:
             return ""
+        lines = ["[AION MEMORY — relevant insights]"]
+        for e in top:
+            icon = "✅" if e.get("success") else "❌"
+            ts   = e.get("timestamp", "")[:10]
+            lines.append(f"{icon} [{ts}] {e.get('lesson', '')}")
+            if e.get("hint"):
+                lines.append(f"   → Tipp: {e['hint']}")
+        lines.append("[END MEMORY]")
+        return "\n".join(lines)
+
+    # ── RAG / Semantic Search ──────────────────────────────────────────────────
+
+    def _load_vectors(self):
+        if VECTORS_FILE.is_file():
+            try:
+                self._embed_cache = json.loads(VECTORS_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                self._embed_cache = {}
+
+    def _save_vectors(self):
+        try:
+            VECTORS_FILE.write_text(
+                json.dumps(self._embed_cache, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _cosine(a: list, b: list) -> float:
+        dot = sum(x * y for x, y in zip(a, b))
+        na  = sum(x * x for x in a) ** 0.5
+        nb  = sum(x * x for x in b) ** 0.5
+        return dot / (na * nb) if na and nb else 0.0
+
+    async def _embed(self, text: str) -> "list[float] | None":
+        """Embedding via lokales Ollama (nomic-embed-text). None wenn nicht verfügbar."""
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=3.0) as c:
+                r = await c.post(
+                    "http://localhost:11434/api/embeddings",
+                    json={"model": "nomic-embed-text", "prompt": text[:2000]},
+                )
+                return r.json().get("embedding")
+        except Exception:
+            return None
+
+    async def get_context_semantic(self, query: str, max_entries: int = 5) -> str:
+        """RAG-Suche: semantische Ähnlichkeit via Ollama-Embeddings.
+        Fällt automatisch auf Keyword-Matching zurück wenn Ollama nicht läuft."""
+        if not self._entries:
+            return ""
+
+        qvec = await self._embed(query)
+        if qvec is None:
+            return self.get_context(query)          # Keyword-Fallback
+
+        # Neue Einträge einbetten — max. 10 pro Turn damit kein Lag entsteht
+        new_count = 0
+        for entry in self._entries:
+            eid = entry.get("id", "")
+            if eid and eid not in self._embed_cache and new_count < 10:
+                text = f"{entry.get('summary', '')} {entry.get('lesson', '')}"
+                vec  = await self._embed(text)
+                if vec:
+                    self._embed_cache[eid] = vec
+                    new_count += 1
+
+        # Cosine-Scoring aller gecachten Einträge
+        scored = []
+        for entry in self._entries:
+            eid = entry.get("id", "")
+            if eid in self._embed_cache:
+                sim = self._cosine(qvec, self._embed_cache[eid])
+                scored.append((sim, entry))
+
+        if not scored:
+            return self.get_context(query)          # Keyword-Fallback
+
+        scored.sort(key=lambda x: -x[0])
+        top = [e for sim, e in scored[:max_entries] if sim > 0.35]
+
+        if not top:
+            return ""
+
+        if new_count:
+            self._save_vectors()
+
+        # Gleiche Formatierung wie get_context()
         lines = ["[AION MEMORY — relevant insights]"]
         for e in top:
             icon = "✅" if e.get("success") else "❌"
@@ -1401,7 +1494,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
 _conversations: dict[str, list[dict]] = {"default": []}
 
 async def chat_turn(messages: list[dict], user_input: str, _override_client=None) -> tuple[str, list[dict]]:
-    mem_ctx          = memory.get_context(user_input)
+    mem_ctx          = await memory.get_context_semantic(user_input)
     system_prompt    = _build_system_prompt("")  # Legacy function: use default channel
     effective_system = system_prompt + ("\n\n" + mem_ctx if mem_ctx else "")
     messages         = messages + [{"role": "user", "content": user_input}]
@@ -1516,7 +1609,7 @@ class AionSession:
             yield {"type": "error", "message": msg}
             return
 
-        mem_ctx      = memory.get_context(user_input)
+        mem_ctx      = await memory.get_context_semantic(user_input)
         thoughts_ctx = _get_recent_thoughts(5)
         sys_prompt   = _build_system_prompt(self.channel)  # Channel-spezifisches Thinking-Prompt
         effective    = (

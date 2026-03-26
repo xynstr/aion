@@ -42,3 +42,6 @@ google-genai>=0.8.0        # Google Gemini (gemini_provider plugin)
 # Messaging channels (optional — je nach gewünschten Kanälen)
 discord.py>=2.3.0          # Discord-Bot (discord_bot plugin)
 slack-bolt>=1.18.0         # Slack-Bot (slack_bot plugin)
+
+# MCP (Model Context Protocol) client
+mcp>=1.0.0                 # MCP server connections (mcp_client plugin)

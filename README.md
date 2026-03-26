@@ -33,6 +33,8 @@ It streams responses live, executes tools, schedules tasks, controls a browser, 
 | Use Claude subscription instead of API key | ✅ | ❌ |
 | Personality that evolves through conversation | ✅ | ❌ |
 | 100% local memory + history | ✅ | ❌ |
+| Semantic RAG memory (Ollama embeddings) | ✅ | ❌ |
+| MCP client — 1,700+ ready-made server integrations | ✅ | ❌ |
 
 ---
 
@@ -532,9 +534,59 @@ AION/
 ├── AION_SELF.md                 # Technical self-documentation — AION reads this on demand
 ├── CHANGELOG.md                 # What changed (AION reads this)
 ├── aion_memory.json             # Persistent memory (max. 300 entries)
+├── aion_memory_vectors.json     # RAG embedding cache (git-ignored, auto-generated)
+├── mcp_servers.json             # MCP server config (committable — no secrets)
 ├── conversation_history.jsonl   # Full conversation history (channel-aware)
 ├── config.json                  # Active model + settings
 └── .env                         # API keys (git-ignored)
+```
+
+---
+
+## 🔌 MCP Integration
+
+AION supports the [Model Context Protocol](https://modelcontextprotocol.io/) — an open standard that gives access to 1,700+ ready-made server integrations.
+
+**Setup:**
+```bash
+pip install mcp
+```
+
+Edit `mcp_servers.json` to add servers:
+```json
+{
+  "servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "vault_env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "mcp_github"}
+    }
+  }
+}
+```
+
+Store secrets in the vault (never in config files):
+```
+credential_write("mcp_github", "ghp_your_token")
+```
+
+Each server's tools are automatically available as `mcp_{server}_{tool}`.
+
+**Popular servers:** GitHub, Notion, Postgres, Filesystem, Stripe, Home Assistant, Spotify, Linear, Jira — see [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/)
+
+---
+
+## 🧠 Semantic Memory (RAG)
+
+AION's memory search uses **vector embeddings** instead of keyword matching.
+
+- Embeddings via Ollama `nomic-embed-text` (local, no API key needed)
+- Cosine similarity finds relevant memories even when exact words don't match
+- Automatically falls back to keyword search if Ollama is not running
+- Vectors cached locally in `aion_memory_vectors.json`
+
+```bash
+ollama pull nomic-embed-text   # one-time setup
 ```
 
 ---

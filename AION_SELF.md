@@ -12,6 +12,35 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-03-26 — Agentic RAG + MCP Support)
+
+### Agentic RAG Memory
+My memory search is now semantic instead of keyword-based.
+
+**How it works:**
+- When you ask me something, I embed your query using Ollama's `nomic-embed-text` model
+- I compare it via cosine similarity against all my stored memory entries
+- The most relevant entries (score > 0.35) are injected into my context
+- If Ollama is not running, I automatically fall back to keyword matching
+
+**Files:** `aion.py` (AionMemory class), `aion_memory_vectors.json` (local cache, gitignored)
+**Requires:** Ollama running locally with `nomic-embed-text` pulled (`ollama pull nomic-embed-text`)
+
+### MCP Client Plugin
+I can now connect to any MCP (Model Context Protocol) server.
+
+**What this means:**
+- MCP is an open standard by Anthropic — 1,700+ ready-made servers exist
+- Each server's tools are automatically registered as my tools (`mcp_{server}_{tool}`)
+- Secrets are stored in the credentials vault (never in config files)
+- I can connect to: GitHub, Notion, Postgres, Stripe, Home Assistant, Spotify, and more
+
+**Config:** `mcp_servers.json` in project root (committable — no secrets)
+**Secrets:** `credential_write("mcp_github", "ghp_...")` → stored encrypted in vault
+**Tools:** `mcp_list_servers`, `mcp_connect_server`, `mcp_{server}_{tool}`
+
+---
+
 ## Latest Improvements (2026-03-24 — Credentials Vault)
 
 ### New: Credentials Vault Plugin

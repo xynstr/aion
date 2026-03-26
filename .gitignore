@@ -146,3 +146,6 @@ todo.md
 
 # Plugin snapshots
 .snapshots/
+
+# RAG memory vectors (user-specific, large)
+aion_memory_vectors.json

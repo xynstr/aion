@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "_example_github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "vault_env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "mcp_github"},
+      "_comment": "Remove leading _ from server name to activate. Store token: credential_write('mcp_github', 'ghp_...')"
+    },
+    "_example_filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:/Users/Paul/Documents"],
+      "_comment": "Remove leading _ to activate. Gives AION access to the specified folder."
+    }
+  }
+}
