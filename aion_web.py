@@ -35,21 +35,17 @@ except ImportError:
 
 import aion as _aion_module
 from aion import memory, _dispatch, _load_character, AionSession, BOT_DIR
+import config_store as _cfg_store
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
 CONFIG_FILE = AION_DIR / "config.json"
 
 def _load_config() -> dict:
-    if CONFIG_FILE.is_file():
-        try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
+    return _cfg_store.load()
 
 def _save_config(cfg: dict):
-    CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    _cfg_store.save(cfg)
 
 def _get_model() -> str:
     cfg = _load_config()
