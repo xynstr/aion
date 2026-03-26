@@ -2394,33 +2394,21 @@ Regeln:
             print(f"[AION:{self.channel}] Auto-Charakter-Update Fehler: {e}")
 
 
-# Wrapper für externe Plugins (z.B. Telegram)
+# Per-channel session registry for run_aion_turn (used by Telegram etc.)
+_run_sessions: dict[str, "AionSession"] = {}
+
+
 def run_aion_turn(user_input: str, channel: str = "default") -> str:
-    """Führt einen kompletten AION-Turn aus und gibt die finale Text-Antwort zurück.
+    """Run a complete AION turn and return the final text response.
 
-    Wird aus synchronen Threads aufgerufen (z.B. Telegram-Polling-Thread).
-    asyncio.run() erstellt einen frischen Event-Loop im aufrufenden Thread —
-    ein eigener frischer Client wird übergeben um Cross-Loop httpx-Fehler zu vermeiden.
+    Called from synchronous threads (e.g. Telegram polling thread).
+    Uses a persistent AionSession per channel so conversation history is kept.
+    asyncio.run() creates a fresh event loop in the calling thread.
     """
-    if channel not in _conversations:
-        _conversations[channel] = []
-    conversation_history = _conversations[channel]
-
-    async def _run():
-        # Frischen Client für diesen Thread's Event-Loop erstellen
-        import sys as _sys
-        _self = _sys.modules[__name__]
-        if hasattr(_self, "_build_client"):
-            # Gemini-Provider oder anderer custom Provider
-            fresh_client = _self._build_client(_self.MODEL)
-        else:
-            from openai import AsyncOpenAI
-            fresh_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-        return await chat_turn(conversation_history, user_input, _override_client=fresh_client)
-
-    final_text, updated_history = asyncio.run(_run())
-    _conversations[channel] = updated_history
-    return final_text
+    if channel not in _run_sessions:
+        _run_sessions[channel] = AionSession(channel=channel)
+    session = _run_sessions[channel]
+    return asyncio.run(session.turn(user_input))
 
 # ── Konversations-Verwaltung ──────────────────────────────────────────────────
 
