@@ -33,8 +33,8 @@ It streams responses live, executes tools, schedules tasks, controls a browser, 
 | Use Claude subscription instead of API key | ✅ | ❌ |
 | Personality that evolves through conversation | ✅ | ❌ |
 | 100% local memory + history | ✅ | ❌ |
-| Semantic RAG memory (Ollama embeddings) | ✅ | ❌ |
-| MCP client — 1,700+ ready-made server integrations | ✅ | ❌ |
+| Semantic RAG memory — finds meaning, not just keywords | ✅ | ❌ |
+| MCP client — instant access to 1,700+ server integrations | ✅ | ❌ |
 
 ---
 
@@ -543,16 +543,30 @@ AION/
 
 ---
 
-## 🔌 MCP Integration
+## 🌐 MCP Client — 1,700+ Integrations Out of the Box
 
-AION supports the [Model Context Protocol](https://modelcontextprotocol.io/) — an open standard that gives access to 1,700+ ready-made server integrations.
+AION implements the [Model Context Protocol](https://modelcontextprotocol.io/) — an open standard developed by Anthropic that connects AI agents to the world. Instead of writing custom plugins for every service, you simply add a server entry and AION automatically discovers and registers all its tools.
 
-**Setup:**
-```bash
-pip install mcp
+> **One config line = dozens of new tools.** No code needed.
+
+### How it works
+
+```
+mcp_servers.json           →   mcp_client plugin connects at startup
+                           →   discovers all tools from the MCP server
+                           →   registers them as mcp_{server}_{tool}
+                           →   AION can use them immediately
 ```
 
-Edit `mcp_servers.json` to add servers:
+### Setup
+
+```bash
+pip install mcp          # already in requirements.txt
+npm install -g npx       # needed for Node-based MCP servers
+```
+
+Add servers to `mcp_servers.json` (no secrets — this file is committable):
+
 ```json
 {
   "servers": {
@@ -560,34 +574,118 @@ Edit `mcp_servers.json` to add servers:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "vault_env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "mcp_github"}
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/Documents"]
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "vault_env": {"POSTGRES_CONNECTION_STRING": "mcp_postgres"}
     }
   }
 }
 ```
 
-Store secrets in the vault (never in config files):
+Store secrets in the encrypted vault — they are read at connect time, never stored in config:
+
 ```
-credential_write("mcp_github", "ghp_your_token")
+credential_write("mcp_github", "ghp_your_token_here")
+credential_write("mcp_postgres", "postgresql://user:pass@localhost/db")
 ```
 
-Each server's tools are automatically available as `mcp_{server}_{tool}`.
+The onboarding wizard (`aion --setup`) walks you through this interactively.
 
-**Popular servers:** GitHub, Notion, Postgres, Filesystem, Stripe, Home Assistant, Spotify, Linear, Jira — see [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/)
+### What you get
+
+| MCP Server | Tools available to AION |
+|------------|------------------------|
+| **GitHub** | Search repos, read files, create issues, open PRs, manage releases |
+| **Filesystem** | Read/write any folder you explicitly allow |
+| **Postgres** | Query tables, run SQL, inspect schema |
+| **Notion** | Read pages, create entries, search workspace |
+| **Stripe** | Customers, invoices, charges, subscriptions |
+| **Home Assistant** | Control smart home devices, query states |
+| **Linear** | Issues, projects, cycles, team updates |
+| **Jira** | Tickets, sprints, boards, comments |
+| **Spotify** | Playback, playlists, search, recommendations |
+| **Slack** | Read channels, post messages, manage threads |
+| … 1,690 more | [registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io/) |
+
+### Example conversations
+
+```
+"Open a GitHub issue in xynstr/aion titled 'Crash on startup'"
+→ mcp_github_create_issue(repo="xynstr/aion", title="Crash on startup", ...)
+
+"Show me the last 5 rows of the orders table"
+→ mcp_postgres_query(sql="SELECT * FROM orders ORDER BY id DESC LIMIT 5")
+
+"Mark the Notion page 'Q2 Roadmap' as done"
+→ mcp_notion_update_page(page_id="...", properties={"Status": "Done"})
+```
+
+### Security model
+
+- `mcp_servers.json` contains **no secrets** — safe to commit
+- All tokens live in the Fernet-encrypted credentials vault
+- Each server runs as a child process — fully isolated from AION's core
+- You decide which folders/databases to expose — principle of least privilege
 
 ---
 
-## 🧠 Semantic Memory (RAG)
+## 🧠 Agentic RAG Memory — Semantic Search with Local Embeddings
 
-AION's memory search uses **vector embeddings** instead of keyword matching.
+Traditional chatbots search memory by keyword. AION uses **vector embeddings** — it understands *meaning*, not just words.
 
-- Embeddings via Ollama `nomic-embed-text` (local, no API key needed)
-- Cosine similarity finds relevant memories even when exact words don't match
-- Automatically falls back to keyword search if Ollama is not running
-- Vectors cached locally in `aion_memory_vectors.json`
+> If you once told AION *"my budget is tight"*, it will retrieve that memory when you later ask about *"cost-effective options"* — even though neither phrase contains the other.
+
+### Architecture
+
+```
+User message
+      ↓
+Embed query via Ollama nomic-embed-text   (local, ~0ms warm, no API key)
+      ↓
+Cosine similarity against all memory vectors
+      ↓
+Top 5 results (score > 0.35) injected into system prompt
+      ↓
+LLM answers with full context awareness
+```
+
+### How it works
+
+| Step | Detail |
+|------|--------|
+| **Embeddings** | `nomic-embed-text` via Ollama REST API — runs 100% locally |
+| **Similarity** | Cosine distance in pure Python — no numpy, no heavy dependencies |
+| **Lazy indexing** | Max 10 new entries embedded per turn — no latency spikes on large stores |
+| **Persistence** | Vectors cached in `aion_memory_vectors.json` — no re-embedding on restart |
+| **Fallback** | If Ollama is offline → automatic fallback to keyword matching, no errors |
+
+### Setup
 
 ```bash
-ollama pull nomic-embed-text   # one-time setup
+# One-time: pull the embedding model (82 MB)
+ollama pull nomic-embed-text
+
+# That's it — AION uses it automatically from now on
 ```
+
+### Why this matters
+
+| | Keyword search | RAG (semantic search) |
+|--|---------------|-----------------------|
+| "budget" → finds "budget" | ✅ | ✅ |
+| "budget" → finds "cost-effective" | ❌ | ✅ |
+| "my dog" → finds "pet care preferences" | ❌ | ✅ |
+| Works offline | ✅ | ✅ (Ollama) |
+| Extra dependencies | — | none (httpx already in requirements) |
+| Fallback if model missing | — | ✅ keyword fallback |
+
+The memory vectors are git-ignored (`aion_memory_vectors.json`) — they rebuild automatically and never need to be committed.
 
 ---
 
