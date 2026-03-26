@@ -239,7 +239,9 @@ def _load_file(file: Path, tool_registry: dict):
         if summary:
             tool_registry[f"__plugin_readme_{file.stem}"] = summary
     except Exception as exc:
-        print(f"Fehler beim Laden von Modul {file.name}: {exc}")
+        import traceback as _tb, logging as _log
+        _log.error(f"[plugin_loader] Fehler beim Laden von {file.name}: {exc}\n{_tb.format_exc()}")
+        print(f"[plugin_loader] \u274c {file.name}: {exc}")
 
 
 def load_plugins(tool_registry: dict):

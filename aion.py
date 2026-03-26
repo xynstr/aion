@@ -599,6 +599,7 @@ class AionMemory:
     def __init__(self):
         self._entries:     list[dict]        = []
         self._embed_cache: dict[str, list]   = {}   # id → embedding vector
+        self._lock = asyncio.Lock()
         self._load()
         self._load_vectors()
 
@@ -618,6 +619,20 @@ class AionMemory:
 
     def record(self, category: str, summary: str, lesson: str,
                success: bool = True, error: str = "", hint: str = ""):
+        """Synchroner Record — thread-safe via asyncio.Lock wenn im Event-Loop aufgerufen.
+        Für direkten Aufruf aus Plugins: _record_sync() nutzen."""
+        import threading as _threading
+        try:
+            loop = asyncio.get_running_loop()
+            # Im Event-Loop: als Task einplanen (non-blocking)
+            asyncio.ensure_future(self._record_async(category, summary, lesson, success, error, hint))
+        except RuntimeError:
+            # Kein laufender Loop (z.B. Startup) → direkt synchron
+            self._record_sync(category, summary, lesson, success, error, hint)
+
+    def _record_sync(self, category: str, summary: str, lesson: str,
+                     success: bool = True, error: str = "", hint: str = ""):
+        """Synchrone Variante ohne Lock — nur für Startup/Thread-Kontext nutzen."""
         self._entries.append({
             "id":        str(uuid.uuid4())[:8],
             "timestamp": datetime.now(UTC).isoformat(),
@@ -631,6 +646,24 @@ class AionMemory:
         if len(self._entries) > MAX_MEMORY:
             self._entries = self._entries[-MAX_MEMORY:]
         self._save()
+
+    async def _record_async(self, category: str, summary: str, lesson: str,
+                            success: bool = True, error: str = "", hint: str = ""):
+        """Async Variante mit Lock — verhindert Race Conditions bei parallelen Writes."""
+        async with self._lock:
+            self._entries.append({
+                "id":        str(uuid.uuid4())[:8],
+                "timestamp": datetime.now(UTC).isoformat(),
+                "category":  category,
+                "success":   success,
+                "summary":   summary[:250],
+                "lesson":    lesson[:600],
+                "error":     error[:300],
+                "hint":      hint[:300],
+            })
+            if len(self._entries) > MAX_MEMORY:
+                self._entries = self._entries[-MAX_MEMORY:]
+            self._save()
 
     def get_context(self, query: str, max_entries: int = 8) -> str:
         if not self._entries:
@@ -1181,7 +1214,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
                 return json.dumps({"error": "Originaltext nicht gefunden! Lies die Datei nochmals mit self_read_code."})
             if content.count(old_code) > 1:
                 return json.dumps({"error": f"Text kommt {content.count(old_code)}x vor — mehr Kontext im 'old'-Feld angeben."})
-            ts          = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts          = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             backup_dir  = path.parent / "_backups"
             backup_dir.mkdir(exist_ok=True)
             backup_path = backup_dir / f"{path.stem}.backup_{ts}{path.suffix}"
@@ -1232,7 +1265,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
             if end_line > total:
                 return json.dumps({"error": f"end_line {end_line} > Dateigröße {total} Zeilen."})
             # Backup
-            ts          = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts          = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             backup_dir  = path.parent / "_backups"
             backup_dir.mkdir(exist_ok=True)
             backup_path = backup_dir / f"{path.stem}.backup_{ts}{path.suffix}"
@@ -1284,7 +1317,7 @@ async def _dispatch(name: str, inputs: dict) -> str:
             original_len = len(path.read_text(encoding="utf-8"))
             if len(content) < original_len * 0.7:
                 return json.dumps({"error": f"Neuer Code zu kurz ({len(content)} vs {original_len} Bytes). Nutze self_patch_code!"})
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             backup_dir = path.parent / "_backups"
             backup_dir.mkdir(exist_ok=True)
             shutil.copy2(path, backup_dir / f"{path.stem}.backup_{ts}{path.suffix}")
@@ -1645,8 +1678,8 @@ class AionSession:
         collected_audio:  list[dict] = []  # {path, format} aus audio_tts
         _client           = self._get_client()
 
-        # Channel in ContextVar setzen — damit _dispatch die richtigen Pending-Dicts nutzt
-        _active_channel.set(self.channel)
+        # Channel in ContextVar setzen — Token wird gespeichert für Reset nach dem Stream
+        _channel_token = _active_channel.set(self.channel)
 
         _log_event("turn_start", {
             "channel": self.channel,
@@ -2199,11 +2232,10 @@ class AionSession:
 
             # Alle 5 Gespräche: Charakter-Update im Hintergrund
             self.exchange_count += 1
-            # exchange_count persistieren damit er Neustarts überlebt
+            # exchange_count persistieren damit er Neustarts überlebt — thread-sicher via config_store
             try:
-                _cfg2 = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
-                _cfg2["exchange_count"] = self.exchange_count
-                CONFIG_FILE.write_text(json.dumps(_cfg2, indent=2, ensure_ascii=False), encoding="utf-8")
+                from config_store import update as _cfg_update
+                _cfg_update("exchange_count", self.exchange_count)
             except Exception:
                 pass
             if self.exchange_count % 5 == 0:
@@ -2246,6 +2278,10 @@ class AionSession:
                 "tb": _tb[-600:],
             })
             yield {"type": "error", "message": f"{exc}\n{_tb[-500:]}"}
+
+        finally:
+            # ContextVar zurücksetzen — verhindert Channel-Leaks zwischen parallelen Requests
+            _active_channel.reset(_channel_token)
 
     async def turn(self, user_input: str, images: list | None = None) -> str:
         """Nicht-streamende Version — gibt fertigen Text zurück.
