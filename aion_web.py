@@ -87,6 +87,29 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(title="AION", lifespan=_lifespan)
 
+# ── Auth Middleware ────────────────────────────────────────────────────────────
+# Activated when config.json["web_auth_token"] is set (e.g., by tunnel plugin).
+# All API endpoints require: Authorization: Bearer <token>
+# Static assets and the main HTML page are exempt.
+
+@app.middleware("http")
+async def _auth_middleware(request: Request, call_next):
+    token = _load_config().get("web_auth_token", "").strip()
+    if not token:
+        return await call_next(request)   # auth disabled when no token configured
+    path = request.url.path
+    # Exempt: main page, static assets, favicon
+    if path in ("/", "/favicon.ico") or path.startswith("/static"):
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if auth == f"Bearer {token}":
+        return await call_next(request)
+    return JSONResponse(
+        {"error": "Unauthorized — set Authorization: Bearer <token>"},
+        status_code=401,
+        headers={"WWW-Authenticate": 'Bearer realm="AION"'},
+    )
+
 # ── Plugin-Router einbinden ───────────────────────────────────────────────────
 # Plugins können in register() eigene FastAPI-Router via api.register_router()
 # anmelden. Diese werden hier (und nach jedem Hot-Reload) in die App eingebunden.

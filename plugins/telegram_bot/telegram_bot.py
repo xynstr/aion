@@ -74,6 +74,36 @@ def _save_chat_id(cid: str):
         pass
 
 
+# ── Whitelist ─────────────────────────────────────────────────────────────────
+
+def _load_cfg() -> dict:
+    try:
+        import config_store as _cs
+        return _cs.load()
+    except Exception:
+        try:
+            import json
+            _cfg_path = Path(__file__).parent.parent.parent / "config.json"
+            return json.loads(_cfg_path.read_text(encoding="utf-8")) if _cfg_path.is_file() else {}
+        except Exception:
+            return {}
+
+def _save_cfg_key(key: str, value) -> None:
+    try:
+        import config_store as _cs
+        _cs.update(key, value)
+    except Exception:
+        pass
+
+def _is_allowed(chat_id: str) -> bool:
+    """Return True if chat_id is allowed to use the bot.
+    Empty allowlist = onboarding mode (all allowed until first user registers)."""
+    allowed = _load_cfg().get("telegram_allowed_ids", [])
+    if not allowed:
+        return True   # onboarding mode
+    return str(chat_id) in [str(i) for i in allowed]
+
+
 def _api_url(token: str, method: str) -> str:
     return f"https://api.telegram.org/bot{token}/{method}"
 
@@ -397,7 +427,10 @@ async def _telegram_worker(token: str):
                     if not chat_id:
                         continue
 
-                    # ── Nicht unterstützte Filetypen ─────────────────────────
+                    # ── Whitelist check ───────────────────────────────────────
+                    if not _is_allowed(chat_id):
+                        # Silently ignore unknown users (no reply to avoid enumeration)
+                        continue
                     _unsupported_label = None
                     _video      = msg.get("video")
                     _document   = msg.get("document")
@@ -453,10 +486,19 @@ async def _telegram_worker(token: str):
                     _save_chat_id(chat_id)
 
                     if text.startswith("/start"):
-                        await _send(chat_id,
-                            "AION Telegram-Bot aktiviert!\n"
-                            f"Chat-ID: {chat_id}\n"
-                            "Schreib mir einfach — du kannst auch Bilder und Sprachnachrichten senden!")
+                        allowed = _load_cfg().get("telegram_allowed_ids", [])
+                        if not allowed:
+                            # First user ever — auto-register as owner
+                            _save_cfg_key("telegram_allowed_ids", [str(chat_id)])
+                            await _send(chat_id,
+                                "AION Telegram-Bot aktiviert!\n"
+                                f"Chat-ID: {chat_id} (als Erstnutzer registriert)\n"
+                                "Schreib mir einfach — du kannst auch Bilder und Sprachnachrichten senden!")
+                        else:
+                            await _send(chat_id,
+                                "AION Telegram-Bot aktiviert!\n"
+                                f"Chat-ID: {chat_id}\n"
+                                "Schreib mir einfach — du kannst auch Bilder und Sprachnachrichten senden!")
                         continue
 
                     # Session pro User
@@ -679,6 +721,31 @@ def _start_polling(token: str):
 
 # ── Plugin-Registrierung ──────────────────────────────────────────────────────
 
+def _telegram_add_user(chat_id: str, **_) -> str:
+    allowed = _load_cfg().get("telegram_allowed_ids", [])
+    cid = str(chat_id).strip()
+    if cid in [str(i) for i in allowed]:
+        return f"'{cid}' is already in the allowlist."
+    allowed.append(cid)
+    _save_cfg_key("telegram_allowed_ids", allowed)
+    return f"✓ '{cid}' added to Telegram allowlist ({len(allowed)} total)."
+
+def _telegram_remove_user(chat_id: str, **_) -> str:
+    allowed = _load_cfg().get("telegram_allowed_ids", [])
+    cid = str(chat_id).strip()
+    new_list = [str(i) for i in allowed if str(i) != cid]
+    if len(new_list) == len(allowed):
+        return f"'{cid}' not found in allowlist."
+    _save_cfg_key("telegram_allowed_ids", new_list)
+    return f"✓ '{cid}' removed. Remaining: {new_list or '(empty — onboarding mode)'}"
+
+def _telegram_list_users(**_) -> str:
+    allowed = _load_cfg().get("telegram_allowed_ids", [])
+    if not allowed:
+        return "Allowlist is empty — all users accepted (onboarding mode)."
+    return "Telegram allowlist:\n" + "\n".join(f"  • {i}" for i in allowed)
+
+
 def register(api):
     api.register_tool(
         name="send_telegram_message",
@@ -696,9 +763,40 @@ def register(api):
         },
     )
 
+    api.register_tool(
+        name="telegram_add_user",
+        description="Add a Telegram chat_id to the bot allowlist. Only whitelisted IDs can use the bot.",
+        func=_telegram_add_user,
+        input_schema={
+            "type": "object",
+            "properties": {"chat_id": {"type": "string", "description": "Telegram chat/user ID to allow"}},
+            "required": ["chat_id"],
+        },
+    )
+
+    api.register_tool(
+        name="telegram_remove_user",
+        description="Remove a Telegram chat_id from the bot allowlist.",
+        func=_telegram_remove_user,
+        input_schema={
+            "type": "object",
+            "properties": {"chat_id": {"type": "string"}},
+            "required": ["chat_id"],
+        },
+    )
+
+    api.register_tool(
+        name="telegram_list_users",
+        description="List all Telegram chat_ids in the bot allowlist.",
+        func=_telegram_list_users,
+        input_schema={"type": "object", "properties": {}},
+    )
+
     token = _get_token()
     if token:
         _start_polling(token)
-        print(f"[Plugin] telegram_bot geladen — Chat-ID: {_get_chat_id() or 'unbekannt'}")
+        allowed = _load_cfg().get("telegram_allowed_ids", [])
+        allowed_info = f"{len(allowed)} whitelisted" if allowed else "onboarding mode (all allowed)"
+        print(f"[Plugin] telegram_bot geladen — Chat-ID: {_get_chat_id() or 'unbekannt'} | {allowed_info}")
     else:
         print("[Plugin] telegram_bot: TELEGRAM_BOT_TOKEN fehlt — Polling deaktiviert.")
