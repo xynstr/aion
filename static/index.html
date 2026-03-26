@@ -2710,6 +2710,88 @@ function switchSettingsTab(tabName) {
   // Activate selected button
   event.target.classList.add('active');
 }
+
+// ── Proactive Push (SSE /api/events) ─────────────────────────────────────────
+(function initPushStream() {
+  let _evtSource = null;
+  let _reconnectDelay = 3000;
+
+  function connect() {
+    try {
+      _evtSource = new EventSource('/api/events');
+      _evtSource.onmessage = (e) => {
+        try {
+          const ev = JSON.parse(e.data);
+          if (ev.type === 'proactive') showProactiveToast(ev);
+        } catch {}
+      };
+      _evtSource.onerror = () => {
+        _evtSource && _evtSource.close();
+        // Reconnect after delay (server might restart)
+        setTimeout(connect, _reconnectDelay);
+        _reconnectDelay = Math.min(_reconnectDelay * 2, 60000);
+      };
+      _evtSource.onopen = () => { _reconnectDelay = 3000; };
+    } catch {}
+  }
+  connect();
+})();
+
+function showProactiveToast(ev) {
+  // Remove any existing proactive toast first
+  document.querySelectorAll('.proactive-toast').forEach(el => el.remove());
+
+  const text   = ev.text   || 'AION has a suggestion for you.';
+  const action = ev.action || '';
+
+  const div = document.createElement('div');
+  div.className = 'proactive-toast';
+  div.innerHTML = `
+    <div class="pt-header">
+      <span class="pt-icon">◈</span>
+      <span class="pt-title">AION suggests</span>
+      <button class="pt-close" onclick="this.closest('.proactive-toast').remove()">✕</button>
+    </div>
+    <div class="pt-body">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+    ${action ? `<div class="pt-actions">
+      <button class="pt-btn-accept" onclick="acceptProactive(this,'${action.replace(/'/g,"\\'")}')">Accept</button>
+      <button class="pt-btn-dismiss" onclick="this.closest('.proactive-toast').remove()">Dismiss</button>
+    </div>` : `<div class="pt-actions">
+      <button class="pt-btn-dismiss" onclick="this.closest('.proactive-toast').remove()">OK</button>
+    </div>`}`;
+  document.body.appendChild(div);
+  // Auto-dismiss after 30 s
+  setTimeout(() => div.remove(), 30000);
+}
+
+async function acceptProactive(btn, action) {
+  btn.closest('.proactive-toast').remove();
+  document.getElementById('input').value = action;
+  await send();
+}
 </script>
+<style>
+.proactive-toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 200;
+  background: var(--bg2); border: 1px solid var(--accent);
+  border-radius: 12px; padding: 14px 16px; max-width: 340px;
+  box-shadow: 0 4px 24px rgba(0,229,255,.15);
+  animation: pt-slide-in .3s ease;
+}
+@keyframes pt-slide-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pt-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pt-icon   { color: var(--accent); font-size: 16px; }
+.pt-title  { font-weight: 600; font-size: 13px; color: var(--accent); flex: 1; }
+.pt-close  { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 0; }
+.pt-body   { font-size: 13px; color: var(--text); line-height: 1.5; margin-bottom: 12px; }
+.pt-actions { display: flex; gap: 8px; }
+.pt-btn-accept  { flex: 1; background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.pt-btn-dismiss { flex: 1; background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; }
+.pt-btn-accept:hover  { filter: brightness(1.15); }
+.pt-btn-dismiss:hover { background: var(--bg4); }
+</style>
 </body>
 </html>
