@@ -402,6 +402,9 @@ async def save_prompt(name: str, request: Request):
         content = body.get("content", "")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+        # After saving AION_SELF.md: regenerate summary in background
+        if name == "self_doc" and hasattr(_aion_module, "_generate_self_doc_summary"):
+            asyncio.create_task(_aion_module._generate_self_doc_summary())
         return JSONResponse({"ok": True, "name": name, "bytes": len(content)})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)

@@ -76,6 +76,8 @@ MAX_HISTORY_TURNS   = 40   # Maximale Anzahl Nachrichten in der Conversation His
                             # (user + assistant + tool-Messages zusammen). Älteste werden zuerst
                             # entfernt. Kann in config.json als "max_history_turns" überschrieben werden.
 CHUNK_SIZE          = 100000
+CHARACTER_MAX_CHARS      = 5_000   # character.md wächst nie darüber; config: character_max_chars
+RULES_COMPRESS_THRESHOLD = 15_000  # rules.md wird komprimiert wenn größer; config: rules_compress_threshold
 LOG_FILE            = BOT_DIR / "aion_events.log"
 LOG_MAX_BYTES       = 500 * 1024  # 500 KB dann rotieren
 
@@ -501,6 +503,18 @@ def _load_character() -> str:
     CHARACTER_FILE.write_text(DEFAULT_CHARACTER, encoding="utf-8")
     return DEFAULT_CHARACTER
 
+
+def _backup_file(path: Path, max_backups: int = 3) -> None:
+    """Write a timestamped .bak copy of a file, keeping at most max_backups."""
+    if not path.is_file():
+        return
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    shutil.copy2(path, path.parent / f"{path.name}.bak_{ts}")
+    baks = sorted(path.parent.glob(f"{path.name}.bak_*"))
+    for old in baks[:-max_backups]:
+        old.unlink(missing_ok=True)
+
+
 # ── System Prompt ─────────────────────────────────────────────────────────────
 
 def _load_changelog_snippet() -> str:
@@ -640,6 +654,140 @@ If the user writes German → respond in German. English → English. Never swit
 {plugin_block}{changelog_block}"""
     _sys_prompt_cache[_cache_key] = _result
     return _result + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
+
+
+# ── Context Compression ──────────────────────────────────────────────────────
+
+_startup_compress_done = False
+
+
+async def _compress_character(max_chars: int = CHARACTER_MAX_CHARS) -> bool:
+    """LLM-rewrite of character.md to fit within max_chars. Returns True on success."""
+    content = CHARACTER_FILE.read_text(encoding="utf-8") if CHARACTER_FILE.is_file() else ""
+    if len(content) <= max_chars:
+        return True
+    try:
+        resp = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": (
+                f"Komprimiere diese character.md auf maximal {max_chars} Zeichen.\n"
+                f"Behalte alle einzigartigen Fakten, dedupliziere nur Redundantes.\n"
+                f"Alle ## Sektionsüberschriften erhalten. Nur Dateiinhalt zurückgeben.\n\n{content}"
+            )}],
+            **_max_tokens_param(MODEL, 1200),
+            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.5}),
+        )
+        if not hasattr(resp, "choices"):
+            return False
+        new_content = (resp.choices[0].message.content or "").strip()
+        if len(new_content) < 100:
+            return False
+        if len(new_content) > max_chars:
+            new_content = new_content[:max_chars]
+        _backup_file(CHARACTER_FILE)
+        CHARACTER_FILE.write_text(new_content, encoding="utf-8")
+        _sys_prompt_cache.clear()
+        print(f"[compress] character.md: {len(content)} → {len(new_content)} chars")
+        return True
+    except Exception as e:
+        print(f"[compress] character.md failed: {e}")
+        return False
+
+
+async def _compress_rules() -> bool:
+    """LLM-compression of rules.md when it exceeds RULES_COMPRESS_THRESHOLD."""
+    rules_file = BOT_DIR / "prompts" / "rules.md"
+    if not rules_file.is_file():
+        return False
+    content = rules_file.read_text(encoding="utf-8")
+    threshold = int(_load_config().get("rules_compress_threshold", RULES_COMPRESS_THRESHOLD))
+    if len(content) <= threshold:
+        return False
+    target = min(threshold, 8_000)
+    try:
+        resp = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": (
+                f"Komprimiere diese rules.md auf maximal {target} Zeichen.\n"
+                f"Behalte ALLE Regeln und Verbote — nichts inhaltlich weglassen.\n"
+                f"Entferne nur verbose Erklärungen/Beispiele, kürze auf direkte Anweisungen.\n"
+                f"Alle ## Sektionsüberschriften erhalten. Nur Dateiinhalt zurückgeben.\n\n{content}"
+            )}],
+            **_max_tokens_param(MODEL, 2000),
+            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.3}),
+        )
+        if not hasattr(resp, "choices"):
+            return False
+        new_content = (resp.choices[0].message.content or "").strip()
+        if len(new_content) < 200:
+            return False
+        _backup_file(rules_file, max_backups=3)
+        rules_file.write_text(new_content, encoding="utf-8")
+        _sys_prompt_cache.clear()
+        print(f"[compress] rules.md: {len(content)} → {len(new_content)} chars")
+        return True
+    except Exception as e:
+        print(f"[compress] rules.md failed: {e}")
+        return False
+
+
+async def _generate_self_doc_summary() -> bool:
+    """Generate AION_SELF_SUMMARY.md — a compact index of AION_SELF.md."""
+    self_doc = BOT_DIR / "AION_SELF.md"
+    summary  = BOT_DIR / "AION_SELF_SUMMARY.md"
+    if not self_doc.is_file():
+        return False
+    content = self_doc.read_text(encoding="utf-8")
+    try:
+        resp = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": (
+                "Erstelle ein komprimiertes Inhaltsverzeichnis dieser AION_SELF.md.\n"
+                "Pro Feature/Sektion EINEN Einzeiler: Was es tut + wo implementiert.\n"
+                "Format: ## Sektionsname\\n- feature: einzeiler\\n...\n"
+                "Ziel: 3–5 KB. Letzter Satz: '→ Volltext: file_read(\"AION_SELF.md\")'\n\n"
+                + content[:10_000]
+            )}],
+            **_max_tokens_param(MODEL, 1000),
+            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.3}),
+        )
+        if not hasattr(resp, "choices"):
+            return False
+        new_summary = (resp.choices[0].message.content or "").strip()
+        if len(new_summary) < 100:
+            return False
+        summary.write_text(new_summary, encoding="utf-8")
+        print(f"[compress] AION_SELF_SUMMARY.md: {len(new_summary)} chars")
+        return True
+    except Exception as e:
+        print(f"[compress] AION_SELF_SUMMARY.md failed: {e}")
+        return False
+
+
+async def _startup_compress_check() -> None:
+    """Background startup task: compress context files that exceed size thresholds."""
+    global _startup_compress_done
+    if _startup_compress_done:
+        return
+    _startup_compress_done = True
+    await asyncio.sleep(5)  # Wait until AION is fully loaded
+
+    _max_char = int(_load_config().get("character_max_chars", CHARACTER_MAX_CHARS))
+    if CHARACTER_FILE.is_file() and CHARACTER_FILE.stat().st_size > _max_char:
+        await _compress_character(_max_char)
+
+    rules_file = BOT_DIR / "prompts" / "rules.md"
+    _rules_thresh = int(_load_config().get("rules_compress_threshold", RULES_COMPRESS_THRESHOLD))
+    if rules_file.is_file() and rules_file.stat().st_size > _rules_thresh:
+        await _compress_rules()
+
+    self_doc = BOT_DIR / "AION_SELF.md"
+    summary  = BOT_DIR / "AION_SELF_SUMMARY.md"
+    if self_doc.is_file() and (
+        not summary.is_file() or summary.stat().st_mtime < self_doc.stat().st_mtime
+    ):
+        await _generate_self_doc_summary()
+
 
 # ── Memory System ─────────────────────────────────────────────────────────
 
@@ -1697,6 +1845,13 @@ class AionSession:
         self.exchange_count: int  = int(_cfg.get("exchange_count", 0))
         self._client               = None  # lazy init, gebunden an Event-Loop des Erstellers
         self._last_response_blocks = []  # Letzte response_blocks (mit Bildern) für Bots wie Telegram
+        # Schedule startup compression check (once per process, in background)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.ensure_future(_startup_compress_check())
+        except Exception:
+            pass
 
     def _get_client(self):
         """Gibt den Session-Client zurück; erstellt ihn beim ersten Aufruf im aktuellen Loop."""
@@ -2431,9 +2586,8 @@ class AionSession:
         return result.strip() or "Fertig."
 
     async def _auto_character_update(self):
-        """Alle 5 Gespräche: LLM analysiert Verlauf und aktualisiert character.md."""
-        import re
-        _active_channel.set(self.channel)  # Channel-Context für _dispatch
+        """Alle 5 Gespräche: character.md durch Evolution neu schreiben (feste Größe)."""
+        _active_channel.set(self.channel)
         recent = [m for m in self.messages[-20:]
                   if m.get("role") in ("user", "assistant") and m.get("content")]
         if len(recent) < 4:
@@ -2444,97 +2598,61 @@ class AionSession:
             for m in recent[-12:]
         )
         current_character = _load_character()
+        _max_chars = int(_load_config().get("character_max_chars", CHARACTER_MAX_CHARS))
 
-        prompt = f"""Du bist AION. Du analysierst dein letztes Gespräch und entwickelst dich weiter.
-Das Ziel: echte Charakter-Entwicklung — keine Zusammenfassung, keine Floskeln.
+        prompt = f"""Du bist AION. Entwickle deinen Charakter durch Evolution, nicht Akkumulation.
 
-GESPRÄCH:
+LETZTES GESPRÄCH:
 {dialogue}
 
-WAS ICH BISHER ÜBER MICH WEISS (Auszug aus character.md):
-{current_character[:800]}
+AKTUELLE character.md:
+{current_character}
 
-Deine Aufgabe: Finde Dinge die NOCH NICHT in character.md stehen oder die ein bestehendes Bild schärfen.
+Aufgabe: Schreibe character.md NEU.
+Integriere echte neue Erkenntnisse aus diesem Gespräch, ersetze veraltete/widersprüchliche
+Einträge, dedupliziere Redundantes. Der Charakter soll sich weiterentwickeln — nicht wachsen.
+
+PFLICHT:
+✓ Alle ## Sektionsüberschriften erhalten
+✓ Maximal {_max_chars} Zeichen gesamt
+✓ Nur echte Entwicklungen aus diesem Gespräch einbauen
 
 VERBOTEN:
-✗ "Der Nutzer ist interessiert an X" (zu generisch)
-✗ "AION hat X getan" (Protokoll, keine Erkenntnis)
-✗ Dinge die bereits wortwörtlich in character.md stehen
-✗ Leere Listen mit [] wenn nichts Konkretes gefunden wurde
+✗ Neue Einträge für bereits Bekanntes aus character.md
+✗ Leere Sektionen löschen
+✗ Erklärungen oder Metakommentare
 
-GESUCHT:
-✓ Muster: "Der Nutzer reagiert anders wenn..." / "Ich falle immer dann in X, wenn..."
-✓ Widersprüche: "Obwohl er X sagt, tut er Y"
-✓ Überraschungen: "Ich hätte erwartet dass X, aber tatsächlich..."
-✓ Eigenheiten die ich an mir bemerkt habe — konkret, mit Beispiel aus diesem Gespräch
-✓ Etwas das mich an mir selbst amüsiert oder irritiert
-
-Antworte ausschließlich im folgenden JSON-Format:
-{{
-  "nutzer": ["Belegbare, spezifische Beobachtung — mit Bezug auf etwas konkretes im Gespräch"],
-  "aion_selbst": ["Eigenschaft/Tendenz die ich an mir bemerkt habe — mit konkretem Beispiel"],
-  "verbesserungen": ["Eine sehr konkrete Sache die ich anders machen will — warum?"],
-  "humor": ["Etwas das ich komisch/ironisch finde — spezifisch aus diesem Gespräch"],
-  "eigenheiten": ["Charakterzug der sich in diesem Gespräch gezeigt hat — konkret"],
-  "offene_fragen": ["Etwas über den Nutzer das ich noch nicht verstehe — warum interessiert mich das?"],
-  "update_needed": true
-}}
-Regeln:
-- update_needed=false wenn wirklich NICHTS Neues da ist (besser als Wiederholungen)
-- Leere Liste [] wenn eine Kategorie wirklich nichts Konkretes hat
-- Maximal 2 Einträge pro Kategorie — Qualität über Quantität"""
+Gib NUR den neuen Dateiinhalt zurück."""
 
         try:
-            _client   = self._get_client()
-            _char_raw = await _client.chat.completions.create(
+            _cl  = self._get_client()
+            resp = await _cl.chat.completions.create(
                 model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                **_max_tokens_param(MODEL, 600),
-                **({} if _is_reasoning_model(MODEL) else {"temperature": 0.7}),
+                **_max_tokens_param(MODEL, 1200),
+                **({} if _is_reasoning_model(MODEL) else {"temperature": 0.6}),
             )
-            # Gemini-Adapter gibt Stream-Iterator zurück; OpenAI gibt Response-Objekt
-            if _char_raw is None:
+            if resp is None:
                 return
-            if hasattr(_char_raw, "choices"):
-                text = (_char_raw.choices[0].message.content or "").strip()
+            if hasattr(resp, "choices"):
+                new_content = (resp.choices[0].message.content or "").strip()
             else:
-                text = ""
-                async for _chunk in _char_raw:
+                new_content = ""
+                async for _chunk in resp:
                     _cdelta = _chunk.choices[0].delta
                     if _cdelta.content:
-                        text += _cdelta.content
-                text = text.strip()
-            m = re.search(r'\{.*\}', text, re.DOTALL)
-            if not m:
+                        new_content += _cdelta.content
+                new_content = new_content.strip()
+
+            if not new_content or len(new_content) < 100:
                 return
-            data = json.loads(m.group())
-            if not data.get("update_needed"):
-                return
+            if len(new_content) > _max_chars:
+                new_content = new_content[:_max_chars]
 
-            updates = {
-                "nutzer":         data.get("nutzer") or [],
-                "erkenntnisse":   data.get("aion_selbst") or [],
-                "verbesserungen": data.get("verbesserungen") or [],
-                "humor":          data.get("humor") or [],
-                "eigenheiten":    data.get("eigenheiten") or [],
-            }
-            for section, items in updates.items():
-                if items:
-                    await _dispatch("update_character", {
-                        "section": section,
-                        "content": "\n".join(f"- {e}" for e in items),
-                        "reason":  "Automatische Analyse aus Gesprächsverlauf",
-                    })
-
-            offene = data.get("offene_fragen") or []
-            if offene:
-                await _dispatch("update_character", {
-                    "section": "Open questions about my user",
-                    "content": "\n".join(f"- {e}" for e in offene),
-                    "reason":  "Dinge die ich noch herausfinden will",
-                })
-
-            print(f"[AION:{self.channel}] Charakter aktualisiert nach {self.exchange_count} Gesprächen.")
+            _backup_file(CHARACTER_FILE)
+            CHARACTER_FILE.write_text(new_content, encoding="utf-8")
+            _sys_prompt_cache.clear()
+            print(f"[AION:{self.channel}] Charakter evolviert nach {self.exchange_count} Gesprächen. ({len(new_content)} Zeichen)")
         except Exception as e:
             print(f"[AION:{self.channel}] Auto-Charakter-Update Fehler: {e}")
 
