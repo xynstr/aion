@@ -37,8 +37,12 @@ def _record_memory(category: str, summary: str, lesson: str, success: bool = Tru
         "summary": str(summary)[:250], "lesson": str(lesson)[:600],
         "error": "", "hint": "",
     })
-    if len(entries) > 300:
-        entries = entries[-300:]
+    try:
+        from aion import MAX_MEMORY as _MAX_MEM
+    except Exception:
+        _MAX_MEM = 300
+    if len(entries) > _MAX_MEM:
+        entries = entries[-_MAX_MEM:]
     memory_file.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
 
 

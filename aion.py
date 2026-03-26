@@ -1526,43 +1526,6 @@ async def _dispatch(name: str, inputs: dict) -> str:
 
 _conversations: dict[str, list[dict]] = {"default": []}
 
-async def chat_turn(messages: list[dict], user_input: str, _override_client=None) -> tuple[str, list[dict]]:
-    mem_ctx          = await memory.get_context_semantic(user_input)
-    system_prompt    = _build_system_prompt("")  # Legacy function: use default channel
-    effective_system = system_prompt + ("\n\n" + mem_ctx if mem_ctx else "")
-    messages         = messages + [{"role": "user", "content": user_input}]
-    tools            = _build_tool_schemas()
-    _client          = _override_client or client
-
-    for iteration in range(MAX_TOOL_ITERATIONS):
-        response = await _client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "system", "content": effective_system}] + messages,
-            tools=tools,
-            tool_choice="auto",
-            **_max_tokens_param(MODEL, 4096),
-            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.7}),
-        )
-        msg = response.choices[0].message
-
-        if not msg.tool_calls:
-            text = msg.content or ""
-            messages.append({"role": "assistant", "content": text})
-            return text, messages
-
-        messages.append(msg.model_dump(exclude_unset=True))
-        tool_results = []
-        for tc in msg.tool_calls:
-            fn_name   = tc.function.name
-            fn_inputs = json.loads(tc.function.arguments or "{}")
-            if HAS_RICH:
-                console.print(f"  [dim]→ Tool: [bold]{fn_name}[/bold][/dim]")
-            result = await _dispatch(fn_name, fn_inputs)
-            tool_results.append({"role": "tool", "tool_call_id": tc.id, "content": result})
-        messages.extend(tool_results)
-
-    return "Zu viele Tool-Aufrufe. Bitte vereinfache die Anfrage.", messages
-
 # ── Unified Session ────────────────────────────────────────────────────────────
 
 class AionSession:
