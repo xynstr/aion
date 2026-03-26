@@ -124,6 +124,17 @@ Playwright/Chromium pre-installed. Volumes for `.env`, config, memory, and plugi
 
 ---
 
+## Docs
+
+| | |
+|---|---|
+| [⚙ Configuration & Troubleshooting](docs/configuration.md) | `.env`, `config.json`, task routing, file structure, troubleshooting |
+| [🔌 Plugin Development](docs/plugins.md) | Writing plugins, tool registration, available plugins |
+| [📡 REST API Reference](docs/api.md) | All endpoints, SSE stream events |
+| [💬 Messaging & Integrations](docs/messaging.md) | Telegram, Discord, Slack, Alexa, Browser, MCP |
+
+---
+
 <div align="center">
 
 Made with Python · Powered by your choice of AI
