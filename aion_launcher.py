@@ -80,25 +80,14 @@ def _run_config_cmd(args: list) -> None:
     aion config unset <key>         — remove an entry
     """
     import json
-    config_path = AION_DIR / "config.json"
-
-    def _load() -> dict:
-        if config_path.is_file():
-            try:
-                return json.loads(config_path.read_text(encoding="utf-8"))
-            except Exception:
-                pass
-        return {}
-
-    def _save(cfg: dict) -> None:
-        config_path.write_text(
-            json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-        )
+    import sys
+    sys.path.insert(0, str(AION_DIR))
+    import config_store as _cs
 
     sub = args[0] if args else "list"
 
     if sub == "list":
-        cfg = _load()
+        cfg = _cs.load()
         if not cfg:
             print("[config] config.json not found or empty.")
             return
@@ -112,12 +101,11 @@ def _run_config_cmd(args: list) -> None:
         if len(args) < 2:
             print("Usage: aion config get <key>"); return
         key = args[1]
-        val = _load().get(key)
+        val = _cs.load().get(key)
         if val is None:
             print(f"[config] '{key}' is not set.")
         else:
-            import json as _j
-            print(f"  {key} = {_j.dumps(val) if not isinstance(val, str) else val}")
+            print(f"  {key} = {json.dumps(val) if not isinstance(val, str) else val}")
 
     elif sub == "set":
         if len(args) < 3:
@@ -128,19 +116,17 @@ def _run_config_cmd(args: list) -> None:
             val = json.loads(raw)
         except json.JSONDecodeError:
             val = raw
-        cfg = _load()
-        cfg[key] = val
-        _save(cfg)
+        _cs.update(key, val)
         print(f"[config] {key} = {val!r}")
 
     elif sub == "unset":
         if len(args) < 2:
             print("Usage: aion config unset <key>"); return
         key = args[1]
-        cfg = _load()
+        cfg = _cs.load()
         if key in cfg:
             del cfg[key]
-            _save(cfg)
+            _cs.save(cfg)
             print(f"[config] '{key}' removed.")
         else:
             print(f"[config] '{key}' not found in config.json.")

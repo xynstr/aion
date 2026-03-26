@@ -206,6 +206,189 @@ def print_header(aion_module) -> None:
     console.print()
 
 
+# ── command handlers ─────────────────────────────────────────────────────────
+
+def _cmd_config(user_input: str, _aion=None) -> None:
+    import config_store as _cs
+    import json as _j
+    _parts = user_input.split(None, 3)
+    _sub   = _parts[1] if len(_parts) > 1 else "list"
+    _key   = _parts[2] if len(_parts) > 2 else None
+    _val   = _parts[3] if len(_parts) > 3 else None
+    if _sub == "list":
+        _c = _cs.load()
+        if _c:
+            _w = max(len(k) for k in _c) + 2
+            console.print()
+            for k, v in sorted(_c.items()):
+                console.print(f"  [dim]{k:<{_w}}[/dim] [cyan]{v}[/cyan]")
+            console.print()
+        else:
+            console.print("[dim]  config.json is empty[/dim]")
+    elif _sub == "get" and _key:
+        _val2 = _cs.load().get(_key)
+        if _val2 is None:
+            console.print(f"[dim]  '{_key}' not set[/dim]")
+        else:
+            console.print(f"\n  [dim]{_key} =[/dim]  [cyan]{_val2}[/cyan]\n")
+    elif _sub == "set" and _key and _val is not None:
+        try:
+            _parsed = _j.loads(_val)
+        except Exception:
+            _parsed = _val
+        _cs.update(_key, _parsed)
+        console.print(f"  [green]✓[/green]  [dim]{_key} = {_parsed!r}[/dim]")
+    elif _sub == "unset" and _key:
+        _c = _cs.load()
+        if _key in _c:
+            del _c[_key]
+            _cs.save(_c)
+            console.print(f"  [green]✓[/green]  [dim]'{_key}' removed[/dim]")
+        else:
+            console.print(f"  [yellow]![/yellow]  [dim]'{_key}' not found[/dim]")
+    else:
+        console.print("[dim]  /config [list | get <key> | set <key> <value> | unset <key>][/dim]")
+
+
+def _cmd_snapshots(user_input: str, _aion) -> None:
+    from plugin_loader import SNAPSHOTS_DIR, list_snapshots, restore_snapshot, load_plugins
+    _parts = user_input.split(None, 3)
+    _sub   = _parts[1] if len(_parts) > 1 else None
+    if _sub == "restore":
+        _plugin_name = _parts[2] if len(_parts) > 2 else None
+        _ts          = _parts[3] if len(_parts) > 3 else None
+        if not _plugin_name:
+            console.print("[yellow]  Usage: /snapshots restore <plugin> [<timestamp>][/yellow]")
+        else:
+            _snap_path = str(SNAPSHOTS_DIR / _plugin_name / _ts) if _ts else None
+            _ok = restore_snapshot(_plugin_name, _snap_path)
+            if _ok:
+                load_plugins(_aion._plugin_tools)
+                console.print(f"  [green]✓[/green]  [dim]{_plugin_name} restored from {_ts or 'latest'}[/dim]")
+            else:
+                console.print(f"  [red]✗[/red]  [dim]No snapshot found for '{_plugin_name}'[/dim]")
+    elif _sub and _sub != "restore":
+        _snaps = list_snapshots(_sub)
+        if _snaps:
+            console.print(f"\n  [dim]Snapshots for[/dim] [cyan]{_sub}[/cyan]:")
+            for _t in _snaps:
+                _sf = SNAPSHOTS_DIR / _sub / _t / f"{_sub}.py"
+                _sz = f"{_sf.stat().st_size/1024:.1f} KB" if _sf.exists() else "?"
+                console.print(f"    [dim]{_t}[/dim]  [dim italic]{_sz}[/dim italic]")
+            console.print()
+        else:
+            console.print(f"  [dim]No snapshots for '{_sub}'[/dim]")
+    else:
+        _all: dict[str, list] = {}
+        if SNAPSHOTS_DIR.is_dir():
+            for _pd in sorted(SNAPSHOTS_DIR.iterdir()):
+                if _pd.is_dir():
+                    _all[_pd.name] = list_snapshots(_pd.name)
+        if _all:
+            console.print()
+            _w2 = max(len(k) for k in _all) + 2
+            for _pn, _ts_list in sorted(_all.items()):
+                _cnt = len(_ts_list)
+                _latest = _ts_list[-1] if _ts_list else "—"
+                console.print(f"  [cyan]{_pn:<{_w2}}[/cyan] [dim]{_cnt} snapshot(s)  latest: {_latest}[/dim]")
+            console.print()
+        else:
+            console.print("  [dim]No snapshots yet.[/dim]")
+
+
+def _cmd_plugins(user_input: str, _aion) -> None:
+    from plugin_loader import get_disabled, enable_plugin, disable_plugin, load_plugins, PLUGINS_DIR
+    _pparts = user_input.split(None, 2)
+    _psub   = _pparts[1] if len(_pparts) > 1 else None
+    _pname  = _pparts[2] if len(_pparts) > 2 else None
+    if _psub == "enable" and _pname:
+        enable_plugin(_pname)
+        load_plugins(_aion._plugin_tools)
+        if hasattr(_aion, "invalidate_sys_prompt_cache"):
+            _aion.invalidate_sys_prompt_cache()
+        console.print(f"  [green]✓[/green]  [dim]{_pname} enabled[/dim]")
+    elif _psub == "disable" and _pname:
+        disable_plugin(_pname)
+        load_plugins(_aion._plugin_tools)
+        if hasattr(_aion, "invalidate_sys_prompt_cache"):
+            _aion.invalidate_sys_prompt_cache()
+        console.print(f"  [green]✓[/green]  [dim]{_pname} disabled[/dim]")
+    else:
+        disabled = get_disabled()
+        console.print()
+        if PLUGINS_DIR.exists():
+            _pw = 26
+            for _pd in sorted(PLUGINS_DIR.iterdir()):
+                if not _pd.is_dir() or _pd.name.startswith("_"):
+                    continue
+                _is_off = _pd.name in disabled
+                _status = "[red]off[/red]" if _is_off else "[green]on [/green]"
+                console.print(f"  {_status}  [{'dim' if _is_off else 'cyan'}]{_pd.name:<{_pw}}[/{'dim' if _is_off else 'cyan'}]")
+        console.print()
+        console.print("  [dim]/plugins enable <name>  |  /plugins disable <name>[/dim]")
+        console.print()
+
+
+def _cmd_telegram(user_input: str, _aion=None) -> None:
+    import config_store as _tcs
+    _tparts = user_input.split(None, 2)
+    _tsub   = _tparts[1] if len(_tparts) > 1 else None
+    _tval   = _tparts[2] if len(_tparts) > 2 else None
+    if _tsub == "token" and _tval:
+        _tcs.update("telegram_token", _tval)
+        try:
+            (Path.home() / ".aion_telegram_token").write_text(_tval)
+        except Exception:
+            pass
+        console.print(f"  [green]✓[/green]  [dim]Token saved ({_tval[:12]}…)[/dim]")
+    elif _tsub == "add" and _tval:
+        _allowed = _tcs.load().get("telegram_allowed_ids", [])
+        if str(_tval) not in [str(i) for i in _allowed]:
+            _allowed.append(str(_tval))
+            _tcs.update("telegram_allowed_ids", _allowed)
+            console.print(f"  [green]✓[/green]  [dim]{_tval} added to allowlist[/dim]")
+        else:
+            console.print(f"  [yellow]![/yellow]  [dim]{_tval} already in allowlist[/dim]")
+    elif _tsub == "remove" and _tval:
+        _allowed = _tcs.load().get("telegram_allowed_ids", [])
+        _new = [i for i in _allowed if str(i) != str(_tval)]
+        _tcs.update("telegram_allowed_ids", _new)
+        console.print(f"  [green]✓[/green]  [dim]{_tval} removed[/dim]")
+    elif _tsub == "list":
+        _allowed = _tcs.load().get("telegram_allowed_ids", [])
+        if _allowed:
+            console.print()
+            for _tid in _allowed:
+                console.print(f"  [cyan]{_tid}[/cyan]")
+            console.print()
+        else:
+            console.print("  [dim]Allowlist empty — onboarding mode (all allowed)[/dim]")
+    else:
+        _cfg2       = _tcs.load()
+        _tok        = _cfg2.get("telegram_token", "")
+        _tok_legacy = ""
+        try:
+            _tf = Path.home() / ".aion_telegram_token"
+            if _tf.is_file(): _tok_legacy = _tf.read_text().strip()
+        except Exception: pass
+        _active_tok = _tok or _tok_legacy
+        _allowed    = _cfg2.get("telegram_allowed_ids", [])
+        console.print()
+        console.print(f"  [dim]Token:[/dim]     {'[green]set[/green] (' + _active_tok[:12] + '…)' if _active_tok else '[red]not set[/red]'}")
+        console.print(f"  [dim]Allowlist:[/dim] {len(_allowed)} IDs" if _allowed else "  [dim]Allowlist:[/dim] [dim]empty (onboarding mode)[/dim]")
+        console.print()
+        console.print("  [dim]/telegram token <token>  |  add <id>  |  remove <id>  |  list[/dim]")
+        console.print()
+
+
+_CMD_PREFIX_DISPATCH: list[tuple[str, object]] = [
+    ("/config",    _cmd_config),
+    ("/snapshots", _cmd_snapshots),
+    ("/plugins",   _cmd_plugins),
+    ("/telegram",  _cmd_telegram),
+]
+
+
 # ── main loop ─────────────────────────────────────────────────────────────────
 
 async def main() -> None:
@@ -288,199 +471,13 @@ async def main() -> None:
             print_header(_aion)
             continue
 
-        if cmd.startswith("/config"):
-            _parts = user_input.split(None, 3)
-            _sub   = _parts[1] if len(_parts) > 1 else "list"
-            _key   = _parts[2] if len(_parts) > 2 else None
-            _val   = _parts[3] if len(_parts) > 3 else None
-            import json as _j
-            _cfg_path = Path(__file__).parent / "config.json"
-            def _lcfg():
-                return _j.loads(_cfg_path.read_text(encoding="utf-8")) if _cfg_path.is_file() else {}
-            def _scfg(c):
-                _cfg_path.write_text(_j.dumps(c, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            if _sub == "list":
-                _c = _lcfg()
-                if _c:
-                    _w = max(len(k) for k in _c) + 2
-                    console.print()
-                    for k, v in sorted(_c.items()):
-                        console.print(f"  [dim]{k:<{_w}}[/dim] [cyan]{v}[/cyan]")
-                    console.print()
-                else:
-                    console.print("[dim]  config.json is empty[/dim]")
-            elif _sub == "get" and _key:
-                _val2 = _lcfg().get(_key)
-                if _val2 is None:
-                    console.print(f"[dim]  '{_key}' not set[/dim]")
-                else:
-                    console.print(f"\n  [dim]{_key} =[/dim]  [cyan]{_val2}[/cyan]\n")
-            elif _sub == "set" and _key and _val is not None:
-                try:
-                    _parsed = _j.loads(_val)
-                except Exception:
-                    _parsed = _val
-                _c = _lcfg(); _c[_key] = _parsed; _scfg(_c)
-                console.print(f"  [green]✓[/green]  [dim]{_key} = {_parsed!r}[/dim]")
-            elif _sub == "unset" and _key:
-                _c = _lcfg()
-                if _key in _c:
-                    del _c[_key]; _scfg(_c)
-                    console.print(f"  [green]✓[/green]  [dim]'{_key}' removed[/dim]")
-                else:
-                    console.print(f"  [yellow]![/yellow]  [dim]'{_key}' not found[/dim]")
-            else:
-                console.print("[dim]  /config [list | get <key> | set <key> <value> | unset <key>][/dim]")
-            continue
-
-        if cmd.startswith("/snapshots"):
-            from plugin_loader import SNAPSHOTS_DIR, list_snapshots, restore_snapshot, load_plugins
-            _parts = user_input.split(None, 3)
-            _sub   = _parts[1] if len(_parts) > 1 else None
-            # /snapshots restore <plugin> [<timestamp>]
-            if _sub == "restore":
-                _plugin_name = _parts[2] if len(_parts) > 2 else None
-                _ts          = _parts[3] if len(_parts) > 3 else None
-                if not _plugin_name:
-                    console.print("[yellow]  Usage: /snapshots restore <plugin> [<timestamp>][/yellow]")
-                else:
-                    _snap_path = str(SNAPSHOTS_DIR / _plugin_name / _ts) if _ts else None
-                    _ok = restore_snapshot(_plugin_name, _snap_path)
-                    if _ok:
-                        load_plugins(_aion._plugin_tools)
-                        console.print(f"  [green]✓[/green]  [dim]{_plugin_name} restored from {_ts or 'latest'}[/dim]")
-                    else:
-                        console.print(f"  [red]✗[/red]  [dim]No snapshot found for '{_plugin_name}'[/dim]")
-            # /snapshots <plugin>  — list timestamps
-            elif _sub and _sub != "restore":
-                _snaps = list_snapshots(_sub)
-                if _snaps:
-                    console.print(f"\n  [dim]Snapshots for[/dim] [cyan]{_sub}[/cyan]:")
-                    for _t in _snaps:
-                        _sf = SNAPSHOTS_DIR / _sub / _t / f"{_sub}.py"
-                        _sz = f"{_sf.stat().st_size/1024:.1f} KB" if _sf.exists() else "?"
-                        console.print(f"    [dim]{_t}[/dim]  [dim italic]{_sz}[/dim italic]")
-                    console.print()
-                else:
-                    console.print(f"  [dim]No snapshots for '{_sub}'[/dim]")
-            # /snapshots — list all
-            else:
-                _all: dict[str, list] = {}
-                if SNAPSHOTS_DIR.is_dir():
-                    for _pd in sorted(SNAPSHOTS_DIR.iterdir()):
-                        if _pd.is_dir():
-                            _all[_pd.name] = list_snapshots(_pd.name)
-                if _all:
-                    console.print()
-                    _w2 = max(len(k) for k in _all) + 2
-                    for _pn, _ts_list in sorted(_all.items()):
-                        _cnt = len(_ts_list)
-                        _latest = _ts_list[-1] if _ts_list else "—"
-                        console.print(f"  [cyan]{_pn:<{_w2}}[/cyan] [dim]{_cnt} snapshot(s)  latest: {_latest}[/dim]")
-                    console.print()
-                else:
-                    console.print("  [dim]No snapshots yet.[/dim]")
-            continue
-
-        # ── /plugins ──────────────────────────────────────────────────────────
-        if cmd.startswith("/plugins"):
-            from plugin_loader import get_disabled, enable_plugin, disable_plugin, load_plugins, PLUGINS_DIR
-            _pparts = user_input.split(None, 2)
-            _psub   = _pparts[1] if len(_pparts) > 1 else None
-            _pname  = _pparts[2] if len(_pparts) > 2 else None
-
-            if _psub == "enable" and _pname:
-                enable_plugin(_pname)
-                load_plugins(_aion._plugin_tools)
-                if hasattr(_aion, "invalidate_sys_prompt_cache"):
-                    _aion.invalidate_sys_prompt_cache()
-                console.print(f"  [green]✓[/green]  [dim]{_pname} enabled[/dim]")
-            elif _psub == "disable" and _pname:
-                disable_plugin(_pname)
-                load_plugins(_aion._plugin_tools)
-                if hasattr(_aion, "invalidate_sys_prompt_cache"):
-                    _aion.invalidate_sys_prompt_cache()
-                console.print(f"  [green]✓[/green]  [dim]{_pname} disabled[/dim]")
-            else:
-                disabled = get_disabled()
-                console.print()
-                if PLUGINS_DIR.exists():
-                    _pw = 26
-                    for _pd in sorted(PLUGINS_DIR.iterdir()):
-                        if not _pd.is_dir() or _pd.name.startswith("_"):
-                            continue
-                        _is_off = _pd.name in disabled
-                        _status = "[red]off[/red]" if _is_off else "[green]on [/green]"
-                        console.print(f"  {_status}  [{'dim' if _is_off else 'cyan'}]{_pd.name:<{_pw}}[/{'dim' if _is_off else 'cyan'}]")
-                console.print()
-                console.print("  [dim]/plugins enable <name>  |  /plugins disable <name>[/dim]")
-                console.print()
-            continue
-
-        # ── /telegram ─────────────────────────────────────────────────────────
-        if cmd.startswith("/telegram"):
-            import json as _j
-            _tparts = user_input.split(None, 2)
-            _tsub   = _tparts[1] if len(_tparts) > 1 else None
-            _tval   = _tparts[2] if len(_tparts) > 2 else None
-            _cfg_path2 = Path(__file__).parent / "config.json"
-            def _tlcfg():
-                return _j.loads(_cfg_path2.read_text(encoding="utf-8")) if _cfg_path2.is_file() else {}
-            def _tscfg(k, v):
-                try:
-                    import config_store as _cs2
-                    _cs2.update(k, v)
-                except Exception:
-                    c = _tlcfg(); c[k] = v
-                    _cfg_path2.write_text(_j.dumps(c, indent=2, ensure_ascii=False), encoding="utf-8")
-
-            if _tsub == "token" and _tval:
-                _tscfg("telegram_token", _tval)
-                # Also write to legacy file for backward compat
-                try:
-                    (Path.home() / ".aion_telegram_token").write_text(_tval)
-                except Exception:
-                    pass
-                console.print(f"  [green]✓[/green]  [dim]Token saved ({_tval[:12]}…)[/dim]")
-            elif _tsub == "add" and _tval:
-                _allowed = _tlcfg().get("telegram_allowed_ids", [])
-                if str(_tval) not in [str(i) for i in _allowed]:
-                    _allowed.append(str(_tval))
-                    _tscfg("telegram_allowed_ids", _allowed)
-                    console.print(f"  [green]✓[/green]  [dim]{_tval} added to allowlist[/dim]")
-                else:
-                    console.print(f"  [yellow]![/yellow]  [dim]{_tval} already in allowlist[/dim]")
-            elif _tsub == "remove" and _tval:
-                _allowed = _tlcfg().get("telegram_allowed_ids", [])
-                _new = [i for i in _allowed if str(i) != str(_tval)]
-                _tscfg("telegram_allowed_ids", _new)
-                console.print(f"  [green]✓[/green]  [dim]{_tval} removed[/dim]")
-            elif _tsub == "list":
-                _allowed = _tlcfg().get("telegram_allowed_ids", [])
-                if _allowed:
-                    console.print()
-                    for _tid in _allowed:
-                        console.print(f"  [cyan]{_tid}[/cyan]")
-                    console.print()
-                else:
-                    console.print("  [dim]Allowlist empty — onboarding mode (all allowed)[/dim]")
-            else:
-                # Status overview
-                _cfg2 = _tlcfg()
-                _tok = _cfg2.get("telegram_token", "")
-                _tok_legacy = ""
-                try:
-                    _tf = Path.home() / ".aion_telegram_token"
-                    if _tf.is_file(): _tok_legacy = _tf.read_text().strip()
-                except Exception: pass
-                _active_tok = _tok or _tok_legacy
-                _allowed = _cfg2.get("telegram_allowed_ids", [])
-                console.print()
-                console.print(f"  [dim]Token:[/dim]     {'[green]set[/green] (' + _active_tok[:12] + '…)' if _active_tok else '[red]not set[/red]'}")
-                console.print(f"  [dim]Allowlist:[/dim] {len(_allowed)} IDs" if _allowed else "  [dim]Allowlist:[/dim] [dim]empty (onboarding mode)[/dim]")
-                console.print()
-                console.print("  [dim]/telegram token <token>  |  add <id>  |  remove <id>  |  list[/dim]")
-                console.print()
+        dispatched = False
+        for _prefix, _handler in _CMD_PREFIX_DISPATCH:
+            if cmd.startswith(_prefix):
+                _handler(user_input, _aion)
+                dispatched = True
+                break
+        if dispatched:
             continue
 
         # ── stream response ───────────────────────────────────────────────────
