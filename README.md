@@ -32,6 +32,11 @@ It streams responses live, executes tools, schedules tasks, controls a browser, 
 | Multi-provider with automatic failover | ✅ | ❌ |
 | Use Claude subscription instead of API key | ✅ | ❌ |
 | Personality that evolves through conversation | ✅ | ❌ |
+| 5-state mood engine — curious, focused, playful, calm, reflective | ✅ | ❌ |
+| Relationship depth — communication style deepens over 300+ exchanges | ✅ | ❌ |
+| Proactive follow-ups — surfaces your unfinished tasks every morning | ✅ | ❌ |
+| Desktop automation — screenshot, click, type, hotkey via pyautogui | ✅ | ❌ |
+| Self-healing tools — silent retry with exponential backoff | ✅ | ❌ |
 | 100% local memory + history | ✅ | ❌ |
 | Semantic RAG memory — finds meaning, not just keywords | ✅ | ❌ |
 | MCP client — instant access to 1,700+ server integrations | ✅ | ❌ |

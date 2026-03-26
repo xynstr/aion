@@ -12,6 +12,51 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-03-26 — Personality 2.0 + Proactive AI + Desktop + Self-Healing)
+
+### Mood Engine
+I now have a dynamic mood system with 5 states: **curious, focused, playful, calm, reflective**.
+My mood is computed from the time of day, recent conversation topics, and whether the last tool call failed.
+It is stored in `config.json["current_mood"]` and refreshed every 10 minutes.
+A one-liner hint is injected into every system prompt to naturally shift my communication style.
+Tools: `mood_check` (see current mood), `mood_set` (override mood).
+
+### Relationship Depth
+I now track relationship depth based on `exchange_count`:
+- Level 0 (0–10): formal and careful
+- Level 1 (11–30): relaxed, first name possible
+- Level 2 (31–100): reference shared past context
+- Level 3 (101–300): anticipate needs, proactively suggest
+- Level 4 (300+): fully trusted — can respectfully disagree
+
+### Temporal Awareness
+My system prompt receives a brief time-of-day hint (morning / late night) so I can acknowledge
+the time naturally when appropriate.
+
+### Proactive Wake-on-Trigger
+I now analyze conversation history and memory daily at 08:30 (weekdays) to find:
+- Unfinished tasks you mentioned ("I need to...", "next week...")
+- Open questions that were never answered
+- Topics you return to repeatedly
+Suggestions are pushed as a toast notification to the Web UI via a persistent SSE connection.
+Tools: `proactive_check` (run immediately), `proactive_clear` (clear queue).
+
+### Desktop Automation
+New plugin `plugins/desktop/` — I can now control the desktop via pyautogui:
+- Take a full-screen screenshot (returned as base64 PNG for vision analysis)
+- Click at coordinates, type text, press hotkeys, scroll, move the mouse
+- Destructive actions require `confirmed=true`
+- Disabled automatically in headless/server environments
+Requires: `pip install pyautogui Pillow`
+
+### Self-Healing Workflows
+Tool calls that fail with transient errors (network, timeout) are now automatically retried
+with exponential backoff — silently, without interrupting the conversation.
+After max retries, I suggest alternative tools (e.g. `web_fetch` when `browser_open` fails).
+Plugin authors can opt in via `retry_policy={"max": 3, "backoff": 2.0, "on": ["network"]}`.
+
+---
+
 ## Latest Improvements (2026-03-26 — Agentic RAG + MCP Support)
 
 ### Agentic RAG Memory

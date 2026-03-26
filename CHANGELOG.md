@@ -5,6 +5,45 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 2026-03-26 — Personality 2.0 + Proactive AI + Desktop Automation + Self-Healing
+
+### Evolving Personality 2.0
+- **Mood Engine** (`plugins/mood_engine/`): 5-state mood system (curious/focused/playful/calm/reflective)
+  computed from time-of-day, conversation topic keywords, and tool error signals
+- Mood hint injected into every system prompt — influences AION's communication style dynamically
+- **Relationship Depth**: 5 levels based on `exchange_count` — progressively richer collaboration style
+- **Temporal Awareness**: morning/late-night context hint injected per call
+- Tools: `mood_check`, `mood_set`
+
+### Proactive Wake-on-Trigger
+- **Proactive plugin** (`plugins/proactive/`): daily analysis at 08:30 weekdays
+  reads conversation history + memory, finds unfinished tasks and open questions via LLM
+- **Server-Push SSE** (`GET /api/events`): persistent browser connection with 30s heartbeat
+- **Push Toast UI**: slide-in notification bottom-right with Accept/Dismiss buttons (auto-dismiss 30s)
+- Tools: `proactive_check`, `proactive_clear`
+
+### Desktop Automation
+- **Desktop plugin** (`plugins/desktop/`): full-screen screenshot (base64 PNG), click, type,
+  hotkey, scroll, mouse move — all via pyautogui
+- Destructive actions require `confirmed=true` (approval pattern)
+- Headless/server guard: auto-disabled when `$DISPLAY` unset on Linux
+- Requires: `pip install pyautogui Pillow`
+
+### Self-Healing Workflows
+- `_dispatch()` checks `retry_policy` on plugin tools before executing
+- `_dispatch_with_retry()`: exponential backoff, silent retries for transient errors
+- `_classify_error()`: categorizes errors as network/resource/not_found/fatal
+- Alternative tool suggestions appended after max retries exhausted
+- `PluginAPI.register_tool()` accepts `retry_policy` dict
+
+### Bug Fixes & Refactoring
+- Removed dead `chat_turn()` function (replaced by `AionSession.stream()`)
+- `run_aion_turn()` now uses per-channel `AionSession` registry (no more `_conversations` dict)
+- `aion_web.py` delegates `_load_config`/`_save_config` to `config_store.py` (thread-safe)
+- `shell_tools.py` fallback uses `MAX_MEMORY` from `aion` instead of hardcoded `300`
+
+---
+
 ## 2026-03-26 — Agentic RAG Memory + MCP Support
 
 ### Agentic RAG Memory
