@@ -3,6 +3,7 @@
 
 # Core
 openai>=1.0.0
+tomli>=2.0.0;python_version<"3.11"  # tomllib stdlib backport for Python 3.10
 httpx>=0.24.0
 beautifulsoup4>=4.12.0
 ddgs>=9.0.0                # DuckDuckGo search (ersetzt html-scraping das geblockt wird)

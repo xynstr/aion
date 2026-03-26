@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime
 
@@ -36,6 +37,9 @@ DEFAULT_ENABLED: set[str] = {
 }
 
 
+_disabled_lock = threading.Lock()
+
+
 def get_disabled() -> set:
     """Gibt die Menge der deaktivierten Plugin-Namen zurück."""
     if DISABLED_FILE.exists():
@@ -49,10 +53,12 @@ def _save_disabled(disabled: set):
     DISABLED_FILE.write_text(json.dumps(sorted(disabled), indent=2, ensure_ascii=False), encoding="utf-8")
 
 def disable_plugin(name: str):
-    d = get_disabled(); d.add(name); _save_disabled(d)
+    with _disabled_lock:
+        d = get_disabled(); d.add(name); _save_disabled(d)
 
 def enable_plugin(name: str):
-    d = get_disabled(); d.discard(name); _save_disabled(d)
+    with _disabled_lock:
+        d = get_disabled(); d.discard(name); _save_disabled(d)
 
 def init_defaults():
     """Beim ersten Start: alle Nicht-Kern-Plugins deaktivieren.

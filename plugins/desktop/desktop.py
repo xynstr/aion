@@ -18,9 +18,10 @@ import os
 
 def register(api):
 
-    # Platform / headless check — bail out early on servers
-    if sys.platform != "win32" and not os.environ.get("DISPLAY"):
-        print("[desktop] Headless environment — desktop tools disabled.")
+    # Platform / headless check — bail out early on Linux servers without a display.
+    # macOS uses Quartz (no DISPLAY variable), Windows uses GDI — both are fine.
+    if sys.platform == "linux" and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        print("[desktop] Headless Linux environment — desktop tools disabled.")
         return
 
     # ── Tool implementations ─────────────────────────────────────────────────

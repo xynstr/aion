@@ -15,4 +15,12 @@ Repository = "https://github.com/xynstr/aion"
 aion = "aion_launcher:main"
 
 [tool.setuptools]
-py-modules = ["aion_launcher"]
+py-modules = [
+    "aion_launcher",
+    "aion",
+    "aion_web",
+    "aion_cli",
+    "plugin_loader",
+    "config_store",
+    "onboarding",
+]
