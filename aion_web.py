@@ -1369,16 +1369,35 @@ if __name__ == "__main__":
     if _host != "127.0.0.1":
         print(f"Hinweis: Server erreichbar im Netzwerk (AION_HOST={_host}) — kein Passwortschutz aktiv.")
     print("Beenden: Strg+C\n")
-    try:
-        uvicorn.run(app, host=_host, port=_port, log_level="warning")
-    except (KeyboardInterrupt, SystemExit):
-        pass
-    finally:
-        # Sauberes Beenden — stoppt Telegram-Polling und alle Daemon-Threads sofort
+
+    # Suppress CancelledError / WouldBlock noise that uvicorn logs when
+    # SSE streams are torn down during a clean Ctrl+C shutdown.  These are
+    # not real errors — they are the expected result of cancelling in-flight
+    # async generators when the server exits.
+    import logging as _logging
+
+    class _ShutdownFilter(_logging.Filter):
+        _SUPPRESS = ("CancelledError", "WouldBlock", "disconnect")
+        def filter(self, record: _logging.LogRecord) -> bool:
+            msg = record.getMessage()
+            return not any(s in msg for s in self._SUPPRESS)
+
+    _logging.getLogger("uvicorn.error").addFilter(_ShutdownFilter())
+
+    def _cleanup() -> None:
         try:
             from plugins.telegram_bot.telegram_bot import _stop_event
             _stop_event.set()
         except Exception:
             pass
-    import os as _os
-    _os._exit(0)
+        import os as _os
+        _os._exit(0)
+
+    try:
+        uvicorn.run(app, host=_host, port=_port, log_level="warning")
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    except Exception as _exc:
+        print(f"\n[AION] Unerwarteter Fehler: {_exc}", flush=True)
+    finally:
+        _cleanup()
