@@ -2456,7 +2456,7 @@ function handleEvent(ev) {
       awaitingNewBubble = false;
       break;
     case 'usage':
-      _lastUsage = {in: ev.input_tokens || 0, out: ev.output_tokens || 0};
+      _lastUsage = {in: ev.input_tokens || 0, out: ev.output_tokens || 0, est: !!ev.estimated};
       _sessionTokens.in  += _lastUsage.in;
       _sessionTokens.out += _lastUsage.out;
       break;
@@ -2471,9 +2471,11 @@ function handleEvent(ev) {
       if (_lastUsage) {
         const badge = document.createElement('div');
         badge.className = 'token-badge';
-        badge.textContent = `↳ in: ${fmtTok(_lastUsage.in)}  out: ${fmtTok(_lastUsage.out)}  ·  session: ${fmtTok(_sessionTokens.in)} / ${fmtTok(_sessionTokens.out)}`;
+        const est = _lastUsage.est ? '~' : '';
+        badge.textContent = `↳ in: ${est}${fmtTok(_lastUsage.in)}  out: ${est}${fmtTok(_lastUsage.out)}  ·  session: ${fmtTok(_sessionTokens.in)} / ${fmtTok(_sessionTokens.out)}`;
         const msgs = document.getElementById('messages');
-        const lastMsg = msgs.querySelector('.msg.aion:last-child');
+        const aionMsgs = msgs.querySelectorAll('.msg.aion');
+        const lastMsg = aionMsgs[aionMsgs.length - 1];
         if (lastMsg) lastMsg.appendChild(badge);
         _lastUsage = null;
       }

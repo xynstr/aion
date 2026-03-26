@@ -1603,6 +1603,7 @@ class AionSession:
                     _tried_fb.add(_fb_model)
                     _fb_client = _build_client(_fb_model) if _fb_model != MODEL else _client
                     try:
+                        _is_local = _fb_model.startswith("ollama/")
                         stream = await _fb_client.chat.completions.create(
                             model=_fb_model,
                             messages=[{"role": "system", "content": effective}] + messages,
@@ -1611,7 +1612,7 @@ class AionSession:
                             **_max_tokens_param(_fb_model, 4096),
                             **({} if _is_reasoning_model(_fb_model) else {"temperature": 0.7}),
                             stream=True,
-                            stream_options={"include_usage": True},
+                            **({} if _is_local else {"stream_options": {"include_usage": True}}),
                         )
                         if _fb_model != MODEL:
                             yield {"type": "thought",
@@ -1634,6 +1635,7 @@ class AionSession:
 
                 text_content:   str             = ""
                 tool_calls_acc: dict[int, dict] = {}
+                _got_usage = False
 
                 async for chunk in stream:
                     if cancel_event and cancel_event.is_set():
@@ -1642,6 +1644,7 @@ class AionSession:
 
                     # Usage-Daten im letzten Chunk (stream_options include_usage)
                     if hasattr(chunk, "usage") and chunk.usage:
+                        _got_usage = True
                         yield {
                             "type":          "usage",
                             "input_tokens":  getattr(chunk.usage, "prompt_tokens", 0),
@@ -1669,6 +1672,16 @@ class AionSession:
                                     tool_calls_acc[idx]["name"] += tc.function.name
                                 if tc.function.arguments:
                                     tool_calls_acc[idx]["args_str"] += tc.function.arguments
+
+                # Lokale Modelle liefern keine Usage-Daten → aus Zeichenanzahl schätzen
+                if not _got_usage and _is_local and text_content:
+                    _ctx_chars = sum(len(str(m.get("content", ""))) for m in messages) + len(effective)
+                    yield {
+                        "type":          "usage",
+                        "input_tokens":  max(1, _ctx_chars // 4),
+                        "output_tokens": max(1, len(text_content) // 4),
+                        "estimated":     True,
+                    }
 
                 if tool_calls_acc:
                     tc_list = [
