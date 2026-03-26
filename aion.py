@@ -515,6 +515,16 @@ def _backup_file(path: Path, max_backups: int = 3) -> None:
         old.unlink(missing_ok=True)
 
 
+def _backup_code_file(path: Path, keep: int = 5) -> None:
+    """Backup a code file into path.parent/_backups/, keeping at most `keep` copies."""
+    backup_dir = path.parent / "_backups"
+    backup_dir.mkdir(exist_ok=True)
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    shutil.copy2(path, backup_dir / f"{path.stem}.backup_{ts}{path.suffix}")
+    for old in sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))[:-keep]:
+        old.unlink(missing_ok=True)
+
+
 # ── System Prompt ─────────────────────────────────────────────────────────────
 
 def _load_changelog_snippet() -> str:
@@ -1525,15 +1535,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
                 return json.dumps({"error": "Originaltext nicht gefunden! Lies die Datei nochmals mit self_read_code."})
             if content.count(old_code) > 1:
                 return json.dumps({"error": f"Text kommt {content.count(old_code)}x vor — mehr Kontext im 'old'-Feld angeben."})
-            ts          = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-            backup_dir  = path.parent / "_backups"
-            backup_dir.mkdir(exist_ok=True)
-            backup_path = backup_dir / f"{path.stem}.backup_{ts}{path.suffix}"
-            shutil.copy2(path, backup_path)
-            # Nur die letzten 5 Backups behalten
-            old_backups = sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))
-            for old in old_backups[:-5]:
-                old.unlink(missing_ok=True)
+            _backup_code_file(path)
             patched = content.replace(old_code, new_code, 1)
             path.write_text(patched, encoding="utf-8")
             memory.record(category="self_improvement", summary=f"Patch: {filepath}",
@@ -1576,14 +1578,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
             if end_line > total:
                 return json.dumps({"error": f"end_line {end_line} > Dateigröße {total} Zeilen."})
             # Backup
-            ts          = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-            backup_dir  = path.parent / "_backups"
-            backup_dir.mkdir(exist_ok=True)
-            backup_path = backup_dir / f"{path.stem}.backup_{ts}{path.suffix}"
-            shutil.copy2(path, backup_path)
-            old_backups = sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))
-            for old in old_backups[:-5]:
-                old.unlink(missing_ok=True)
+            _backup_code_file(path)
             # Zeilen ersetzen (1-basiert → 0-basiert)
             new_lines = new_content.splitlines(keepends=False)
             new_lines = [l + "\n" for l in new_lines]
@@ -1628,12 +1623,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
             original_len = len(path.read_text(encoding="utf-8"))
             if len(content) < original_len * 0.7:
                 return json.dumps({"error": f"Neuer Code zu kurz ({len(content)} vs {original_len} Bytes). Nutze self_patch_code!"})
-            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-            backup_dir = path.parent / "_backups"
-            backup_dir.mkdir(exist_ok=True)
-            shutil.copy2(path, backup_dir / f"{path.stem}.backup_{ts}{path.suffix}")
-            for old in sorted(backup_dir.glob(f"{path.stem}.backup_*{path.suffix}"))[:-5]:
-                old.unlink(missing_ok=True)
+            _backup_code_file(path)
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
