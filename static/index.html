@@ -352,6 +352,23 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .orphan-section { margin-top: 4px; }
 .orphan-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 .orphan-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--bg4); border: 1px solid var(--border); color: var(--text2); padding: 3px 9px; border-radius: 12px; font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; margin: 2px; }
+.snap-section { margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.snap-section-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; user-select: none; background: var(--bg3); }
+.snap-section-hdr:hover { background: var(--bg4); }
+.snap-title { font-size: 11px; color: var(--text2); letter-spacing: .5px; flex: 1; }
+.snap-chevron { font-size: 10px; color: var(--text3); transition: transform .15s; }
+.snap-section.open .snap-chevron { transform: rotate(90deg); }
+.snap-body { display: none; padding: 8px 0; }
+.snap-section.open .snap-body { display: block; }
+.snap-plugin-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid var(--border); }
+.snap-plugin-row:last-child { border-bottom: none; }
+.snap-plugin-name { font-size: 11px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; color: var(--text2); min-width: 130px; }
+.snap-ts-list { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.snap-ts-entry { display: flex; align-items: center; gap: 8px; }
+.snap-ts { font-size: 10px; color: var(--text3); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+.snap-size { font-size: 10px; color: var(--text3); opacity: .6; }
+.snap-restore-btn { font-size: 10px; padding: 1px 7px; background: transparent; border: 1px solid var(--border); color: var(--text3); border-radius: 4px; cursor: pointer; transition: color .1s, border-color .1s; }
+.snap-restore-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 /* ─────────────────────────────────────────────────────────────────
    SECTION: MEMORY
@@ -611,6 +628,17 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <div class="page-scroll">
           <div id="pluginList">
             <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Load plugins…</span></div>
+          </div>
+          <!-- Snapshots subsection -->
+          <div class="snap-section" id="snapSection">
+            <div class="snap-section-hdr" onclick="toggleSnapSection()">
+              <span class="snap-title">Snapshots</span>
+              <span id="snapBadge" style="font-size:10px;color:var(--text3)">…</span>
+              <span class="snap-chevron">▶</span>
+            </div>
+            <div class="snap-body" id="snapBody">
+              <div class="memory-empty" style="padding:12px"><span class="spinner" style="width:16px;height:16px;border-width:2px"></span></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1277,6 +1305,73 @@ async function enablePlugin(btn, name) {
     await fetch('/api/plugins/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
     loadPlugins();
   } finally { btn.disabled = false; btn.textContent = 'Enable'; }
+}
+
+// ── SNAPSHOTS ─────────────────────────────────────────────────────────────────
+let _snapLoaded = false;
+
+function toggleSnapSection() {
+  const sec = document.getElementById('snapSection');
+  sec.classList.toggle('open');
+  if (sec.classList.contains('open') && !_snapLoaded) loadSnapshots();
+}
+
+async function loadSnapshots() {
+  _snapLoaded = true;
+  const body = document.getElementById('snapBody');
+  try {
+    const data = await (await fetch('/api/snapshots')).json();
+    const snaps = data.snapshots || {};
+    const plugins = Object.keys(snaps).sort();
+    const total = plugins.reduce((s, p) => s + snaps[p].length, 0);
+    document.getElementById('snapBadge').textContent = `${total} total`;
+    if (!plugins.length) {
+      body.innerHTML = '<div class="memory-empty" style="padding:12px;font-size:11px">No snapshots yet</div>';
+      return;
+    }
+    let html = '';
+    for (const p of plugins) {
+      const ts = snaps[p];
+      const tsHtml = ts.length
+        ? ts.slice().reverse().map(t => `
+            <div class="snap-ts-entry">
+              <span class="snap-ts">${esc(t)}</span>
+              <button class="snap-restore-btn" onclick="restoreSnapshot('${esc(p)}','${esc(t)}',this)">Restore</button>
+            </div>`).join('')
+        : '<span class="snap-ts" style="opacity:.4">—</span>';
+      html += `<div class="snap-plugin-row">
+        <span class="snap-plugin-name">${esc(p)}</span>
+        <div class="snap-ts-list">${tsHtml}</div>
+      </div>`;
+    }
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = `<div class="memory-empty" style="padding:12px;font-size:11px">✗ ${esc(e.message)}</div>`;
+  }
+}
+
+async function restoreSnapshot(plugin, timestamp, btn) {
+  if (!confirm(`Restore ${plugin} to snapshot ${timestamp}?`)) return;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await fetch(`/api/snapshots/${encodeURIComponent(plugin)}/restore`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({timestamp})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`✓ ${plugin} restored to ${timestamp}`);
+      btn.textContent = '✓'; btn.style.color = 'var(--accent)';
+      loadPlugins();
+    } else {
+      showToast('✗ Restore failed');
+      btn.disabled = false; btn.textContent = 'Restore';
+    }
+  } catch(e) {
+    showToast('✗ ' + e.message);
+    btn.disabled = false; btn.textContent = 'Restore';
+  }
 }
 
 async function reloadPlugins() {
