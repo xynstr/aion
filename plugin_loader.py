@@ -8,6 +8,21 @@ PLUGINS_DIR    = Path(__file__).parent / "plugins"
 SNAPSHOTS_DIR  = Path(__file__).parent / ".snapshots"
 DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
 
+# ---------------------------------------------------------------------------
+# Tool Tiers
+# ---------------------------------------------------------------------------
+
+# Tier-2 plugins: contextual tools excluded from the default LLM schema to
+# reduce per-turn token cost. AION can still invoke them — they just aren't
+# advertised in every system prompt.
+# Individual plugins can still override by passing tier= to register_tool().
+_TIER2_PLUGINS: frozenset[str] = frozenset({
+    "desktop", "playwright_browser", "telegram_bot", "discord_bot",
+    "slack_bot", "multi_agent", "audio_pipeline", "audio_transcriber",
+    "alexa_plugin", "image_search", "moltbook", "docx_tool",
+    "mood_engine", "proactive", "mcp_client", "paperless",
+})
+
 
 # ---------------------------------------------------------------------------
 # Enable / Disable
@@ -60,21 +75,30 @@ _pending_routers: list = []   # Liste von (router, prefix, tags)
 
 
 class PluginAPI:
-    def __init__(self, tool_registry):
+    def __init__(self, tool_registry, plugin_name: str = ""):
         self.tool_registry = tool_registry
+        self._plugin_name  = plugin_name
 
-    def register_tool(self, name, description, func, input_schema=None, retry_policy=None):
+    def register_tool(self, name, description, func, input_schema=None, retry_policy=None, tier=None):
         """Register a tool with the AION tool registry.
 
         Args:
             retry_policy: Optional dict controlling automatic retries on transient errors.
                 Example: {"max": 3, "backoff": 2.0, "on": ["network", "timeout"]}
                 Error categories: "network", "timeout", "resource", "not_found"
+            tier: Schema inclusion tier (1 or 2). Default is auto-detected from
+                _TIER2_PLUGINS: plugins listed there default to tier=2, others to tier=1.
+                Tier 1 — always included in every LLM tool call.
+                Tier 2 — excluded by default to reduce token cost; AION can still
+                         invoke these tools, they just aren't advertised each turn.
         """
+        if tier is None:
+            tier = 2 if self._plugin_name in _TIER2_PLUGINS else 1
         entry = {
             "description": description,
             "func": func,
             "input_schema": input_schema or {"type": "object", "properties": {}},
+            "tier": tier,
         }
         if retry_policy:
             entry["retry_policy"] = retry_policy
@@ -180,7 +204,7 @@ def load_plugin_safe(plugin_name: str, plugin_code: str, tool_registry: dict) ->
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         if hasattr(mod, "register"):
-            api = PluginAPI(test_registry)
+            api = PluginAPI(test_registry, plugin_name=plugin_name)
             mod.register(api)
     except Exception as exc:
         # 4. Health-Check fehlgeschlagen → Rollback
@@ -242,7 +266,7 @@ def _load_file(file: Path, tool_registry: dict):
     try:
         spec.loader.exec_module(mod)
         if hasattr(mod, "register"):
-            api = PluginAPI(tool_registry)
+            api = PluginAPI(tool_registry, plugin_name=file.stem)
             mod.register(api)
         # README-Erstzeile speichern — wird in System-Prompt als Plugin-Übersicht genutzt
         summary = _read_readme_summary(file.parent)

@@ -504,6 +504,49 @@ async def reload_plugins():
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
+# ── Snapshot API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/snapshots")
+async def list_all_snapshots():
+    """List all plugin snapshots grouped by plugin name."""
+    from plugin_loader import SNAPSHOTS_DIR, list_snapshots
+    result = {}
+    if SNAPSHOTS_DIR.is_dir():
+        for plugin_dir in sorted(SNAPSHOTS_DIR.iterdir()):
+            if plugin_dir.is_dir():
+                result[plugin_dir.name] = list_snapshots(plugin_dir.name)
+    return JSONResponse({"snapshots": result})
+
+@app.get("/api/snapshots/{plugin}")
+async def list_plugin_snapshots(plugin: str):
+    """List snapshots for a specific plugin with size info."""
+    from plugin_loader import SNAPSHOTS_DIR, list_snapshots
+    timestamps = list_snapshots(plugin)
+    details = []
+    for ts in timestamps:
+        snap_file = SNAPSHOTS_DIR / plugin / ts / f"{plugin}.py"
+        size_kb = round(snap_file.stat().st_size / 1024, 1) if snap_file.exists() else 0
+        details.append({"timestamp": ts, "size_kb": size_kb})
+    return JSONResponse({"plugin": plugin, "snapshots": details})
+
+@app.post("/api/snapshots/{plugin}/restore")
+async def restore_plugin_snapshot(plugin: str, request: Request):
+    """Restore a plugin from a snapshot (latest if no timestamp given)."""
+    from plugin_loader import SNAPSHOTS_DIR, restore_snapshot, load_plugins
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    timestamp = body.get("timestamp")
+    snap_path  = str(SNAPSHOTS_DIR / plugin / timestamp) if timestamp else None
+    ok = restore_snapshot(plugin, snap_path)
+    if ok:
+        load_plugins(_aion_module._plugin_tools)
+        if hasattr(_aion_module, "invalidate_sys_prompt_cache"):
+            _aion_module.invalidate_sys_prompt_cache()
+    return JSONResponse({"ok": ok, "plugin": plugin, "timestamp": timestamp or "latest"})
+
 # ── Memory API ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/memory")

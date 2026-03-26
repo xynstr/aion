@@ -594,18 +594,26 @@ def _build_system_prompt(channel: str = "") -> str:
         + "\nFor details on a plugin: `file_read` on `plugins/{name}/README.md`."
     ) if plugin_lines else ""
 
-    # Changelog: aktuellster Block
-    changelog_snippet = _load_changelog_snippet()
-    changelog_block = (
-        "\n\n=== LATEST CHANGES (CHANGELOG) ===\n"
-        + changelog_snippet
-        + "\n→ Complete history: `file_read('CHANGELOG.md')`"
-    ) if changelog_snippet else ""
+    # Changelog: opt-in via config (default off — saves ~150 tokens/turn)
+    changelog_block = ""
+    if _load_config().get("system_prompt_show_changelog", False):
+        changelog_snippet = _load_changelog_snippet()
+        if changelog_snippet:
+            changelog_block = (
+                "\n\n=== LATEST CHANGES (CHANGELOG) ===\n"
+                + changelog_snippet
+                + "\n→ Complete history: `file_read('CHANGELOG.md')`"
+            )
 
     # ── Load rules from prompts/rules.md (editable via web UI) ────────────
     rules_file = BOT_DIR / "prompts" / "rules.md"
     if rules_file.is_file():
         rules = rules_file.read_text(encoding="utf-8")
+        # Truncation guard: avoid loading huge rules files on every turn.
+        # Configurable via config.json["max_rules_chars"] (default 12000 ≈ 3000 tokens).
+        _max_rules = int(_load_config().get("max_rules_chars", 12_000))
+        if len(rules) > _max_rules:
+            rules = rules[:_max_rules] + "\n\n[rules.md truncated — full file: file_read('prompts/rules.md')]"
         rules = rules.replace("{CHARAKTER}", character)
         rules = rules.replace("{MODEL}",     MODEL)
         rules = rules.replace("{BOT_AION}",      str(BOT_DIR / "aion.py"))
@@ -1131,10 +1139,17 @@ def _build_tool_schemas() -> list[dict]:
 
     existing_names = {t["function"]["name"] for t in builtins}
 
+    # Tier threshold: 1 = always (default), 2 = include contextual tools too.
+    # Configurable via config.json["tool_tier"] (default 1).
+    _tier_threshold = int(_load_config().get("tool_tier", 1))
+
     for name, tool in _plugin_tools.items():
         if name.startswith("__"):  # interne Metadaten (z.B. __plugin_readme_*) überspringen
             continue
         if name in existing_names:
+            continue
+        # Skip tier-2 tools unless threshold allows it
+        if tool.get("tier", 1) > _tier_threshold:
             continue
         builtins.append({
             "type": "function",
@@ -1204,17 +1219,33 @@ async def _dispatch_with_retry(name: str, inputs: dict, policy: dict) -> str:
             await asyncio.sleep(backoff ** attempt)
             # Retry silently — user not notified until all attempts exhausted
 
-    # All retries exhausted — append alternative tool hint if one exists
+    # All retries exhausted — append alternative tool hint + snapshot hint if available
     try:
         parsed = json.loads(last_result)
+        parsed["_retry_exhausted"] = True
+        hint_parts = [f"'{name}' failed after {max_retries} attempts."]
         alternatives = _TOOL_ALTERNATIVES.get(name, [])
         if alternatives:
-            parsed["_retry_exhausted"] = True
-            parsed["_hint"] = (
-                f"'{name}' failed after {max_retries} attempts. "
-                f"Consider trying: {', '.join(alternatives)}"
-            )
-            return json.dumps(parsed)
+            hint_parts.append(f"Consider trying: {', '.join(alternatives)}.")
+        # Check if any plugin snapshots exist — mention /snapshots restore as recovery option
+        try:
+            from plugin_loader import SNAPSHOTS_DIR, list_snapshots
+            # Tool name often matches plugin name prefix (e.g. "browser_open" → "playwright_browser")
+            # Check snapshots dir for a plugin whose name is a substring of the tool name
+            if SNAPSHOTS_DIR.is_dir():
+                for _pd in SNAPSHOTS_DIR.iterdir():
+                    if _pd.is_dir() and (_pd.name in name or name.startswith(_pd.name.split("_")[0])):
+                        _snaps = list_snapshots(_pd.name)
+                        if _snaps:
+                            hint_parts.append(
+                                f"Plugin '{_pd.name}' has {len(_snaps)} snapshot(s) available — "
+                                f"use '/snapshots restore {_pd.name}' if the plugin is broken."
+                            )
+                            break
+        except Exception:
+            pass
+        parsed["_hint"] = " ".join(hint_parts)
+        return json.dumps(parsed)
     except Exception:
         pass
     return last_result

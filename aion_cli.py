@@ -138,6 +138,7 @@ async def main() -> None:
                     "[cyan]/model[/cyan]          Show active model",
                     "[cyan]/stats[/cyan]          Show statistics",
                     "[cyan]/config[/cyan]         Config: /config list, set, get, unset",
+                    "[cyan]/snapshots[/cyan]      Plugin snapshots: /snapshots [<plugin>] [restore <plugin> [<timestamp>]]",
                 ]),
                 title="Commands", border_style="bright_black", padding=(0, 2),
             ))
@@ -200,6 +201,55 @@ async def main() -> None:
                     console.print(f"  [yellow]![/yellow]  [dim]'{_key}' not found[/dim]")
             else:
                 console.print("[dim]  /config [list | get <key> | set <key> <value> | unset <key>][/dim]")
+            continue
+
+        if cmd.startswith("/snapshots"):
+            from plugin_loader import SNAPSHOTS_DIR, list_snapshots, restore_snapshot, load_plugins
+            _parts = user_input.split(None, 3)
+            _sub   = _parts[1] if len(_parts) > 1 else None
+            # /snapshots restore <plugin> [<timestamp>]
+            if _sub == "restore":
+                _plugin_name = _parts[2] if len(_parts) > 2 else None
+                _ts          = _parts[3] if len(_parts) > 3 else None
+                if not _plugin_name:
+                    console.print("[yellow]  Usage: /snapshots restore <plugin> [<timestamp>][/yellow]")
+                else:
+                    _snap_path = str(SNAPSHOTS_DIR / _plugin_name / _ts) if _ts else None
+                    _ok = restore_snapshot(_plugin_name, _snap_path)
+                    if _ok:
+                        load_plugins(_aion._plugin_tools)
+                        console.print(f"  [green]✓[/green]  [dim]{_plugin_name} restored from {_ts or 'latest'}[/dim]")
+                    else:
+                        console.print(f"  [red]✗[/red]  [dim]No snapshot found for '{_plugin_name}'[/dim]")
+            # /snapshots <plugin>  — list timestamps
+            elif _sub and _sub != "restore":
+                _snaps = list_snapshots(_sub)
+                if _snaps:
+                    console.print(f"\n  [dim]Snapshots for[/dim] [cyan]{_sub}[/cyan]:")
+                    for _t in _snaps:
+                        _sf = SNAPSHOTS_DIR / _sub / _t / f"{_sub}.py"
+                        _sz = f"{_sf.stat().st_size/1024:.1f} KB" if _sf.exists() else "?"
+                        console.print(f"    [dim]{_t}[/dim]  [dim italic]{_sz}[/dim italic]")
+                    console.print()
+                else:
+                    console.print(f"  [dim]No snapshots for '{_sub}'[/dim]")
+            # /snapshots — list all
+            else:
+                _all: dict[str, list] = {}
+                if SNAPSHOTS_DIR.is_dir():
+                    for _pd in sorted(SNAPSHOTS_DIR.iterdir()):
+                        if _pd.is_dir():
+                            _all[_pd.name] = list_snapshots(_pd.name)
+                if _all:
+                    console.print()
+                    _w2 = max(len(k) for k in _all) + 2
+                    for _pn, _ts_list in sorted(_all.items()):
+                        _cnt = len(_ts_list)
+                        _latest = _ts_list[-1] if _ts_list else "—"
+                        console.print(f"  [cyan]{_pn:<{_w2}}[/cyan] [dim]{_cnt} snapshot(s)  latest: {_latest}[/dim]")
+                    console.print()
+                else:
+                    console.print("  [dim]No snapshots yet.[/dim]")
             continue
 
         # ── stream response ───────────────────────────────────────────────────
