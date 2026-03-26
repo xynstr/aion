@@ -18,6 +18,8 @@ conversation_history.json
 config.json
 aion_status.json
 aion_onboarding_complete.flag
+disabled_plugins.json
+config.json.tmp
 diagnose_log.txt
 plugins/heartbeat.log
 plugins/todo_list.json

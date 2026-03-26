@@ -5,6 +5,47 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 1.2.0 — 2026-03-27
+
+### New Features
+- **Evolving Personality 2.0** — Mood Engine (5 states: curious/focused/playful/calm/reflective),
+  relationship depth (5 levels based on exchange count), temporal awareness (morning/night context)
+- **Proactive AI** — daily 08:30 briefings, unfinished task surfacing via LLM memory analysis,
+  server-sent push toasts in the Web UI (SSE)
+- **Desktop Automation** (`desktop` plugin) — full-screen screenshot, click, type, hotkeys, scroll
+  via pyautogui; headless guard on Linux only; approval pattern for destructive actions
+- **Self-Healing Workflows** — retry policies with exponential backoff, error classification
+  (network/resource/not_found/fatal), tool alternatives on failure
+- **Context Compression** — auto-compresses `character.md`, `rules.md`, generates
+  `AION_SELF_SUMMARY.md` in background; SSE toast notifications during optimization
+- **Snapshot Visibility** — Web UI panel + CLI `/snapshots` + REST API for plugin snapshots
+- **Token Optimization** — tool schema tiering (tier-2 saves 1,500–2,500 tokens/turn),
+  `rules.md` truncation guard, changelog opt-in in system prompt
+- **CLI Onboarding Wizard** — first-run plugin selection with recommended defaults
+- **Telegram Settings** — Web UI tab (token + whitelist) + CLI `/telegram` commands
+- **HTTPS Tunnel** (`web_tunnel` plugin) — cloudflared quick tunnel, no account needed
+
+### Fixes
+- Ctrl+C now terminates AION instantly — `os._exit(0)` + subprocess cleanup;
+  uvicorn `CancelledError` shutdown noise suppressed via logging filter
+- 11 cross-platform bugs fixed: asyncio event loop on Python 3.10+, macOS Desktop plugin
+  falsely disabled, APPDATA empty-string paths, `pythonw.exe` detection, threading race
+  conditions in `plugin_loader`, `Path.home()` crash in Docker
+- async/threading: scheduler loop, sub-session LRU, OAuth state expiry, contextvar reset
+
+### Refactoring
+- `config_store.py` — single thread-safe config module with atomic writes via temp file
+- `AionMemory` singleton with `asyncio.Lock` for all memory operations
+- `find_claude_bin()` centralized in `config_store` — 3 duplicate implementations removed
+- CLI commands extracted to handler functions with `_CMD_PREFIX_DISPATCH` table
+- `_backup_code_file()` helper replaces 3 identical backup blocks in `aion.py`
+
+### Docs
+- README rewritten: 133 lines (was 811), AION vs. OpenClaw comparison, clear USPs
+- New `docs/` folder: `configuration.md`, `api.md`, `plugins.md`, `messaging.md`
+
+---
+
 ## 2026-03-26 — Context Compression + Snapshot Visibility + Token Optimization
 
 ### Context Compression
