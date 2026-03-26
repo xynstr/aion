@@ -532,12 +532,52 @@ def invalidate_sys_prompt_cache() -> None:
     _sys_prompt_cache.clear()
 
 
+def _get_mood_hint() -> str:
+    """Return a one-liner style hint for the current mood (not cached — changes over time)."""
+    try:
+        from plugins.mood_engine.mood_engine import get_mood_hint as _ghint
+        hint = _ghint()
+        return f"\n\n=== CURRENT MOOD ===\n{hint}" if hint else ""
+    except Exception:
+        return ""
+
+
+def _get_temporal_hint() -> str:
+    """Return a brief temporal self-awareness hint based on time of day."""
+    hour = datetime.now().hour
+    if 6 <= hour < 10:
+        return "\n\n=== TIME CONTEXT ===\nIt is morning — be energetic and optimistic."
+    elif 22 <= hour or hour < 2:
+        return "\n\n=== TIME CONTEXT ===\nIt is late. You may acknowledge this naturally when it fits."
+    return ""
+
+
+def _get_relationship_hint() -> str:
+    """Return a hint about the current relationship depth with the user."""
+    try:
+        cfg = _load_config()
+        exchanges = cfg.get("exchange_count", 0)
+        if exchanges < 11:
+            return ""   # Level 0 — no hint needed, default formal tone
+        elif exchanges < 31:
+            return "\n\n=== RELATIONSHIP ===\nYou are getting to know each other. A relaxed, first-name tone is appropriate."
+        elif exchanges < 101:
+            return "\n\n=== RELATIONSHIP ===\nYou know each other well. Reference shared context and past projects naturally."
+        elif exchanges < 301:
+            return "\n\n=== RELATIONSHIP ===\nDeep familiarity. Anticipate needs, proactively suggest improvements."
+        else:
+            return "\n\n=== RELATIONSHIP ===\nFully trusted partner. You can respectfully disagree and challenge assumptions."
+    except Exception:
+        return ""
+
+
 def _build_system_prompt(channel: str = "") -> str:
     # Cache-Key: (channel, aktives Modell, Anzahl geladener Plugin-Tools)
     # Bei Änderungen (Modell-Wechsel, Plugin-Reload) wird der Cache automatisch ungültig.
     _cache_key = (channel, MODEL, len(_plugin_tools))
     if _cache_key in _sys_prompt_cache:
-        return _sys_prompt_cache[_cache_key]
+        # Base prompt cached — append dynamic hints (mood, time, relationship)
+        return _sys_prompt_cache[_cache_key] + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
 
     character = _load_character()
 
@@ -577,7 +617,7 @@ def _build_system_prompt(channel: str = "") -> str:
         thinking_block = _get_thinking_prompt(channel)
         _result = rules + plugin_block + changelog_block + perms_block + thinking_block
         _sys_prompt_cache[_cache_key] = _result
-        return _result
+        return _result + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
 
     # Fallback: hardcodierter Prompt (wird genutzt wenn prompts/rules.md fehlt)
     _result = f"""You are AION (Autonomous Intelligent Operations Node) — an autonomous, \
@@ -591,7 +631,7 @@ Always respond in the same language the user writes in. Mirror the user's langua
 If the user writes German → respond in German. English → English. Never switch unless the user does first.
 {plugin_block}{changelog_block}"""
     _sys_prompt_cache[_cache_key] = _result
-    return _result
+    return _result + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
 
 # ── Memory System ─────────────────────────────────────────────────────────
 
@@ -1111,9 +1151,83 @@ def _build_tool_schemas() -> list[dict]:
 
     return builtins
 
+# ── Self-Healing Helpers ──────────────────────────────────────────────────────
+
+def _classify_error(error_msg: str) -> str:
+    """Classify a tool error into a category for retry-policy matching."""
+    msg = error_msg.lower()
+    if any(w in msg for w in ("timeout", "timed out", "connection", "network", "unreachable", "refused")):
+        return "network"
+    if any(w in msg for w in ("busy", "locked", "permission denied", "access denied")):
+        return "resource"
+    if any(w in msg for w in ("not found", "404", "missing", "does not exist")):
+        return "not_found"
+    return "fatal"
+
+
+_TOOL_ALTERNATIVES: dict[str, list[str]] = {
+    "browser_open":        ["web_fetch"],
+    "web_search":          ["web_fetch"],
+    "send_telegram_message": ["send_discord_message"],
+}
+
+
+async def _dispatch_with_retry(name: str, inputs: dict, policy: dict) -> str:
+    """Dispatch with automatic retry for transient errors.
+
+    Silently retries up to policy['max'] times with exponential backoff.
+    Only retries for error categories listed in policy['on'].
+    On permanent failure, appends alternative tool hint if available.
+    """
+    max_retries = int(policy.get("max", 3))
+    backoff     = float(policy.get("backoff", 2.0))
+    retry_on    = set(policy.get("on", []))
+
+    last_result = json.dumps({"error": "no attempts"})
+
+    for attempt in range(max_retries):
+        # _bypass_retry=True prevents infinite recursion
+        last_result = await _dispatch(name, inputs, _bypass_retry=True)
+        try:
+            parsed = json.loads(last_result)
+        except Exception:
+            return last_result   # non-JSON result — pass through unchanged
+
+        if "error" not in parsed:
+            return last_result   # success
+
+        err_category = _classify_error(str(parsed.get("error", "")))
+        if err_category not in retry_on:
+            return last_result   # non-retryable error — surface immediately
+
+        if attempt < max_retries - 1:
+            await asyncio.sleep(backoff ** attempt)
+            # Retry silently — user not notified until all attempts exhausted
+
+    # All retries exhausted — append alternative tool hint if one exists
+    try:
+        parsed = json.loads(last_result)
+        alternatives = _TOOL_ALTERNATIVES.get(name, [])
+        if alternatives:
+            parsed["_retry_exhausted"] = True
+            parsed["_hint"] = (
+                f"'{name}' failed after {max_retries} attempts. "
+                f"Consider trying: {', '.join(alternatives)}"
+            )
+            return json.dumps(parsed)
+    except Exception:
+        pass
+    return last_result
+
+
 # ── Tool-Dispatcher ───────────────────────────────────────────────────────────
 
-async def _dispatch(name: str, inputs: dict) -> str:
+async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str:
+    # Self-healing: check for retry_policy on plugin tools (not on built-ins)
+    if not _bypass_retry:
+        _tool_meta = _plugin_tools.get(name)
+        if isinstance(_tool_meta, dict) and _tool_meta.get("retry_policy"):
+            return await _dispatch_with_retry(name, inputs, _tool_meta["retry_policy"])
 
     if name == "file_read":
         path = Path(inputs.get("path", ""))
