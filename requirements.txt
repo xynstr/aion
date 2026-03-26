@@ -45,3 +45,7 @@ slack-bolt>=1.18.0         # Slack-Bot (slack_bot plugin)
 
 # MCP (Model Context Protocol) client
 mcp>=1.0.0                 # MCP server connections (mcp_client plugin)
+
+# Desktop automation (desktop plugin — screenshot, click, type, hotkeys)
+pyautogui>=0.9.54          # Cross-platform desktop control
+Pillow>=10.0.0             # Screenshot support for pyautogui
