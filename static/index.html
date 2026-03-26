@@ -2818,6 +2818,7 @@ function switchSettingsTab(tabName) {
         try {
           const ev = JSON.parse(e.data);
           if (ev.type === 'proactive') showProactiveToast(ev);
+          if (ev.type === 'compress')  showCompressToast(ev);
         } catch {}
       };
       _evtSource.onerror = () => {
@@ -2831,6 +2832,20 @@ function switchSettingsTab(tabName) {
   }
   connect();
 })();
+
+function showCompressToast(ev) {
+  const isRunning = ev.status === 'running';
+  const toastId   = 'compress-toast';
+  // For 'done': replace running toast if present, then auto-remove
+  const existing  = document.getElementById(toastId);
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id        = toastId;
+  div.className = `compress-toast ${ev.status || 'running'}`;
+  div.innerHTML = `<span class="compress-icon">${isRunning ? '⚙' : '✓'}</span><span>${esc(ev.message || 'Optimizing context…')}</span>`;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), isRunning ? 60_000 : 3_500);
+}
 
 function showProactiveToast(ev) {
   // Remove any existing proactive toast first
@@ -2887,6 +2902,18 @@ async function acceptProactive(btn, action) {
 .pt-btn-dismiss { flex: 1; background: var(--bg3); color: var(--text2); border: 1px solid var(--border2); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; }
 .pt-btn-accept:hover  { filter: brightness(1.15); }
 .pt-btn-dismiss:hover { background: var(--bg4); }
+.compress-toast {
+  position: fixed; bottom: 80px; right: 24px; z-index: 199;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 14px; max-width: 320px;
+  font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 8px;
+  animation: pt-slide-in .25s ease; pointer-events: none;
+}
+.compress-toast.running { border-left: 3px solid var(--accent); }
+.compress-toast.done    { border-left: 3px solid #4caf50; color: var(--text); }
+.compress-icon { font-size: 13px; flex-shrink: 0; }
+.compress-toast.running .compress-icon { animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </body>
 </html>

@@ -661,11 +661,24 @@ If the user writes German → respond in German. English → English. Never swit
 _startup_compress_done = False
 
 
+def _push_compress_status(message: str, status: str = "running") -> None:
+    """Push a compression status notification to the web UI via SSE (fire-and-forget)."""
+    try:
+        import aion_web as _web
+        _q = getattr(_web, "_push_queue", None)
+        if _q is not None:
+            _loop = asyncio.get_running_loop()
+            asyncio.ensure_future(_q.put({"type": "compress", "status": status, "message": message}), loop=_loop)
+    except Exception:
+        pass
+
+
 async def _compress_character(max_chars: int = CHARACTER_MAX_CHARS) -> bool:
     """LLM-rewrite of character.md to fit within max_chars. Returns True on success."""
     content = CHARACTER_FILE.read_text(encoding="utf-8") if CHARACTER_FILE.is_file() else ""
     if len(content) <= max_chars:
         return True
+    _push_compress_status(f"Optimizing character.md ({len(content):,} → {max_chars:,} chars)…")
     try:
         resp = await client.chat.completions.create(
             model=MODEL,
@@ -687,6 +700,7 @@ async def _compress_character(max_chars: int = CHARACTER_MAX_CHARS) -> bool:
         _backup_file(CHARACTER_FILE)
         CHARACTER_FILE.write_text(new_content, encoding="utf-8")
         _sys_prompt_cache.clear()
+        _push_compress_status(f"character.md optimized: {len(content):,} → {len(new_content):,} chars", "done")
         print(f"[compress] character.md: {len(content)} → {len(new_content)} chars")
         return True
     except Exception as e:
@@ -704,6 +718,7 @@ async def _compress_rules() -> bool:
     if len(content) <= threshold:
         return False
     target = min(threshold, 8_000)
+    _push_compress_status(f"Optimizing rules.md ({len(content):,} → {target:,} chars)…")
     try:
         resp = await client.chat.completions.create(
             model=MODEL,
@@ -724,6 +739,7 @@ async def _compress_rules() -> bool:
         _backup_file(rules_file, max_backups=3)
         rules_file.write_text(new_content, encoding="utf-8")
         _sys_prompt_cache.clear()
+        _push_compress_status(f"rules.md optimized: {len(content):,} → {len(new_content):,} chars", "done")
         print(f"[compress] rules.md: {len(content)} → {len(new_content)} chars")
         return True
     except Exception as e:
@@ -738,6 +754,7 @@ async def _generate_self_doc_summary() -> bool:
     if not self_doc.is_file():
         return False
     content = self_doc.read_text(encoding="utf-8")
+    _push_compress_status("Generating AION_SELF_SUMMARY.md…")
     try:
         resp = await client.chat.completions.create(
             model=MODEL,
@@ -757,6 +774,7 @@ async def _generate_self_doc_summary() -> bool:
         if len(new_summary) < 100:
             return False
         summary.write_text(new_summary, encoding="utf-8")
+        _push_compress_status(f"AION_SELF_SUMMARY.md generated ({len(new_summary):,} chars)", "done")
         print(f"[compress] AION_SELF_SUMMARY.md: {len(new_summary)} chars")
         return True
     except Exception as e:
