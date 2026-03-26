@@ -13,6 +13,14 @@ DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
 # Enable / Disable
 # ---------------------------------------------------------------------------
 
+# Plugins die beim ersten Start aktiv sind — alles andere wird deaktiviert.
+DEFAULT_ENABLED: set[str] = {
+    "core_tools", "web_tools", "shell_tools", "memory_plugin",
+    "todo_tools", "scheduler", "smart_patch", "reflection",
+    "updater", "pid_tool", "restart_tool",
+}
+
+
 def get_disabled() -> set:
     """Gibt die Menge der deaktivierten Plugin-Namen zurück."""
     if DISABLED_FILE.exists():
@@ -30,6 +38,21 @@ def disable_plugin(name: str):
 
 def enable_plugin(name: str):
     d = get_disabled(); d.discard(name); _save_disabled(d)
+
+def init_defaults():
+    """Beim ersten Start: alle Nicht-Kern-Plugins deaktivieren.
+    Wird nur ausgeführt wenn disabled_plugins.json noch nicht existiert."""
+    if DISABLED_FILE.exists():
+        return
+    if not PLUGINS_DIR.exists():
+        return
+    all_plugins = {
+        d.name for d in PLUGINS_DIR.iterdir()
+        if d.is_dir() and not d.name.startswith("_")
+    }
+    to_disable = all_plugins - DEFAULT_ENABLED
+    if to_disable:
+        _save_disabled(to_disable)
 
 # Sammelt FastAPI-Router die Plugins während load_plugins() anmelden.
 # aion_web.py liest diese Liste nach load_plugins() und bindet sie ein.
@@ -226,6 +249,8 @@ def load_plugins(tool_registry: dict):
     if not PLUGINS_DIR.exists():
         PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
         return
+
+    init_defaults()   # Beim ersten Start Nicht-Kern-Plugins deaktivieren
 
     loaded   = set()
     disabled = get_disabled()

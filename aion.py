@@ -1611,6 +1611,7 @@ class AionSession:
                             **_max_tokens_param(_fb_model, 4096),
                             **({} if _is_reasoning_model(_fb_model) else {"temperature": 0.7}),
                             stream=True,
+                            stream_options={"include_usage": True},
                         )
                         if _fb_model != MODEL:
                             yield {"type": "thought",
@@ -1638,6 +1639,17 @@ class AionSession:
                     if cancel_event and cancel_event.is_set():
                         yield {"type": "done", "full_response": text_content, "cancelled": True}
                         return
+
+                    # Usage-Daten im letzten Chunk (stream_options include_usage)
+                    if hasattr(chunk, "usage") and chunk.usage:
+                        yield {
+                            "type":          "usage",
+                            "input_tokens":  getattr(chunk.usage, "prompt_tokens", 0),
+                            "output_tokens": getattr(chunk.usage, "completion_tokens", 0),
+                        }
+
+                    if not chunk.choices:
+                        continue
                     choice = chunk.choices[0]
                     delta  = choice.delta
 
