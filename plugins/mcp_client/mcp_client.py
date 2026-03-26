@@ -248,12 +248,12 @@ def register(api):
     # Eagerly connect and register all server tools at startup
     for server_name, server_config in servers.items():
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Schedule connection as background task
-                asyncio.ensure_future(_register_server_async(api, server_name, server_config))
-            else:
-                loop.run_until_complete(_register_server_async(api, server_name, server_config))
+            loop = asyncio.get_running_loop()
+            # Loop is running — schedule as background task
+            asyncio.ensure_future(_register_server_async(api, server_name, server_config))
+        except RuntimeError:
+            # No running event loop (cold start) — lazy connect on first tool call
+            pass
         except Exception as e:
             print(f"[mcp_client] Could not schedule connection for '{server_name}': {e}")
 

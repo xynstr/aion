@@ -628,7 +628,7 @@ def step5b_mcp() -> dict:
         sid = srv["id"]
 
         if srv["id"] == "filesystem":
-            folder = ask("Path to expose", "C:/Users")
+            folder = ask("Path to expose", str(Path.home()))
             servers[sid] = {
                 "command": srv["command"],
                 "args":    srv["args"] + [folder],
