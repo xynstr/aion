@@ -321,7 +321,7 @@ def _pause_on_error():
 def main():
     try:
         _main()
-    except SystemExit:
+    except (SystemExit, KeyboardInterrupt):
         raise
     except Exception as e:
         import traceback
@@ -416,18 +416,15 @@ def _main():
         try:
             proc.wait()
         except KeyboardInterrupt:
-            if sys.platform == "win32":
-                import signal as _sig
-                try:
-                    proc.send_signal(_sig.CTRL_C_EVENT)
-                except Exception:
-                    proc.terminate()
-            else:
-                proc.terminate()
+            # proc.kill() = TerminateProcess on Windows / SIGKILL on Unix — sofortig,
+            # kein Signal-Bounce zurück an den Launcher (send_signal(CTRL_C_EVENT)
+            # trifft die ganze Prozessgruppe und löst eine zweite KI aus).
+            proc.kill()
             try:
-                proc.wait(timeout=5)
+                proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                pass
+        finally:
             print("\n[AION] Beendet.", flush=True)
 
 
