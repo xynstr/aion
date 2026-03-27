@@ -59,6 +59,21 @@ def _credential_path(service: str) -> Path:
     return VAULT_DIR / f"{_service_to_filename(service)}.md.enc"
 
 
+# Known API keys: env_var → (vault_service, field)
+_KNOWN_VAULT_KEYS: dict[str, tuple[str, str]] = {
+    "OPENAI_API_KEY":     ("openai",    "OPENAI_API_KEY"),
+    "GEMINI_API_KEY":     ("gemini",    "GEMINI_API_KEY"),
+    "DEEPSEEK_API_KEY":   ("deepseek",  "DEEPSEEK_API_KEY"),
+    "XAI_API_KEY":        ("grok",      "XAI_API_KEY"),
+    "ANTHROPIC_API_KEY":  ("anthropic", "ANTHROPIC_API_KEY"),
+    "SLACK_BOT_TOKEN":    ("slack",     "SLACK_BOT_TOKEN"),
+    "SLACK_APP_TOKEN":    ("slack",     "SLACK_APP_TOKEN"),
+    "DISCORD_BOT_TOKEN":  ("discord",   "DISCORD_BOT_TOKEN"),
+    "TELEGRAM_BOT_TOKEN": ("telegram",  "TELEGRAM_BOT_TOKEN"),
+    "TELEGRAM_CHAT_ID":   ("telegram",  "TELEGRAM_CHAT_ID"),
+}
+
+
 def _vault_read_key_sync(service: str, field: str) -> str:
     """Synchronously read a single field from an encrypted vault entry.
 
@@ -81,6 +96,43 @@ def _vault_read_key_sync(service: str, field: str) -> str:
         return m.group(1).strip() if m else ""
     except Exception:
         return ""
+
+
+def _vault_set_field_sync(service: str, field: str, value: str) -> bool:
+    """Synchronously write or update a single field in an encrypted vault entry.
+
+    Creates the entry if it doesn't exist yet.
+    Encrypts with the vault key (Fernet/AES-128-CBC + HMAC-SHA256).
+    """
+    try:
+        f    = _get_fernet()
+        path = _credential_path(service)
+        if path.exists():
+            content = f.decrypt(path.read_bytes()).decode("utf-8")
+        else:
+            content = f"## {service}\n"
+        # Update existing field or append
+        pattern = rf"((?:^|\n)(\s*[-*]?\s*){re.escape(field)}\s*[:=]\s*)(.+)"
+        if re.search(pattern, content, re.IGNORECASE):
+            content = re.sub(pattern, rf"\g<2>- {field}: {value}", content, flags=re.IGNORECASE)
+        else:
+            content = content.rstrip() + f"\n- {field}: {value}\n"
+        path.write_bytes(f.encrypt(content.encode("utf-8")))
+        return True
+    except Exception:
+        return False
+
+
+def _vault_inject_all_sync() -> None:
+    """Inject all known vault keys into os.environ (only if not already set).
+
+    Call at startup instead of load_dotenv() to load secrets from the encrypted vault.
+    """
+    for env_var, (service, field) in _KNOWN_VAULT_KEYS.items():
+        if not os.environ.get(env_var):
+            val = _vault_read_key_sync(service, field)
+            if val:
+                os.environ[env_var] = val
 
 
 # ── Tool-Implementierungen ─────────────────────────────────────────────────────

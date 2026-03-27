@@ -20,10 +20,19 @@ from pathlib import Path
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 
-_GITHUB_REPO        = os.environ.get("AION_GITHUB_REPO", "xynstr/aion").strip()
 _FIRST_CHECK_DELAY  = 60        # Sekunden nach Start bis zum ersten Check
 _CHECK_INTERVAL_H   = 24        # Stunden zwischen den Checks
 _AION_DIR           = Path(__file__).parent.parent.parent
+
+def _get_github_repo() -> str:
+    try:
+        import json
+        cfg = json.loads((_AION_DIR / "config.json").read_text(encoding="utf-8"))
+        return cfg.get("github_repo", os.environ.get("AION_GITHUB_REPO", "xynstr/aion")).strip()
+    except Exception:
+        return os.environ.get("AION_GITHUB_REPO", "xynstr/aion").strip()
+
+_GITHUB_REPO        = _get_github_repo()
 
 _update_state: dict = {
     "current_version":  None,

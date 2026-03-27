@@ -28,24 +28,14 @@ def _max_tokens_param(model: str, n: int) -> dict:
         return {"max_completion_tokens": n}
     return {"max_tokens": n}
 
+# Load all secrets from encrypted vault into os.environ at startup.
+# Replaces load_dotenv(.env) — keys are stored in credentials/*.md.enc.
 try:
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env")
-except ImportError:
+    from plugins.credentials.credentials import _vault_inject_all_sync as _via
+    _via()
+    del _via
+except Exception:
     pass
-
-# Vault fallback for OpenAI key — must run BEFORE the module-level AsyncOpenAI
-# client is created (line below), so vault-only setups work without .env.
-# Other providers inject their vault keys in their own register() calls.
-if not os.environ.get("OPENAI_API_KEY"):
-    try:
-        from plugins.credentials.credentials import _vault_read_key_sync as _vrs
-        _vk = _vrs("openai", "OPENAI_API_KEY")
-        if _vk:
-            os.environ["OPENAI_API_KEY"] = _vk
-        del _vrs, _vk
-    except Exception:
-        pass
 
 try:
     from openai import AsyncOpenAI

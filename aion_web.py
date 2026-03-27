@@ -19,11 +19,8 @@ from typing import AsyncGenerator
 AION_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(AION_DIR))
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv(AION_DIR / ".env")
-except ImportError:
-    pass
+# Secrets are loaded from the encrypted vault — no .env needed.
+# Vault injection happens via aion.py import (see _vault_inject_all_sync).
 
 try:
     from fastapi import FastAPI, Request
@@ -754,19 +751,17 @@ def _mask_key(val: str) -> str:
     return val[:4] + "…" + val[-4:]
 
 
-def _read_env_file() -> dict[str, str]:
-    """Liest nur AION's .env-Datei direkt (ignoriert System-Umgebungsvariablen).
-    Gibt key→value-Paare zurück. Leere Werte werden als nicht gesetzt behandelt."""
-    env_file = AION_DIR / ".env"
+def _read_vault_keys() -> dict[str, str]:
+    """Read all known API keys from the encrypted vault. Returns key→value dict."""
+    try:
+        from plugins.credentials.credentials import _KNOWN_VAULT_KEYS, _vault_read_key_sync
+    except Exception:
+        return {}
     result: dict[str, str] = {}
-    if not env_file.is_file():
-        return result
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        result[k.strip()] = v.strip()
+    for env_var, (service, field) in _KNOWN_VAULT_KEYS.items():
+        val = _vault_read_key_sync(service, field)
+        if val:
+            result[env_var] = val
     return result
 
 
@@ -786,38 +781,28 @@ _VAULT_SERVICE_MAP: dict[str, str] = {
 }
 
 
-def _key_source(k: str, file_val: str, sys_val: str) -> tuple[bool, str, str]:
+def _key_source(k: str, vault_keys: dict[str, str], sys_val: str) -> tuple[bool, str, str]:
     """Return (is_set, display_value, source_label) for a single key.
 
-    Priority: .env file → vault → system env (system env alone does NOT count
-    as 'set' to avoid false positives on machines with unrelated env vars).
+    Priority: vault → system env (system env alone does NOT count as 'set'
+    to avoid false positives on machines with unrelated env vars).
     """
-    if file_val.strip():
-        return True, file_val, "env"
-    # Check vault directly — vault keys are also injected into os.environ by
-    # register(), but we read vault here to get an accurate source label.
-    vault_svc = _VAULT_SERVICE_MAP.get(k, "")
-    if vault_svc:
-        try:
-            from plugins.credentials.credentials import _vault_read_key_sync
-            vault_val = _vault_read_key_sync(vault_svc, k)
-            if vault_val.strip():
-                return True, vault_val, "vault"
-        except Exception:
-            pass
-    # System env (not from .env, not from vault) — show masked but mark unset
+    vault_val = vault_keys.get(k, "")
+    if vault_val.strip():
+        return True, vault_val, "vault"
+    # System env not from vault — show masked but mark unset
     return False, sys_val, "system"
 
 
 @app.get("/api/keys")
 async def get_keys():
     """Returns all known API keys (masked) grouped by provider.
-    'set' = key is present in .env OR in the encrypted vault.
+    'set' = key is present in the encrypted vault.
     System-wide env vars alone do NOT count as set (avoids false positives)."""
-    registry      = getattr(_aion_module, "_provider_registry", [])
-    env_file_keys = _read_env_file()
-    covered       = set()
-    providers     = []
+    registry   = getattr(_aion_module, "_provider_registry", [])
+    vault_keys = _read_vault_keys()
+    covered    = set()
+    providers  = []
 
     for entry in registry:
         env_keys = entry.get("env_keys", [])
@@ -825,9 +810,8 @@ async def get_keys():
             continue
         keys_info = []
         for k in env_keys:
-            file_val = env_file_keys.get(k, "")
-            sys_val  = os.environ.get(k, "")
-            is_set, display, source = _key_source(k, file_val, sys_val)
+            sys_val = os.environ.get(k, "")
+            is_set, display, source = _key_source(k, vault_keys, sys_val)
             keys_info.append({"key": k, "set": is_set, "source": source,
                                "masked": _mask_key(display)})
             covered.add(k)
@@ -838,9 +822,8 @@ async def get_keys():
 
     # OpenAI fallback (not in registry, always shown)
     if "OPENAI_API_KEY" not in covered:
-        oai_file = env_file_keys.get("OPENAI_API_KEY", "")
-        oai_sys  = os.environ.get("OPENAI_API_KEY", "")
-        is_set, display, source = _key_source("OPENAI_API_KEY", oai_file, oai_sys)
+        sys_val = os.environ.get("OPENAI_API_KEY", "")
+        is_set, display, source = _key_source("OPENAI_API_KEY", vault_keys, sys_val)
         providers.append({
             "label":    "OpenAI",
             "env_keys": [{"key": "OPENAI_API_KEY", "set": is_set, "source": source,
@@ -853,56 +836,46 @@ async def get_keys():
     for entry in _WELL_KNOWN_KEYS:
         k = entry["key"]
         if k not in covered:
-            file_val = env_file_keys.get(k, "")
-            sys_val  = os.environ.get(k, "")
-            is_set, display, source = _key_source(k, file_val, sys_val)
+            sys_val = os.environ.get(k, "")
+            is_set, display, source = _key_source(k, vault_keys, sys_val)
             other_keys.append({"key": k, "set": is_set, "source": source,
                                 "masked": _mask_key(display)})
             covered.add(k)
 
-    # Any remaining keys in .env not yet covered
-    for k, v in env_file_keys.items():
+    # Any remaining vault keys not yet covered
+    for k, v in vault_keys.items():
         if k in covered:
             continue
         if any(k.endswith(s) for s in ("_KEY", "_TOKEN", "_ID", "_SECRET")):
-            other_keys.append({"key": k, "set": bool(v.strip()), "masked": _mask_key(v)})
+            other_keys.append({"key": k, "set": bool(v.strip()), "source": "vault",
+                                "masked": _mask_key(v)})
             covered.add(k)
 
     return JSONResponse({"providers": providers, "other_keys": other_keys})
 
 @app.post("/api/keys")
 async def save_keys(request: Request):
-    """Write one or more keys to .env and update the running process."""
+    """Write one or more API keys to the encrypted vault and inject into running process."""
     try:
         body = await request.json()
     except Exception:
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
-    env_file = AION_DIR / ".env"
-    lines    = env_file.read_text(encoding="utf-8").splitlines() if env_file.is_file() else []
+    try:
+        from plugins.credentials.credentials import _VAULT_SERVICE_MAP, _vault_set_field_sync
+    except Exception as e:
+        return JSONResponse({"error": f"Vault nicht verfügbar: {e}"}, status_code=500)
 
-    updated  = set()
-    new_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            k = stripped.split("=", 1)[0].strip()
-            if k in body and body[k]:
-                new_lines.append(f"{k}={body[k]}")
-                os.environ[k] = body[k]
-                updated.add(k)
-            else:
-                new_lines.append(line)
-        else:
-            new_lines.append(line)
-
+    updated = []
     for k, v in body.items():
-        if k not in updated and v:
-            new_lines.append(f"{k}={v}")
+        if not v:
+            continue
+        svc = _VAULT_SERVICE_MAP.get(k, k.lower().replace("_api_key", "").replace("_token", ""))
+        if _vault_set_field_sync(svc, k, v):
             os.environ[k] = v
+            updated.append(k)
 
-    env_file.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-    return JSONResponse({"ok": True, "updated": list(body.keys())})
+    return JSONResponse({"ok": True, "updated": updated})
 
 # ── File Processing API ──────────────────────────────────────────────────────────
 
@@ -1467,7 +1440,7 @@ if __name__ == "__main__":
         print("[AION] Hinweis: Noch kein API-Key in .env hinterlegt.")
         print("[AION] Bitte im Web UI unter Settings → API Keys konfigurieren.")
         print("[AION] Alternativ: 'aion --setup' ausführen.")
-    _port = int(os.environ.get("AION_PORT", 7000))
+    _port = int(_load_config().get("port", os.environ.get("AION_PORT", 7000)))
     _host = os.environ.get("AION_HOST", "127.0.0.1")
     print(f"Starte AION Web UI auf http://{_host}:{_port}")
     print(f"Modell: {_aion_module.MODEL}")

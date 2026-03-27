@@ -37,11 +37,7 @@ except ImportError:
 
 console = Console(highlight=False)
 
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _load_dotenv(Path(__file__).parent / ".env")
-except ImportError:
-    pass
+# Secrets are loaded from the encrypted vault via aion.py import.
 
 # ── Onboarding Plugin Catalogue ───────────────────────────────────────────────
 # (name, description, recommended_default)
