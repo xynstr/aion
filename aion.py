@@ -228,6 +228,15 @@ def _build_client(model: str):
     return AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
+def _api_model_name(model: str) -> str:
+    """Strip routing-only prefixes before passing model name to API calls.
+    e.g. 'ollama/qwen3.5:2b' → 'qwen3.5:2b' (Ollama API expects bare names)
+    """
+    if model.startswith("ollama/"):
+        return model[len("ollama/"):]
+    return model
+
+
 # Mapping: Modell-Prefix → günstigstes Modell desselben Providers für interne Checks
 # (Completion-Check, Task-Check — brauchen nur YES/NO, kein teures Modell nötig)
 _CHEAP_CHECK_MODELS: dict[str, str] = {
@@ -709,7 +718,7 @@ async def _compress_character(max_chars: int = CHARACTER_MAX_CHARS) -> bool:
     _push_compress_status(f"Optimizing character.md ({len(content):,} → {max_chars:,} chars)…")
     try:
         resp = await client.chat.completions.create(
-            model=MODEL,
+            model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": (
                 f"Komprimiere diese character.md auf maximal {max_chars} Zeichen.\n"
                 f"Behalte alle einzigartigen Fakten, dedupliziere nur Redundantes.\n"
@@ -749,7 +758,7 @@ async def _compress_rules() -> bool:
     _push_compress_status(f"Optimizing rules.md ({len(content):,} → {target:,} chars)…")
     try:
         resp = await client.chat.completions.create(
-            model=MODEL,
+            model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": (
                 f"Komprimiere diese rules.md auf maximal {target} Zeichen.\n"
                 f"Behalte ALLE Regeln und Verbote — nichts inhaltlich weglassen.\n"
@@ -785,7 +794,7 @@ async def _generate_self_doc_summary() -> bool:
     _push_compress_status("Generating AION_SELF_SUMMARY.md…")
     try:
         resp = await client.chat.completions.create(
-            model=MODEL,
+            model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": (
                 "Erstelle ein komprimiertes Inhaltsverzeichnis dieser AION_SELF.md.\n"
                 "Pro Feature/Sektion EINEN Einzeiler: Was es tut + wo implementiert.\n"
@@ -2021,7 +2030,7 @@ class AionSession:
                     try:
                         _is_local = _fb_model.startswith("ollama/")
                         stream = await _fb_client.chat.completions.create(
-                            model=_fb_model,
+                            model=_api_model_name(_fb_model),
                             messages=[{"role": "system", "content": effective}] + messages,
                             tools=tools,
                             tool_choice="auto",
@@ -2309,7 +2318,7 @@ class AionSession:
                             # Option A — sprachunabhängiger LLM-Check (max 5 Tokens, sehr günstig)
                             # Nutzt _check_client/_check_model (günstigstes Modell desselben Providers)
                             check_raw = await _check_client.chat.completions.create(
-                                model=_check_model,
+                                model=_api_model_name(_check_model),
                                 messages=[
                                     {"role": "system", "content": (
                                         "You are a strict checker. Answer only YES or NO.\n"
@@ -2400,7 +2409,7 @@ class AionSession:
                                         user_text_short = user_input if isinstance(user_input, str) else str(user_input)
                                         tools_summary = ", ".join(_tools_called_this_turn[-10:])
                                         task_check_raw = await _check_client.chat.completions.create(
-                                            model=_check_model,
+                                            model=_api_model_name(_check_model),
                                             messages=[
                                                 {"role": "system", "content": (
                                                     "You are a strict task-completion checker. Answer only YES or NO.\n"
@@ -2663,7 +2672,7 @@ Gib NUR den neuen Dateiinhalt zurück."""
         try:
             _cl  = self._get_client()
             resp = await _cl.chat.completions.create(
-                model=MODEL,
+                model=_api_model_name(MODEL),
                 messages=[{"role": "user", "content": prompt}],
                 **_max_tokens_param(MODEL, 1200),
                 **({} if _is_reasoning_model(MODEL) else {"temperature": 0.6}),
@@ -2732,7 +2741,7 @@ Gib NUR den formatierten Eintrag zurück, nichts sonst."""
         try:
             _cl = self._get_client()
             resp = await _cl.chat.completions.create(
-                model=MODEL,
+                model=_api_model_name(MODEL),
                 messages=[{"role": "user", "content": prompt}],
                 **_max_tokens_param(MODEL, 200),
                 **({} if _is_reasoning_model(MODEL) else {"temperature": 0.7}),
@@ -2843,7 +2852,7 @@ Reagiere auf die konkrete Situation:
         cl = _build_client(MODEL)
         _is_thinking = _is_reasoning_model(MODEL) or MODEL.startswith("gemini-2.5")
         resp = await cl.chat.completions.create(
-            model=MODEL,
+            model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": prompt}],
             **_max_tokens_param(MODEL, 2000),
             **({} if _is_thinking else {"temperature": 0.8}),
