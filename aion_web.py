@@ -74,16 +74,43 @@ _session = AionSession(channel="web")
 # bei gleichzeitigen Anfragen (key = Task-Objekt-ID → asyncio.Event)
 _active_cancel_events: dict[int, asyncio.Event] = {}
 
+async def _trigger_wakeup() -> None:
+    """Wakeup-Routine nach Startup: kurz warten bis SSE-Queue bereit, dann aufwachen."""
+    await asyncio.sleep(4)
+    try:
+        await _aion_module._startup_wakeup(_push_queue)
+    except Exception as _e:
+        print(f"[AION] Wakeup-Fehler: {_e}")
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup: Modell setzen + History aus vorheriger Sitzung laden."""
+    from datetime import datetime, timezone as _tz
+    try:
+        from config_store import update as _cfg_update
+        _cfg_update("last_start", datetime.now(_tz.utc).isoformat())
+    except Exception:
+        pass
+
     m = _startup_model
     _aion_module.MODEL = m
     if hasattr(_aion_module, "_build_client"):
         _aion_module.client = _aion_module._build_client(m)
     print(f"[AION] Startup-Modell: {m}")
     await _session.load_history(num_entries=20, channel_filter="web")
+
+    asyncio.create_task(_trigger_wakeup())
+
     yield
+
+    # Shutdown: letzte Aktivzeit speichern
+    try:
+        from config_store import update as _cfg_update
+        _cfg_update("last_stop", datetime.now(_tz.utc).isoformat())
+        print("[AION] last_stop gespeichert.")
+    except Exception:
+        pass
 
 app = FastAPI(title="AION", lifespan=_lifespan)
 

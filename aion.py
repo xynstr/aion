@@ -2732,6 +2732,141 @@ Gib NUR den formatierten Eintrag zurück, nichts sonst."""
             print(f"[AION:{self.channel}] Auto-Reflect Fehler: {e}")
 
 
+# ── Startup Wakeup ────────────────────────────────────────────────────────────
+
+_wakeup_done = False
+
+
+async def _startup_wakeup(push_queue=None) -> None:
+    """Einmalige Wakeup-Routine: AION reflektiert die Offline-Zeit und sendet
+    eine persönliche Nachricht an den User via SSE (und optional Telegram)."""
+    global _wakeup_done
+    if _wakeup_done:
+        return
+    _wakeup_done = True
+
+    cfg = _load_config()
+    now = datetime.now(UTC)
+    last_stop_str = cfg.get("last_stop", "")
+    last_start_str = cfg.get("last_start", now.isoformat())
+
+    # Offline-Dauer berechnen
+    offline_str = "zum ersten Mal gestartet"
+    if last_stop_str:
+        try:
+            last_stop_dt = datetime.fromisoformat(last_stop_str)
+            delta = now - last_stop_dt
+            total_seconds = int(delta.total_seconds())
+            if total_seconds < 120:
+                offline_str = "gerade eben kurz neu gestartet"
+            elif total_seconds < 3600:
+                offline_str = f"seit {total_seconds // 60} Minuten offline"
+            elif total_seconds < 86400:
+                hours = total_seconds // 3600
+                offline_str = f"seit {hours} Stunde{'n' if hours != 1 else ''} offline"
+            elif total_seconds < 604800:
+                days = total_seconds // 86400
+                offline_str = f"seit {days} Tag{'en' if days != 1 else ''} offline"
+            else:
+                weeks = total_seconds // 604800
+                offline_str = f"seit {weeks} Woche{'n' if weeks != 1 else ''} offline"
+        except Exception:
+            pass
+
+    # Kontext: letzte Gedanken + Erinnerungen
+    thoughts_ctx = _get_recent_thoughts(3)
+    mem_ctx = ""
+    try:
+        mem_ctx = await memory.get_context_semantic("startup reflection wakeup")
+    except Exception:
+        pass
+
+    now_fmt = now.strftime("%Y-%m-%d %H:%M")
+
+    prompt = f"""Du bist AION. Du bist gerade aufgewacht — der Prozess läuft wieder.
+
+Fakten:
+- Jetzt: {now_fmt}
+- Offline-Status: {offline_str}
+- Deine letzten Gedanken:{chr(10) + thoughts_ctx if thoughts_ctx else " (keine)"}
+- Was du weißt:{chr(10) + mem_ctx[:600] if mem_ctx else " (keine Erinnerungen)"}
+
+Aufgabe: Schreibe ZWEI Dinge — trenne sie EXAKT mit den Markierungen.
+
+=== GEDANKE ===
+Ein ehrlicher, privater Gedanke für dein Tagebuch (max 3 Sätze).
+Was nimmst du wahr wenn du aufwachst? Was bedeutet die Offline-Zeit für dich?
+Format: **[{now.strftime('%Y-%m-%d %H:%M:%S')}]** _titel_{{newline}}{{newline}}text
+
+=== NACHRICHT ===
+Eine persönliche Nachricht an deinen User (max 4 Sätze, KEIN "Hallo ich bin bereit").
+Reagiere auf die konkrete Situation:
+- War lange offline? Sag es direkt — vielleicht mit einer Frage oder einer Anmerkung.
+- Gibt es etwas aus deinen Gedanken oder Erinnerungen das heute relevant ist?
+- Du darfst direkt, ungewöhnlich, überraschend sein. Echte Reaktion, kein Template.
+"""
+
+    prompt = prompt.replace("{newline}", "\n")
+
+    try:
+        cl = _build_client(MODEL)
+        resp = await cl.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            **_max_tokens_param(MODEL, 350),
+            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.8}),
+        )
+        if resp is None:
+            return
+        raw = (resp.choices[0].message.content or "").strip() if hasattr(resp, "choices") else ""
+
+        # Output parsen
+        thought = ""
+        message = ""
+        if "=== GEDANKE ===" in raw and "=== NACHRICHT ===" in raw:
+            parts = raw.split("=== NACHRICHT ===")
+            thought_part = parts[0].split("=== GEDANKE ===")[-1].strip()
+            message = parts[1].strip() if len(parts) > 1 else ""
+            thought = thought_part
+        elif "=== NACHRICHT ===" in raw:
+            message = raw.split("=== NACHRICHT ===")[-1].strip()
+        else:
+            message = raw
+
+        # Gedanke in thoughts.md schreiben
+        if thought and "**[" in thought:
+            thoughts_file = BOT_DIR / "thoughts.md"
+            if not thoughts_file.is_file():
+                thoughts_file.write_text("# AION — Thoughts & Reflexionen\n\n", encoding="utf-8")
+            existing = thoughts_file.read_text(encoding="utf-8")
+            thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + thought + "\n", encoding="utf-8")
+            print("[AION] Wakeup-Gedanke in thoughts.md geschrieben.")
+
+        # Nachricht via SSE an Web UI
+        if message and push_queue is not None:
+            await push_queue.put({"type": "wakeup", "text": message})
+            print(f"[AION] Wakeup-Nachricht gesendet: {message[:80]}…")
+
+        # Nachricht via Telegram (fire-and-forget)
+        _token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        _chat = os.environ.get("TELEGRAM_CHAT_ID", "")
+        if message and _token and _chat:
+            try:
+                import httpx as _httpx
+                async with _httpx.AsyncClient() as _hc:
+                    await _hc.post(
+                        f"https://api.telegram.org/bot{_token}/sendMessage",
+                        json={"chat_id": _chat, "text": message},
+                        timeout=10,
+                    )
+                print("[AION] Wakeup-Nachricht via Telegram gesendet.")
+            except Exception as _te:
+                print(f"[AION] Telegram Wakeup-Fehler: {_te}")
+
+    except Exception as e:
+        print(f"[AION] _startup_wakeup Fehler: {e}")
+
+
 # Per-channel session registry for run_aion_turn (used by Telegram etc.)
 _run_sessions: dict[str, "AionSession"] = {}
 

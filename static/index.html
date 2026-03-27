@@ -3035,6 +3035,20 @@ function switchSettingsTab(tabName) {
   event.target.classList.add('active');
 }
 
+// ── Wakeup: AION meldet sich beim Start von selbst ────────────────────────────
+function handleWakeup(ev) {
+  if (!ev.text) return;
+  // Kurze Verzögerung — fühlt sich an wie AION "tippt"
+  setTimeout(() => {
+    appendAionBubble(ev.text);
+    // Auch im Tab-Titel anzeigen wenn nicht im Fokus
+    if (document.hidden) {
+      document.title = '💬 AION meldet sich…';
+      window.addEventListener('focus', () => { document.title = 'AION'; }, { once: true });
+    }
+  }, 800);
+}
+
 // ── Proactive Push (SSE /api/events) ─────────────────────────────────────────
 (function initPushStream() {
   let _evtSource = null;
@@ -3048,6 +3062,7 @@ function switchSettingsTab(tabName) {
           const ev = JSON.parse(e.data);
           if (ev.type === 'proactive') showProactiveToast(ev);
           if (ev.type === 'compress')  showCompressToast(ev);
+          if (ev.type === 'wakeup')    handleWakeup(ev);
         } catch {}
       };
       _evtSource.onerror = () => {
