@@ -853,10 +853,10 @@ class AionMemory:
             # Kein laufender Loop (z.B. Startup) → direkt synchron
             self._record_sync(category, summary, lesson, success, error, hint)
 
-    def _record_sync(self, category: str, summary: str, lesson: str,
-                     success: bool = True, error: str = "", hint: str = ""):
-        """Synchrone Variante ohne Lock — nur für Startup/Thread-Kontext nutzen."""
-        self._entries.append({
+    @staticmethod
+    def _build_record(category: str, summary: str, lesson: str,
+                      success: bool, error: str, hint: str) -> dict:
+        return {
             "id":        str(uuid.uuid4())[:8],
             "timestamp": datetime.now(UTC).isoformat(),
             "category":  category,
@@ -865,7 +865,12 @@ class AionMemory:
             "lesson":    lesson[:600],
             "error":     error[:300],
             "hint":      hint[:300],
-        })
+        }
+
+    def _record_sync(self, category: str, summary: str, lesson: str,
+                     success: bool = True, error: str = "", hint: str = ""):
+        """Synchrone Variante ohne Lock — nur für Startup/Thread-Kontext nutzen."""
+        self._entries.append(self._build_record(category, summary, lesson, success, error, hint))
         if len(self._entries) > MAX_MEMORY:
             self._entries = self._entries[-MAX_MEMORY:]
         self._save()
@@ -874,16 +879,7 @@ class AionMemory:
                             success: bool = True, error: str = "", hint: str = ""):
         """Async Variante mit Lock — verhindert Race Conditions bei parallelen Writes."""
         async with self._lock:
-            self._entries.append({
-                "id":        str(uuid.uuid4())[:8],
-                "timestamp": datetime.now(UTC).isoformat(),
-                "category":  category,
-                "success":   success,
-                "summary":   summary[:250],
-                "lesson":    lesson[:600],
-                "error":     error[:300],
-                "hint":      hint[:300],
-            })
+            self._entries.append(self._build_record(category, summary, lesson, success, error, hint))
             if len(self._entries) > MAX_MEMORY:
                 self._entries = self._entries[-MAX_MEMORY:]
             self._save()
@@ -906,8 +902,12 @@ class AionMemory:
                if sc > 0][:max_entries]
         if not top:
             return ""
+        return self._format_memory_entries(top)
+
+    @staticmethod
+    def _format_memory_entries(entries: list) -> str:
         lines = ["[AION MEMORY — relevant insights]"]
-        for e in top:
+        for e in entries:
             icon = "✅" if e.get("success") else "❌"
             ts   = e.get("timestamp", "")[:10]
             lines.append(f"{icon} [{ts}] {e.get('lesson', '')}")
@@ -995,16 +995,7 @@ class AionMemory:
         if new_count:
             self._save_vectors()
 
-        # Gleiche Formatierung wie get_context()
-        lines = ["[AION MEMORY — relevant insights]"]
-        for e in top:
-            icon = "✅" if e.get("success") else "❌"
-            ts   = e.get("timestamp", "")[:10]
-            lines.append(f"{icon} [{ts}] {e.get('lesson', '')}")
-            if e.get("hint"):
-                lines.append(f"   → Tipp: {e['hint']}")
-        lines.append("[END MEMORY]")
-        return "\n".join(lines)
+        return self._format_memory_entries(top)
 
     def summary(self, n: int = 15) -> str:
         if not self._entries:
