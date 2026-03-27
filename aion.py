@@ -198,8 +198,26 @@ def _get_read_limit() -> int:
     return 100_000  # OpenAI-Fallback
 
 
+def _resolve_ollama_prefix(model: str) -> str:
+    """If model has no known provider prefix, check Ollama and auto-add 'ollama/' prefix."""
+    if any(model.startswith(e["prefix"]) for e in _provider_registry):
+        return model
+    try:
+        import httpx as _httpx
+        _base = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+        _r = _httpx.get(f"{_base.rstrip('/')}/api/tags", timeout=2.0)
+        if _r.status_code == 200:
+            _names = [m["name"] for m in _r.json().get("models", [])]
+            if model in _names:
+                return f"ollama/{model}"
+    except Exception:
+        pass
+    return model
+
+
 def _build_client(model: str):
     """Build an LLM client for model. Checks provider registry first, falls back to OpenAI."""
+    model = _resolve_ollama_prefix(model)
     for entry in _provider_registry:
         if model.startswith(entry["prefix"]):
             try:
