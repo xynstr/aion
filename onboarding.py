@@ -1177,6 +1177,7 @@ def write_env(primary_provider: str, primary_key: str, model: str,
 
     lines.append(f"AION_MODEL={model}")
     lines.append(f"AION_PORT={advanced.get('port', '7000')}")
+    lines.append(f"AION_GITHUB_REPO={advanced.get('github_repo', 'xynstr/aion')}")
 
     # Telegram
     if channels.get("TELEGRAM_BOT_TOKEN"):

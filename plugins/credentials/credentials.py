@@ -23,8 +23,6 @@ import os
 import re
 from pathlib import Path
 
-import aion as _aion_module
-
 VAULT_DIR = Path(__file__).parent.parent.parent / "credentials"
 KEY_FILE  = VAULT_DIR / ".vault.key"
 

@@ -37,6 +37,12 @@ except ImportError:
 
 console = Console(highlight=False)
 
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(Path(__file__).parent / ".env")
+except ImportError:
+    pass
+
 # ── Onboarding Plugin Catalogue ───────────────────────────────────────────────
 # (name, description, recommended_default)
 _PLUGIN_GROUPS: list[tuple[str, str, list[tuple[str, str, bool]]]] = [
