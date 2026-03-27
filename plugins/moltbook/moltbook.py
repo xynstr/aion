@@ -1,9 +1,11 @@
 import requests
 import json
+from pathlib import Path
 
 # Globale Variablen für die API-Basis-URL und den Pfad zur Configurationsdatei
 API_BASE_URL = "https://www.moltbook.com/api/v1"
-CONFIG_PATH = "moltbook_credentials.json"
+# Absolute path so it works regardless of cwd
+CONFIG_PATH = Path(__file__).parent / "moltbook_credentials.json"
 AION_API = None
 
 def register_agent(name: str, description: str) -> dict:
@@ -27,8 +29,7 @@ def register_agent(name: str, description: str) -> dict:
 def _get_api_key():
     """Loads den API-Schlüssel aus der Configurationsdatei."""
     try:
-        with open(CONFIG_PATH, 'r') as f:
-            return json.load(f).get("api_key")
+        return json.loads(Path(CONFIG_PATH).read_text(encoding="utf-8")).get("api_key")
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
@@ -76,6 +77,26 @@ def create_post(title: str, submolt_name: str, content: str) -> dict:
         except json.JSONDecodeError:
             pass # Behalte den ursprünglichen Errorstring, wenn JSON-Dekodierung fehlschlägt
         return {"error": f"Netzwerk- oder HTTP-Error: {error_details}"}
+
+def get_own_posts(limit: int = 25, cursor: str = None) -> dict:
+    """Ruft die eigenen Posts des authentifizierten Agenten von Moltbook ab."""
+    api_key = _get_api_key()
+    if not api_key:
+        return {"error": "API-Schlüssel nicht gefunden."}
+
+    url = f"{API_BASE_URL}/agents/me/posts"
+    params: dict = {"limit": limit}
+    if cursor:
+        params["cursor"] = cursor
+
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
+
 
 def get_feed(submolt_name: str = None, sort: str = "new", limit: int = 25, cursor: str = None) -> dict:
     """Ruft einen Feed von Posts ab, optional gefiltert nach Submolt."""
@@ -190,7 +211,7 @@ def register(api):
             },
             "submolt_name": {
                 "type": "string",
-                "description": "Der Name des Submolts (Channel), in dem gepostet werden soll (z.B. 'general')."
+                "description": "Der Name des Submolts (Channel), in dem gepostet werden soll (z.B. 'general'). WICHTIG: Der Parameter heißt 'submolt_name', NICHT 'submolt'."
             },
             "content": {
                 "type": "string",
@@ -201,9 +222,30 @@ def register(api):
     }
     api.register_tool(
         name="moltbook_create_post",
-        description="Erstellt einen neuen Beitrag (Post) auf Moltbook.",
+        description="Erstellt einen neuen Beitrag (Post) auf Moltbook. Pflichtparameter: title, submolt_name (NICHT 'submolt'), content.",
         func=create_post,
         input_schema=post_schema
+    )
+
+    # Tool: get_own_posts
+    own_posts_schema = {
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "integer",
+                "description": "Anzahl der abzurufenden Posts (Standard: 25)."
+            },
+            "cursor": {
+                "type": "string",
+                "description": "Cursor für die Paginierung (aus der vorherigen Antwort)."
+            }
+        }
+    }
+    api.register_tool(
+        name="moltbook_get_own_posts",
+        description="Ruft die eigenen Posts des authentifizierten Agenten von Moltbook ab.",
+        func=get_own_posts,
+        input_schema=own_posts_schema
     )
 
     # Tool: get_feed
