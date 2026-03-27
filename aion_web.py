@@ -86,6 +86,8 @@ async def _trigger_wakeup() -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup: Modell setzen + History aus vorheriger Sitzung laden."""
+    global _session_lock
+    _session_lock = asyncio.Lock()
     from datetime import datetime, timezone as _tz
     try:
         from config_store import update as _cfg_update
@@ -167,7 +169,8 @@ async def _stream_chat(user_input: str) -> AsyncGenerator[str, None]:
 
 # ── Server-Push Queue (proactive suggestions, notifications) ──────────────────
 # Plugins import this via: import aion_web as _web; _web._push_queue.put_nowait(...)
-_push_queue: asyncio.Queue = asyncio.Queue()
+_push_queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+_session_lock: asyncio.Lock  # initialized after event loop starts (see _lifespan)
 
 # ── API-Routen ────────────────────────────────────────────────────────────────
 
@@ -284,9 +287,10 @@ async def stop_generation():
 
 @app.post("/api/reset")
 async def reset():
-    _session.messages       = []
-    _session.exchange_count = 0
-    _session._client        = None
+    async with _session_lock:
+        _session.messages       = []
+        _session.exchange_count = 0
+        _session._client        = None
     return JSONResponse({"ok": True})
 
 @app.get("/api/status")

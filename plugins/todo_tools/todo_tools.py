@@ -2,9 +2,11 @@
 Todo-Tools — liest/schreibt todo.md im AION-Root.
 Format: - [ ] Offene Aufgabe  |  - [x] Erledigte Aufgabe
 """
+import threading
 from pathlib import Path
 
 TODO_FILE = Path(__file__).parent.parent.parent / "todo.md"
+_TODO_LOCK = threading.Lock()
 
 
 def _read_lines() -> list:
@@ -33,11 +35,12 @@ def register(api):
     def todo_add(task: str = "", **_) -> dict:
         if not task.strip():
             return {"ok": False, "error": "Kein Task-Text angegeben"}
-        lines = _read_lines()
-        if not lines:
-            lines = ["# AION TODO", ""]
-        lines.append(f"- [ ] {task.strip()}")
-        _write_lines(lines)
+        with _TODO_LOCK:
+            lines = _read_lines()
+            if not lines:
+                lines = ["# AION TODO", ""]
+            lines.append(f"- [ ] {task.strip()}")
+            _write_lines(lines)
         return {"ok": True, "task": task.strip(), "file": str(TODO_FILE)}
 
     def todo_list(**_) -> dict:
@@ -52,23 +55,25 @@ def register(api):
 
     def todo_done(task: str = "", **_) -> dict:
         """Aufgabe als erledigt markieren."""
-        lines = _read_lines()
         task_clean = task.strip()
-        for i, line in enumerate(lines):
-            if line.strip() == f"- [ ] {task_clean}":
-                lines[i] = line.replace("- [ ] ", "- [x] ", 1)
-                _write_lines(lines)
-                return {"ok": True, "done": task_clean}
+        with _TODO_LOCK:
+            lines = _read_lines()
+            for i, line in enumerate(lines):
+                if line.strip() == f"- [ ] {task_clean}":
+                    lines[i] = line.replace("- [ ] ", "- [x] ", 1)
+                    _write_lines(lines)
+                    return {"ok": True, "done": task_clean}
         return {"ok": False, "error": f"Offene Aufgabe nicht gefunden: {task_clean}"}
 
     def todo_remove(task: str = "", **_) -> dict:
-        lines = _read_lines()
-        new = [l for l in lines
-               if l.strip() not in (f"- [ ] {task.strip()}", f"- [x] {task.strip()}")
-               and f"- [ ] {task}" not in l and f"- [x] {task}" not in l]
-        if len(new) == len(lines):
-            return {"ok": False, "error": f"Task nicht gefunden: {task}"}
-        _write_lines(new)
+        with _TODO_LOCK:
+            lines = _read_lines()
+            new = [l for l in lines
+                   if l.strip() not in (f"- [ ] {task.strip()}", f"- [x] {task.strip()}")
+                   and f"- [ ] {task}" not in l and f"- [x] {task}" not in l]
+            if len(new) == len(lines):
+                return {"ok": False, "error": f"Task nicht gefunden: {task}"}
+            _write_lines(new)
         return {"ok": True, "removed": task}
 
     api.register_tool(

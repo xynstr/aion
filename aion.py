@@ -646,6 +646,8 @@ def _build_system_prompt(channel: str = "") -> str:
         perms_block = "\n\n" + _permissions_prompt(_load_permissions())
         thinking_block = _get_thinking_prompt(channel)
         _result = rules + plugin_block + changelog_block + perms_block + thinking_block
+        if len(_sys_prompt_cache) > 20:
+            _sys_prompt_cache.clear()
         _sys_prompt_cache[_cache_key] = _result
         return _result + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
 
@@ -831,6 +833,17 @@ class AionMemory:
             try:
                 self._entries = json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
             except Exception:
+                print(f"[AION] aion_memory.json korrupt — versuche Backup zu laden...")
+                # Jüngste .bak_* Datei suchen
+                backups = sorted(MEMORY_FILE.parent.glob(MEMORY_FILE.name + ".bak_*"), reverse=True)
+                for bak in backups:
+                    try:
+                        self._entries = json.loads(bak.read_text(encoding="utf-8"))
+                        print(f"[AION] Memory aus Backup wiederhergestellt: {bak.name}")
+                        return
+                    except Exception:
+                        continue
+                print("[AION] Kein gültiges Memory-Backup gefunden — starte mit leerem Speicher.")
                 self._entries = []
 
     def _save(self):

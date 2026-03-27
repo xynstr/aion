@@ -74,15 +74,21 @@ def _heartbeat_loop():
 
         # 1. Heartbeat schreiben
         open_count = _count_open_todos()
-        with open(_HEARTBEAT_LOG, "a", encoding="utf-8") as f:
-            f.write(f"[{ts}] alive | todos_open={open_count}\n")
+        try:
+            with open(_HEARTBEAT_LOG, "a", encoding="utf-8") as f:
+                f.write(f"[{ts}] alive | todos_open={open_count}\n")
+        except Exception:
+            pass  # Heartbeat-Log nicht schreibbar — Thread läuft trotzdem weiter
 
         # 2. Todo-Check alle _TODO_CHECK_MIN Minuten
         should_check = (now - _last_todo_check).total_seconds() >= _TODO_CHECK_MIN * 60
         if should_check and open_count > 0 and not _todo_worker_running:
             _last_todo_check = now
-            with open(_HEARTBEAT_LOG, "a", encoding="utf-8") as f:
-                f.write(f"[{ts}] Todo-Worker gestartet ({open_count} offene Tasks)\n")
+            try:
+                with open(_HEARTBEAT_LOG, "a", encoding="utf-8") as f:
+                    f.write(f"[{ts}] Todo-Worker gestartet ({open_count} offene Tasks)\n")
+            except Exception:
+                pass
             t = threading.Thread(target=_run_todo_session, daemon=True, name="aion-todo-worker")
             t.start()
         elif should_check:

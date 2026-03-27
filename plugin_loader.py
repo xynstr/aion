@@ -282,6 +282,17 @@ def _load_file(file: Path, tool_registry: dict):
         import traceback as _tb, logging as _log
         _log.error(f"[plugin_loader] Fehler beim Laden von {file.name}: {exc}\n{_tb.format_exc()}")
         print(f"[plugin_loader] \u274c {file.name}: {exc}")
+        # SSE-Warning an Web UI — damit der User es sieht, nicht nur stdout
+        try:
+            import aion_web as _web
+            _q = getattr(_web, "_push_queue", None)
+            if _q is not None:
+                import asyncio as _aio
+                _aio.get_event_loop().call_soon_threadsafe(
+                    lambda: _q.put_nowait({"type": "warning", "text": f"Plugin '{file.stem}' konnte nicht geladen werden: {exc}"})
+                )
+        except Exception:
+            pass
 
 
 def load_plugins(tool_registry: dict):

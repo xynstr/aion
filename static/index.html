@@ -3063,6 +3063,7 @@ function handleWakeup(ev) {
           if (ev.type === 'proactive') showProactiveToast(ev);
           if (ev.type === 'compress')  showCompressToast(ev);
           if (ev.type === 'wakeup')    handleWakeup(ev);
+          if (ev.type === 'warning')   showWarningToast(ev);
         } catch {}
       };
       _evtSource.onerror = () => {
@@ -3089,6 +3090,25 @@ function showCompressToast(ev) {
   div.innerHTML = `<span class="compress-icon">${isRunning ? '⚙' : '✓'}</span><span>${esc(ev.message || 'Optimizing context…')}</span>`;
   document.body.appendChild(div);
   setTimeout(() => div.remove(), isRunning ? 60_000 : 3_500);
+}
+
+function showWarningToast(ev) {
+  const text = ev.text || 'Ein Plugin konnte nicht geladen werden.';
+  const div = document.createElement('div');
+  div.className = 'proactive-toast';
+  div.style.borderLeft = '3px solid #f59e0b';
+  div.innerHTML = `
+    <div class="pt-header">
+      <span class="pt-icon">⚠</span>
+      <span class="pt-title">Plugin-Fehler</span>
+      <button class="pt-close" onclick="this.closest('.proactive-toast').remove()">✕</button>
+    </div>
+    <div class="pt-body">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+    <div class="pt-actions">
+      <button class="pt-btn-dismiss" onclick="this.closest('.proactive-toast').remove()">OK</button>
+    </div>`;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 15000);
 }
 
 function showProactiveToast(ev) {

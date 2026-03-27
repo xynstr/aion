@@ -823,7 +823,11 @@ def step8_advanced(primary_model: str = "") -> dict:
 
     # Port
     port = ask("Web UI port", "7000")
-    result["port"] = port if port.isdigit() else "7000"
+    if port.isdigit() and 1 <= int(port) <= 65535:
+        result["port"] = port
+    else:
+        warn(f"Ungültiger Port '{port}' — verwende Standard 7000.")
+        result["port"] = "7000"
     if result["port"] != "7000":
         ok(f"Port set to {result['port']}.")
     else:
