@@ -862,7 +862,7 @@ async def save_keys(request: Request):
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
     try:
-        from plugins.credentials.credentials import _VAULT_SERVICE_MAP, _vault_set_field_sync
+        from plugins.credentials.credentials import _vault_set_field_sync
     except Exception as e:
         return JSONResponse({"error": f"Vault nicht verfügbar: {e}"}, status_code=500)
 
@@ -882,7 +882,7 @@ async def save_keys(request: Request):
 async def delete_key(env_key: str):
     """Delete a single key from the encrypted vault and remove from running process."""
     try:
-        from plugins.credentials.credentials import _VAULT_SERVICE_MAP, _vault_delete_field_sync
+        from plugins.credentials.credentials import _vault_delete_field_sync
     except Exception as e:
         return JSONResponse({"error": f"Vault nicht verfügbar: {e}"}, status_code=500)
 
