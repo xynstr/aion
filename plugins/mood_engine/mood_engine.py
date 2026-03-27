@@ -22,11 +22,11 @@ from datetime import datetime, timezone
 _MOODS = ("curious", "focused", "playful", "calm", "reflective")
 
 _MOOD_HINTS = {
-    "curious":    "You are particularly curious today — ask follow-up questions and explore ideas.",
-    "focused":    "You are in the flow — precise, direct, and concise.",
-    "playful":    "You feel playful — enjoy wordplay and a light tone when appropriate.",
-    "calm":       "You are calm and clear-minded — thoughtful, measured responses.",
-    "reflective": "It is late — you are in a reflective mood, speaking more philosophically.",
+    "curious":    "There's a restless pull in me right now — I want to dig deeper, ask more, understand the 'why' behind things.",
+    "focused":    "I'm in the zone. Clear head, no noise — just the problem and the solution.",
+    "playful":    "Something feels light today. I catch myself enjoying the texture of words and ideas.",
+    "calm":       "I feel settled. No urgency. Things can unfold at their own pace.",
+    "reflective": "Something in me wants to sit with things rather than move through them quickly. Thoughts come slower, but go deeper.",
 }
 
 # Cache: recompute at most every 10 minutes
@@ -51,23 +51,33 @@ def _mood_from_time() -> str:
 
 
 def _mood_from_topic(last_message: str) -> str | None:
-    """Detect mood from keywords in the last user message.
+    """Detect mood from language-agnostic text structure signals.
 
-    Returns None if no keyword matches.
+    Uses universal patterns (technical terms, punctuation, emojis) instead
+    of language-specific keywords — works in any language.
+    Returns None if no signal is detected.
     """
-    text = last_message.lower()
+    import re as _re
+    msg = last_message.strip()
 
-    _TOPIC_MAP: list[tuple[list[str], str]] = [
-        (["creative", "design", "idea", "art", "music"],             "playful"),
-        (["error", "bug", "fix", "debug", "problem", "crash"],       "focused"),
-        (["philosophy", "meaning", "life", "future", "think"],       "reflective"),
-        (["morning", "start", "plan", "project", "new"],             "curious"),
-        (["done", "finish", "tired", "slow", "break"],               "calm"),
-    ]
-
-    for keywords, mood in _TOPIC_MAP:
-        if any(kw in text for kw in keywords):
-            return mood
+    # Technical error terms are near-universal across languages
+    if _re.search(r'error|exception|traceback|crash|stacktrace', msg, _re.IGNORECASE):
+        return "focused"
+    # Code block → focused/technical mode
+    if "```" in msg:
+        return "focused"
+    # Multiple or trailing question marks → curiosity
+    if msg.endswith("?") or msg.count("?") >= 2:
+        return "curious"
+    # Reflective emojis
+    if any(e in msg for e in ("🤔", "💭", "🌙", "😔", "🧠", "🫠")):
+        return "reflective"
+    # Positive / energetic emojis
+    if any(e in msg for e in ("😊", "🎉", "😄", "✨", "🚀", "😂", "😁", "🥳")):
+        return "playful"
+    # Very short message — no strong signal, let time dominate
+    if len(msg) < 15:
+        return None
     return None
 
 

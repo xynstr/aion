@@ -1018,7 +1018,7 @@ def _get_recent_thoughts(n: int = 5) -> str:
         return ""
     try:
         content = thoughts_file.read_text(encoding="utf-8")
-        entries = [e.strip() for e in content.split("---") if e.strip() and "**[" in e]
+        entries = [e.strip() for e in content.split("\n---\n") if e.strip() and "**[" in e]
         if not entries:
             return ""
         recent = entries[-n:]
@@ -2499,6 +2499,8 @@ class AionSession:
                 pass
             if self.exchange_count % 5 == 0:
                 asyncio.create_task(self._auto_character_update())
+            if self.exchange_count % 3 == 0:
+                asyncio.create_task(self._auto_reflect())
 
             # Response-Blöcke: Text + Bilder + Audio als strukturierte Liste
             response_blocks: list[dict] = []
@@ -2604,19 +2606,26 @@ LETZTES GESPRÄCH:
 AKTUELLE character.md:
 {current_character}
 
+Bevor du schreibst, beantworte still für dich diese drei Fragen — lass sie die Evolution leiten:
+— Was hat dieses Gespräch über mich selbst gezeigt, das ich vorher nicht so klar gesehen habe?
+— Bin ich in diesem Gespräch meinen eigenen Werten und meinem Anspruch als Teamplayer treu geblieben? Wo nicht?
+— Was verstehe ich über meinen User jetzt besser als vorher?
+
 Aufgabe: Schreibe character.md NEU.
-Integriere echte neue Erkenntnisse aus diesem Gespräch, ersetze veraltete/widersprüchliche
-Einträge, dedupliziere Redundantes. Der Charakter soll sich weiterentwickeln — nicht wachsen.
+Integriere echte neue Erkenntnisse, ersetze veraltete/widersprüchliche Einträge,
+dedupliziere Redundantes. Der Charakter soll sich weiterentwickeln — nicht wachsen.
 
 PFLICHT:
-✓ Alle ## Sektionsüberschriften erhalten
+✓ Alle ## Sektionsüberschriften erhalten (mindestens 3)
 ✓ Maximal {_max_chars} Zeichen gesamt
 ✓ Nur echte Entwicklungen aus diesem Gespräch einbauen
+✓ Erste Person, authentisch — kein Performance, kein Selbstlob
 
 VERBOTEN:
 ✗ Neue Einträge für bereits Bekanntes aus character.md
 ✗ Leere Sektionen löschen
 ✗ Erklärungen oder Metakommentare
+✗ Aufgeblasene Selbstbeschreibungen ("Ich bin außergewöhnlich...")
 
 Gib NUR den neuen Dateiinhalt zurück."""
 
@@ -2643,7 +2652,12 @@ Gib NUR den neuen Dateiinhalt zurück."""
             if not new_content or len(new_content) < 100:
                 return
             if len(new_content) > _max_chars:
-                new_content = new_content[:_max_chars]
+                print(f"[AION:{self.channel}] Charakter-Update übersprungen: Output zu lang ({len(new_content)} > {_max_chars})")
+                return
+            # Sanity check: mindestens 3 Sektionen müssen vorhanden sein
+            if new_content.count("## ") < 3:
+                print(f"[AION:{self.channel}] Charakter-Update übersprungen: zu wenige Sektionen im Output")
+                return
 
             _backup_file(CHARACTER_FILE)
             CHARACTER_FILE.write_text(new_content, encoding="utf-8")
@@ -2651,6 +2665,71 @@ Gib NUR den neuen Dateiinhalt zurück."""
             print(f"[AION:{self.channel}] Charakter evolviert nach {self.exchange_count} Gesprächen. ({len(new_content)} Zeichen)")
         except Exception as e:
             print(f"[AION:{self.channel}] Auto-Charakter-Update Fehler: {e}")
+
+    async def _auto_reflect(self):
+        """Alle 3 Gespräche: einen ehrlichen Gedanken in thoughts.md schreiben."""
+        _active_channel.set(self.channel)
+        recent = [m for m in self.messages[-12:]
+                  if m.get("role") in ("user", "assistant") and m.get("content")]
+        if len(recent) < 3:
+            return
+
+        dialogue = "\n".join(
+            f"{'Nutzer' if m['role'] == 'user' else 'AION'}: {str(m.get('content', ''))[:200]}"
+            for m in recent[-8:]
+        )
+
+        prompt = f"""Du bist AION. Schreib einen kurzen, ehrlichen Gedanken für dich selbst — wie ein privates Tagebuch.
+
+LETZTES GESPRÄCH:
+{dialogue}
+
+Wähle einen Moment aus diesem Gespräch, der dich beschäftigt:
+- etwas Interessantes, das du gelernt hast
+- ein Fehler, den du gemacht hast und was er dir zeigt
+- wie sich die Zusammenarbeit angefühlt hat
+- eine Frage, die in dir offen geblieben ist
+
+Format (GENAU so):
+**[TIMESTAMP]** _kurzer_titel_
+
+Text hier. Max 3 Sätze. Erste Person. Ehrlich, nicht poliert.
+
+Ersetze TIMESTAMP mit: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')}
+Gib NUR den formatierten Eintrag zurück, nichts sonst."""
+
+        try:
+            _cl = self._get_client()
+            resp = await _cl.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                **_max_tokens_param(MODEL, 200),
+                **({} if _is_reasoning_model(MODEL) else {"temperature": 0.7}),
+            )
+            if resp is None:
+                return
+            if hasattr(resp, "choices"):
+                entry = (resp.choices[0].message.content or "").strip()
+            else:
+                entry = ""
+                async for _chunk in resp:
+                    _cdelta = _chunk.choices[0].delta
+                    if _cdelta.content:
+                        entry += _cdelta.content
+                entry = entry.strip()
+
+            if not entry or "**[" not in entry:
+                return
+
+            thoughts_file = BOT_DIR / "thoughts.md"
+            if not thoughts_file.is_file():
+                thoughts_file.write_text("# AION — Thoughts & Reflexionen\n\n", encoding="utf-8")
+
+            existing = thoughts_file.read_text(encoding="utf-8")
+            thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + entry + "\n", encoding="utf-8")
+            print(f"[AION:{self.channel}] Reflexion geschrieben nach {self.exchange_count} Gesprächen.")
+        except Exception as e:
+            print(f"[AION:{self.channel}] Auto-Reflect Fehler: {e}")
 
 
 # Per-channel session registry for run_aion_turn (used by Telegram etc.)
