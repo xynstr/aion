@@ -877,6 +877,23 @@ async def save_keys(request: Request):
 
     return JSONResponse({"ok": True, "updated": updated})
 
+
+@app.delete("/api/keys/{env_key}")
+async def delete_key(env_key: str):
+    """Delete a single key from the encrypted vault and remove from running process."""
+    try:
+        from plugins.credentials.credentials import _VAULT_SERVICE_MAP, _vault_delete_field_sync
+    except Exception as e:
+        return JSONResponse({"error": f"Vault nicht verfügbar: {e}"}, status_code=500)
+
+    svc = _VAULT_SERVICE_MAP.get(env_key, env_key.lower().replace("_api_key", "").replace("_token", ""))
+    ok = _vault_delete_field_sync(svc, env_key)
+    if not ok:
+        return JSONResponse({"error": f"{env_key} nicht im Vault gefunden"}, status_code=404)
+    os.environ.pop(env_key, None)
+    return JSONResponse({"ok": True, "deleted": env_key})
+
+
 # ── File Processing API ──────────────────────────────────────────────────────────
 
 @app.post("/api/process_file")
@@ -1490,14 +1507,17 @@ if __name__ == "__main__":
             _stop_event.set()
         except Exception:
             pass
-        print("[AION] Beendet.", flush=True)
-        import os as _os
+        import sys as _sys, os as _os
+        _sys.stderr.write("[AION] Beendet.\n")
+        _sys.stderr.flush()
         _os._exit(0)
 
     try:
         uvicorn.run(app, host=_host, port=_port, log_level=_log_level_str)
     except (KeyboardInterrupt, SystemExit):
-        print("\n[AION] Server wird beendet …", flush=True)
+        import sys as _sys
+        _sys.stderr.write("\n[AION] Server wird beendet …\n")
+        _sys.stderr.flush()
     except Exception as _exc:
         print(f"\n[AION] Unerwarteter Fehler: {_exc}", flush=True)
     finally:

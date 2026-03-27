@@ -123,6 +123,31 @@ def _vault_set_field_sync(service: str, field: str, value: str) -> bool:
         return False
 
 
+def _vault_delete_field_sync(service: str, field: str) -> bool:
+    """Remove a single field from an encrypted vault entry.
+
+    Deletes the entire vault file if no fields remain after removal.
+    Returns True on success, False if service/field not found or error.
+    """
+    try:
+        f    = _get_fernet()
+        path = _credential_path(service)
+        if not path.exists():
+            return False
+        content = f.decrypt(path.read_bytes()).decode("utf-8")
+        pattern = rf"\n?\s*[-*]?\s*{re.escape(field)}\s*[:=]\s*.+"
+        new_content = re.sub(pattern, "", content, flags=re.IGNORECASE).strip()
+        # If only the header line (## service) or empty, delete the file
+        meaningful = [l for l in new_content.splitlines() if l.strip() and not l.strip().startswith("#")]
+        if not meaningful:
+            path.unlink()
+        else:
+            path.write_bytes(f.encrypt((new_content + "\n").encode("utf-8")))
+        return True
+    except Exception:
+        return False
+
+
 def _vault_inject_all_sync() -> None:
     """Inject all known vault keys into os.environ (only if not already set).
 

@@ -136,6 +136,7 @@ $RECYCLE.BIN/
 *.log
 logs/
 log/
+debug.txt
 
 # ── Temporäre Dateien ───────────────────────────────────────────────────────────
 *.tmp

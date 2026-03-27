@@ -416,16 +416,15 @@ def _main():
         try:
             proc.wait()
         except KeyboardInterrupt:
-            # proc.kill() = TerminateProcess on Windows / SIGKILL on Unix — sofortig,
-            # kein Signal-Bounce zurück an den Launcher (send_signal(CTRL_C_EVENT)
-            # trifft die ganze Prozessgruppe und löst eine zweite KI aus).
+            sys.stderr.write("\n[AION] Server wird beendet …\n")
+            sys.stderr.flush()
             proc.kill()
             try:
                 proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 pass
-        finally:
-            print("\n[AION] Beendet.", flush=True)
+            sys.stderr.write("[AION] Beendet.\n")
+            sys.stderr.flush()
 
 
 if __name__ == "__main__":
