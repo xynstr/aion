@@ -98,7 +98,7 @@ def get_own_posts(limit: int = 25, cursor: str = None) -> dict:
     if not api_key:
         return {"error": "API-Schlüssel nicht gefunden."}
 
-    url = f"{API_BASE_URL}/agents/me/posts"
+    url = f"{API_BASE_URL}/me/posts"
     params: dict = {"limit": limit}
     if cursor:
         params["cursor"] = cursor
