@@ -418,11 +418,13 @@ def _main():
         except KeyboardInterrupt:
             sys.stderr.write("\n[AION] Server wird beendet …\n")
             sys.stderr.flush()
-            proc.kill()
-            try:
-                proc.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                pass
+            if proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+        finally:
             sys.stderr.write("[AION] Beendet.\n")
             sys.stderr.flush()
 
