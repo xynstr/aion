@@ -7,10 +7,9 @@ AION — Autonomous Intelligent Operations Node
 
 import asyncio
 import contextvars
-import importlib.util
 import json
 import os
-import platform
+import re
 import shutil
 import sys
 import time
@@ -331,12 +330,8 @@ PERMISSION_LABELS: dict = {
 }
 
 def _load_permissions() -> dict:
-    try:
-        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
-        perms = cfg.get("permissions", {})
-        return {k: perms.get(k, v) for k, v in PERMISSION_DEFAULTS.items()}
-    except Exception:
-        return dict(PERMISSION_DEFAULTS)
+    perms = _load_config().get("permissions", {})
+    return {k: perms.get(k, v) for k, v in PERMISSION_DEFAULTS.items()}
 
 def _permissions_prompt(perms: dict) -> str:
     lines = ["=== PERMISSIONS ===",
@@ -355,6 +350,13 @@ def _permissions_prompt(perms: dict) -> str:
     return "\n".join(lines)
 
 
+def _match_pattern(value: str, pattern: str) -> bool:
+    """Prüft ob value auf pattern passt (unterstützt Wildcards wie 'telegram*')."""
+    if pattern.endswith("*"):
+        return value.startswith(pattern[:-1])
+    return value == pattern
+
+
 # ── Channel Allowlist (Security) ────────────────────────────────────────────────
 
 def _check_channel_allowlist(channel: str) -> tuple[bool, str]:
@@ -365,28 +367,19 @@ def _check_channel_allowlist(channel: str) -> tuple[bool, str]:
     - Wenn gesetzt: nur Channels in der Liste erlaubt
     - Wildcards: "telegram*", "discord*", "web*" possible
     """
-    try:
-        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
-        allowlist = cfg.get("channel_allowlist", [])
+    cfg = _load_config()
+    allowlist = cfg.get("channel_allowlist", [])
 
-        # Wenn leer oder nicht gesetzt: alles erlaubt
-        if not allowlist:
+    # Wenn leer oder nicht gesetzt: alles erlaubt
+    if not allowlist:
+        return True, ""
+
+    # Check exact match or wildcard match
+    for pattern in allowlist:
+        if isinstance(pattern, str) and _match_pattern(channel, pattern):
             return True, ""
 
-        # Check exact match or wildcard match
-        for pattern in allowlist:
-            if isinstance(pattern, str):
-                # Wildcard: "telegram*" matcht "telegram_123", "telegram_456"
-                if pattern.endswith("*"):
-                    if channel.startswith(pattern[:-1]):
-                        return True, ""
-                # Exact match
-                elif pattern == channel:
-                    return True, ""
-
-        return False, f"Channel '{channel}' ist nicht auf der Allowlist. Erlaubte Channels: {', '.join(allowlist)}"
-    except Exception:
-        return True, ""
+    return False, f"Channel '{channel}' ist nicht auf der Allowlist. Erlaubte Channels: {', '.join(allowlist)}"
 
 
 # ── Thinking Level Control ─────────────────────────────────────────────────────
@@ -404,27 +397,20 @@ def _get_thinking_prompt(channel: str = "") -> str:
         "thinking_level": "standard"  (global)
         "thinking_overrides": {"telegram*": "deep", "default": "standard"}  (Channel-spezifisch)
     """
-    try:
-        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+    cfg = _load_config()
 
-        # Channel-spezifisches Override oder globales Level
-        overrides = cfg.get("thinking_overrides", {})
-        level = cfg.get("thinking_level", "standard")
+    # Channel-spezifisches Override oder globales Level
+    overrides = cfg.get("thinking_overrides", {})
+    level = cfg.get("thinking_level", "standard")
 
-        # Wildcard matching for channel overrides
-        if channel:
-            for pattern, override_level in overrides.items():
-                if pattern == "default":
-                    continue
-                if pattern.endswith("*"):
-                    if channel.startswith(pattern[:-1]):
-                        level = override_level
-                        break
-                elif pattern == channel:
-                    level = override_level
-                    break
-    except Exception:
-        level = "standard"
+    # Wildcard matching for channel overrides
+    if channel:
+        for pattern, override_level in overrides.items():
+            if pattern == "default":
+                continue
+            if _match_pattern(channel, pattern):
+                level = override_level
+                break
 
     # Prompts for each level
     prompts = {
@@ -521,7 +507,7 @@ def _backup_file(path: Path, max_backups: int = 3) -> None:
     """Write a timestamped .bak copy of a file, keeping at most max_backups."""
     if not path.is_file():
         return
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     shutil.copy2(path, path.parent / f"{path.name}.bak_{ts}")
     baks = sorted(path.parent.glob(f"{path.name}.bak_*"))
     for old in baks[:-max_backups]:
@@ -548,7 +534,6 @@ def _load_changelog_snippet() -> str:
     try:
         text = changelog.read_text(encoding="utf-8")
         # Extract first ## YYYY-MM-DD block (latest changes)
-        import re
         blocks = re.split(r'\n(?=## \d{4}-\d{2}-\d{2})', text)
         for block in blocks:
             if re.match(r'## \d{4}-\d{2}-\d{2}', block.strip()):
@@ -813,12 +798,13 @@ async def _startup_compress_check() -> None:
     _startup_compress_done = True
     await asyncio.sleep(5)  # Wait until AION is fully loaded
 
-    _max_char = int(_load_config().get("character_max_chars", CHARACTER_MAX_CHARS))
+    _cfg = _load_config()
+    _max_char = int(_cfg.get("character_max_chars", CHARACTER_MAX_CHARS))
     if CHARACTER_FILE.is_file() and CHARACTER_FILE.stat().st_size > _max_char:
         await _compress_character(_max_char)
 
     rules_file = BOT_DIR / "prompts" / "rules.md"
-    _rules_thresh = int(_load_config().get("rules_compress_threshold", RULES_COMPRESS_THRESHOLD))
+    _rules_thresh = int(_cfg.get("rules_compress_threshold", RULES_COMPRESS_THRESHOLD))
     if rules_file.is_file() and rules_file.stat().st_size > _rules_thresh:
         await _compress_rules()
 
@@ -1765,7 +1751,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
             return json.dumps({"error": f"Ungültiges Level: {level}. Erlaubt: minimal, standard, deep, ultra"})
 
         try:
-            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+            cfg = _load_config()
 
             if channel_override:
                 # Channel-spezifisches Override setzen
@@ -1789,7 +1775,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
             return json.dumps({"error": "'channels' muss eine Liste sein."})
 
         try:
-            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+            cfg = _load_config()
             cfg["channel_allowlist"] = channels
             CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -1803,7 +1789,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
 
     elif name == "get_control_settings":
         try:
-            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
+            cfg = _load_config()
             return json.dumps({
                 "thinking_level": cfg.get("thinking_level", "standard"),
                 "thinking_overrides": cfg.get("thinking_overrides", {}),
@@ -1862,8 +1848,7 @@ class AionSession:
         self.channel         = channel
         self.messages: list[dict] = []
         # exchange_count aus config laden damit er Neustarts überlebt
-        _cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8")) if CONFIG_FILE.is_file() else {}
-        self.exchange_count: int  = int(_cfg.get("exchange_count", 0))
+        self.exchange_count: int  = int(_load_config().get("exchange_count", 0))
         self._client               = None  # lazy init, gebunden an Event-Loop des Erstellers
         self._last_response_blocks = []  # Letzte response_blocks (mit Bildern) für Bots wie Telegram
         # Schedule startup compression check (once per process, in background)
