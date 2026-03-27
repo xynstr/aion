@@ -28,7 +28,7 @@ import os
 import aion as _aion_module
 
 OLLAMA_PREFIX   = "ollama/"
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 
 KNOWN_MODELS = [
     "ollama/llama3.2",

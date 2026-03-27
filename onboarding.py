@@ -814,7 +814,7 @@ def _claude_cli_logged_in(claude_bin: str) -> bool:
         return False
 
 
-def step8_advanced() -> dict:
+def step8_advanced(primary_model: str = "") -> dict:
     section("Advanced settings", "Step 8/9:")
     print(f"  {_c(C_DIM, 'Fine-tune AION behavior. All settings can be changed later.')}")
     print()
@@ -937,12 +937,12 @@ def step8_advanced() -> dict:
             result["task_routing"] = {
                 "coding":  "claude-opus-4-6",
                 "review":  "claude-sonnet-4-6",
-                "default": "gemini-2.5-flash",
+                "default": primary_model or "gemini-2.5-flash",
             }
             ok("Task routing configured.")
         else:
             coding_model  = ask("Model for coding tasks", "claude-opus-4-6")
-            default_model = ask("Default model (for everything else)", "gemini-2.5-flash")
+            default_model = ask("Default model (for everything else)", primary_model or "gemini-2.5-flash")
             result["task_routing"] = {
                 "coding":  coding_model,
                 "default": default_model,
@@ -1351,7 +1351,7 @@ def run_onboarding() -> None:
         mcp_servers  = step5b_mcp()
         profile      = step6_profile()
         permissions  = step7_permissions()
-        advanced     = step8_advanced()
+        advanced     = step8_advanced(model)
         _ok          = step7_systemcheck(provider, api_key, model)
 
         # Write output
