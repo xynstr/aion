@@ -2823,11 +2823,12 @@ Reagiere auf die konkrete Situation:
 
     try:
         cl = _build_client(MODEL)
+        _is_thinking = _is_reasoning_model(MODEL) or MODEL.startswith("gemini-2.5")
         resp = await cl.chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
-            **_max_tokens_param(MODEL, 350),
-            **({} if _is_reasoning_model(MODEL) else {"temperature": 0.8}),
+            **_max_tokens_param(MODEL, 2000),
+            **({} if _is_thinking else {"temperature": 0.8}),
         )
         if resp is None:
             return
@@ -2877,7 +2878,9 @@ Reagiere auf die konkrete Situation:
                 print(f"[AION] Telegram Wakeup-Fehler: {_te}")
 
     except Exception as e:
+        import traceback as _tb
         print(f"[AION] _startup_wakeup Fehler: {e}")
+        _tb.print_exc()
 
 
 # Per-channel session registry for run_aion_turn (used by Telegram etc.)
