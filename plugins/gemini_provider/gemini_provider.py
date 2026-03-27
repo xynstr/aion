@@ -196,21 +196,23 @@ class _GeminyChatCompletions:
                 continue
 
             if role == "assistant":
-                parts = []
-                if content:
-                    parts.append(t.Part.from_text(text=content))
-                for tc in msg.get("tool_calls", []):
+                tc_list = msg.get("tool_calls", [])
+                fc_parts = []
+                for tc in tc_list:
                     fn = tc.get("function", {})
                     try:
                         args = json.loads(fn.get("arguments", "{}"))
                     except Exception:
                         args = {}
-                    parts.append(t.Part.from_function_call(
+                    fc_parts.append(t.Part.from_function_call(
                         name=fn.get("name", ""),
                         args=args,
                     ))
-                if parts:
-                    flush(contents, "model", parts)
+                if fc_parts:
+                    # Gemini: function_call turn must NOT contain text parts
+                    flush(contents, "model", fc_parts)
+                elif content:
+                    flush(contents, "model", [t.Part.from_text(text=content)])
                 continue
 
             # User-Message (text + optional image_url blocks)
@@ -240,6 +242,16 @@ class _GeminyChatCompletions:
 
             if parts:
                 flush(contents, "user", parts)
+
+        # Gemini requires: first turn = user, no two consecutive model turns
+        if contents and contents[0].role == "model":
+            contents.insert(0, t.Content(role="user", parts=[t.Part.from_text(text="…")]))
+        fixed: list = []
+        for item in contents:
+            if fixed and fixed[-1].role == "model" and item.role == "model":
+                fixed.append(t.Content(role="user", parts=[t.Part.from_text(text="…")]))
+            fixed.append(item)
+        contents = fixed
 
         return system_instruction, contents
 
