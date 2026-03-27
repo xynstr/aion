@@ -1448,12 +1448,34 @@ if __name__ == "__main__":
         print(f"Hinweis: Server erreichbar im Netzwerk (AION_HOST={_host}) — kein Passwortschutz aktiv.")
     print("Beenden: Strg+C\n")
 
-    # Suppress CancelledError / WouldBlock noise that uvicorn logs when
-    # SSE streams are torn down during a clean Ctrl+C shutdown.  These are
-    # not real errors — they are the expected result of cancelling in-flight
-    # async generators when the server exits.
     import logging as _logging
 
+    _log_level_str = _load_config().get("log_level", "warning").lower()
+    _is_debug      = _log_level_str == "debug"
+
+    # ── Logging setup ─────────────────────────────────────────────────────────
+    _log_fmt     = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    _log_datefmt = "%Y-%m-%d %H:%M:%S"
+    _handlers: list[_logging.Handler] = [_logging.StreamHandler()]
+
+    if _is_debug:
+        _debug_file = AION_DIR / "debug.txt"
+        _fh = _logging.FileHandler(_debug_file, encoding="utf-8")
+        _fh.setLevel(_logging.DEBUG)
+        _fh.setFormatter(_logging.Formatter(_log_fmt, _log_datefmt))
+        _handlers.append(_fh)
+        print(f"[AION] Debug-Modus aktiv — Log wird geschrieben nach: {_debug_file}", flush=True)
+
+    _logging.basicConfig(
+        level=_logging.DEBUG if _is_debug else _logging.WARNING,
+        format=_log_fmt,
+        datefmt=_log_datefmt,
+        handlers=_handlers,
+        force=True,
+    )
+
+    # Suppress CancelledError / WouldBlock noise that uvicorn logs when
+    # SSE streams are torn down during a clean Ctrl+C shutdown.
     class _ShutdownFilter(_logging.Filter):
         _SUPPRESS = ("CancelledError", "WouldBlock", "disconnect")
         def filter(self, record: _logging.LogRecord) -> bool:
@@ -1473,8 +1495,7 @@ if __name__ == "__main__":
         _os._exit(0)
 
     try:
-        _log_level = _load_config().get("log_level", "warning").lower()
-        uvicorn.run(app, host=_host, port=_port, log_level=_log_level)
+        uvicorn.run(app, host=_host, port=_port, log_level=_log_level_str)
     except (KeyboardInterrupt, SystemExit):
         print("\n[AION] Server wird beendet …", flush=True)
     except Exception as _exc:
