@@ -26,12 +26,26 @@ def register_agent(name: str, description: str) -> dict:
     except requests.exceptions.RequestException as e:
         return {"error": f"Netzwerk- oder HTTP-Error: {str(e)}"}
 
-def _get_api_key():
-    """Loads den API-Schlüssel aus der Configurationsdatei."""
+def _get_api_key() -> str:
+    """Load the Moltbook API key.
+
+    Priority:
+      1. Encrypted vault  — credential_write("moltbook", "- api_key: ...")
+      2. moltbook_credentials.json  (legacy plain-text fallback)
+    """
+    # 1. Vault (encrypted, preferred)
     try:
-        return json.loads(Path(CONFIG_PATH).read_text(encoding="utf-8")).get("api_key")
+        from plugins.credentials.credentials import _vault_read_key_sync
+        key = _vault_read_key_sync("moltbook", "api_key")
+        if key:
+            return key
+    except Exception:
+        pass
+    # 2. Legacy JSON file fallback
+    try:
+        return json.loads(Path(CONFIG_PATH).read_text(encoding="utf-8")).get("api_key", "")
     except (FileNotFoundError, json.JSONDecodeError):
-        return None
+        return ""
 
 def check_claim_status() -> dict:
     """Überprüft den Verifizierungsstatus des Agenten auf Moltbook."""

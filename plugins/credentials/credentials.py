@@ -61,6 +61,30 @@ def _credential_path(service: str) -> Path:
     return VAULT_DIR / f"{_service_to_filename(service)}.md.enc"
 
 
+def _vault_read_key_sync(service: str, field: str) -> str:
+    """Synchronously read a single field from an encrypted vault entry.
+
+    Parses Markdown lines of the form:
+        - FIELD_NAME: value
+        * FIELD_NAME: value
+        FIELD_NAME: value
+        FIELD_NAME = value
+
+    Returns the value string or "" if service/field not found.
+    Safe to call from synchronous code (e.g. inside _build_client()).
+    """
+    try:
+        path = _credential_path(service)
+        if not path.exists():
+            return ""
+        content = _get_fernet().decrypt(path.read_bytes()).decode("utf-8")
+        pattern = rf"(?:^|\n)\s*[-*]?\s*{re.escape(field)}\s*[:=]\s*(.+)"
+        m = re.search(pattern, content, re.IGNORECASE)
+        return m.group(1).strip() if m else ""
+    except Exception:
+        return ""
+
+
 # ── Tool-Implementierungen ─────────────────────────────────────────────────────
 
 async def _credential_write(service: str, content: str) -> str:

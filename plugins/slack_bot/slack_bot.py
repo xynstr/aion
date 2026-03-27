@@ -223,11 +223,24 @@ def register(api):
     bot_token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
     app_token = os.environ.get("SLACK_APP_TOKEN", "").strip()
 
+    # Vault fallback — credential_write("slack", "- SLACK_BOT_TOKEN: xoxb-...\n- SLACK_APP_TOKEN: xapp-...")
+    if not bot_token or not app_token:
+        try:
+            from plugins.credentials.credentials import _vault_read_key_sync
+            if not bot_token:
+                bot_token = _vault_read_key_sync("slack", "SLACK_BOT_TOKEN")
+            if not app_token:
+                app_token = _vault_read_key_sync("slack", "SLACK_APP_TOKEN")
+        except Exception:
+            pass
+
     if not bot_token:
         print("[slack_bot] SLACK_BOT_TOKEN nicht gesetzt — Plugin deaktiviert.")
+        print("  → .env: SLACK_BOT_TOKEN=xoxb-...  oder  credential_write('slack', ...)")
         return
     if not app_token:
         print("[slack_bot] SLACK_APP_TOKEN nicht gesetzt — Plugin deaktiviert.")
+        print("  → .env: SLACK_APP_TOKEN=xapp-...  oder  credential_write('slack', ...)")
         return
 
     _start_bot_thread(bot_token, app_token)

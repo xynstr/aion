@@ -364,6 +364,17 @@ async def _list_gemini_models_dynamic():
 
 
 def register(api):
+    # Vault fallback: inject into os.environ so _build_client + model listing pick it up.
+    # Store with: credential_write("gemini", "- GEMINI_API_KEY: AIza...")
+    if not os.environ.get("GEMINI_API_KEY"):
+        try:
+            from plugins.credentials.credentials import _vault_read_key_sync
+            _v = _vault_read_key_sync("gemini", "GEMINI_API_KEY")
+            if _v:
+                os.environ["GEMINI_API_KEY"] = _v
+        except Exception:
+            pass
+
     # Register via provider registry (replaces direct _build_client patch)
     if hasattr(_aion_module, "register_provider"):
         _aion_module.register_provider(

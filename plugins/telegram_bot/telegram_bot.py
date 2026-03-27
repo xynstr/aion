@@ -59,9 +59,11 @@ def _get_audio_pipeline():
 
 
 def _get_token() -> str:
+    # 1. Environment variable
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     if token:
         return token
+    # 2. config_store (Web UI Settings → Telegram)
     try:
         from config_store import load as _cs_load
         token = _cs_load().get("telegram_token", "").strip()
@@ -69,6 +71,15 @@ def _get_token() -> str:
             return token
     except Exception:
         pass
+    # 3. Encrypted vault — credential_write("telegram", "- TELEGRAM_BOT_TOKEN: ...")
+    try:
+        from plugins.credentials.credentials import _vault_read_key_sync
+        token = _vault_read_key_sync("telegram", "TELEGRAM_BOT_TOKEN")
+        if token:
+            return token
+    except Exception:
+        pass
+    # 4. Legacy plain-text file fallback
     if _TOKEN_FILE.is_file():
         return _TOKEN_FILE.read_text().strip()
     return ""

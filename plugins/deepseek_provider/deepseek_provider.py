@@ -58,6 +58,17 @@ async def _list_deepseek_models_dynamic():
 
 
 def register(api):
+    # Vault fallback: inject into os.environ so _build_client + model listing pick it up.
+    # Store with: credential_write("deepseek", "- DEEPSEEK_API_KEY: sk-...")
+    if not os.environ.get("DEEPSEEK_API_KEY"):
+        try:
+            from plugins.credentials.credentials import _vault_read_key_sync
+            _v = _vault_read_key_sync("deepseek", "DEEPSEEK_API_KEY")
+            if _v:
+                os.environ["DEEPSEEK_API_KEY"] = _v
+        except Exception:
+            pass
+
     # Immer registrieren — API-Key-Prüfung erfolgt zur Laufzeit via _model_available()
     if not hasattr(_aion_module, "register_provider"):
         print("[Plugin] deepseek_provider: aion.py has no register_provider — skipping")

@@ -65,6 +65,17 @@ async def _list_grok_models_dynamic():
 
 
 def register(api):
+    # Vault fallback: inject into os.environ so _build_client + model listing pick it up.
+    # Store with: credential_write("grok", "- XAI_API_KEY: xai-...")
+    if not os.environ.get("XAI_API_KEY"):
+        try:
+            from plugins.credentials.credentials import _vault_read_key_sync
+            _v = _vault_read_key_sync("grok", "XAI_API_KEY")
+            if _v:
+                os.environ["XAI_API_KEY"] = _v
+        except Exception:
+            pass
+
     # Immer registrieren — API-Key-Prüfung erfolgt zur Laufzeit via _model_available()
     if not hasattr(_aion_module, "register_provider"):
         print("[Plugin] grok_provider: aion.py has no register_provider — skipping")

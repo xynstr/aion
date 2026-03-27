@@ -349,8 +349,18 @@ def register(api):
         return
 
     token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+
+    # Vault fallback — credential_write("discord", "- DISCORD_BOT_TOKEN: ...")
+    if not token:
+        try:
+            from plugins.credentials.credentials import _vault_read_key_sync
+            token = _vault_read_key_sync("discord", "DISCORD_BOT_TOKEN")
+        except Exception:
+            pass
+
     if not token:
         print("[discord_bot] DISCORD_BOT_TOKEN nicht gesetzt — Plugin deaktiviert.")
+        print("  → .env: DISCORD_BOT_TOKEN=...  oder  credential_write('discord', ...)")
         return
 
     _start_bot_thread(token)
