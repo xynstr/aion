@@ -1479,7 +1479,8 @@ if __name__ == "__main__":
         _os._exit(0)
 
     try:
-        uvicorn.run(app, host=_host, port=_port, log_level="warning")
+        _log_level = _load_config().get("log_level", "warning").lower()
+        uvicorn.run(app, host=_host, port=_port, log_level=_log_level)
     except (KeyboardInterrupt, SystemExit):
         pass
     except Exception as _exc:
