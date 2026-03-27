@@ -51,7 +51,27 @@ def _get_model() -> str:
     cfg = _load_config()
     return cfg.get("model", os.environ.get("AION_MODEL", "gpt-4.1"))
 
+def _resolve_model(model: str) -> str:
+    """Auto-prefix 'ollama/' if the model has no known provider prefix but exists in Ollama."""
+    registry = getattr(_aion_module, "_provider_registry", [])
+    if any(model.startswith(e["prefix"]) for e in registry):
+        return model  # already has a known prefix
+    # Unknown prefix — check if Ollama has this model
+    try:
+        import httpx as _httpx
+        base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+        r = _httpx.get(f"{base_url.rstrip('/')}/api/tags", timeout=2.0)
+        if r.status_code == 200:
+            ollama_names = [m["name"] for m in r.json().get("models", [])]
+            if model in ollama_names:
+                return f"ollama/{model}"
+    except Exception:
+        pass
+    return model
+
+
 def _set_model(model: str):
+    model = _resolve_model(model)
     cfg = _load_config()
     cfg["model"] = model
     _save_config(cfg)
