@@ -1020,7 +1020,7 @@ async def list_providers():
         "chatgpt-4o-latest",
     ]
     _openai_models = _openai_static
-    _openai_key    = _read_env_file().get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+    _openai_key    = _read_vault_keys().get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
     if _openai_key:
         try:
             import httpx as _httpx
@@ -1433,11 +1433,11 @@ async def google_oauth_callback(code: str = "", state: str = "", error: str = ""
 if __name__ == "__main__":
     # Hinweis wenn noch kein API-Key konfiguriert — kein harter Abbruch, da der User
     # den Key auch direkt im Web UI (Settings → API Keys) hinterlegen kann.
-    _env_keys = _read_env_file()
-    _has_key  = bool(_env_keys.get("OPENAI_API_KEY", "").strip()) or \
-                bool(_env_keys.get("GEMINI_API_KEY", "").strip())
+    _vault_keys = _read_vault_keys()
+    _has_key    = bool(_vault_keys.get("OPENAI_API_KEY", "").strip()) or \
+                  bool(_vault_keys.get("GEMINI_API_KEY", "").strip())
     if not _has_key:
-        print("[AION] Hinweis: Noch kein API-Key in .env hinterlegt.")
+        print("[AION] Hinweis: Noch kein API-Key im Vault hinterlegt.")
         print("[AION] Bitte im Web UI unter Settings → API Keys konfigurieren.")
         print("[AION] Alternativ: 'aion --setup' ausführen.")
     _port = int(_load_config().get("port", os.environ.get("AION_PORT", 7000)))

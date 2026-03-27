@@ -360,7 +360,7 @@ def register(api):
 
     if not token:
         print("[discord_bot] DISCORD_BOT_TOKEN nicht gesetzt — Plugin deaktiviert.")
-        print("  → .env: DISCORD_BOT_TOKEN=...  oder  credential_write('discord', ...)")
+        print("  → credential_write('discord', '- DISCORD_BOT_TOKEN: ...')")
         return
 
     _start_bot_thread(token)
