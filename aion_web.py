@@ -1468,6 +1468,7 @@ if __name__ == "__main__":
             _stop_event.set()
         except Exception:
             pass
+        print("[AION] Beendet.", flush=True)
         import os as _os
         _os._exit(0)
 
@@ -1475,7 +1476,7 @@ if __name__ == "__main__":
         _log_level = _load_config().get("log_level", "warning").lower()
         uvicorn.run(app, host=_host, port=_port, log_level=_log_level)
     except (KeyboardInterrupt, SystemExit):
-        pass
+        print("\n[AION] Server wird beendet …", flush=True)
     except Exception as _exc:
         print(f"\n[AION] Unerwarteter Fehler: {_exc}", flush=True)
     finally:
