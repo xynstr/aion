@@ -12,6 +12,38 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-03-27 — v1.2.1 Fixes + Vault + Refactoring)
+
+### Vault Integration
+All credential-dependent plugins (Anthropic, Gemini, DeepSeek, Grok, Discord, Slack, Moltbook)
+now read API keys from the AES-encrypted vault (`credentials/`) as fallback when env vars are absent.
+`aion.py` injects the OpenAI key from vault before the module-level `AsyncOpenAI` client is created,
+so vault-only setups work without `.env`. The `/api/keys` endpoint in the Web UI shows the source
+(env / vault / unset) for each key and allows saving directly into the vault.
+
+### Gemini Tool-Call History Fix
+`gemini_provider._build_contents()` no longer produces `INVALID_ARGUMENT` errors on complex
+conversations. Two fixes:
+- When an assistant turn has `tool_calls`, text parts are dropped (Gemini rejects `text + function_call` combined).
+- Post-processing guards: consecutive model turns get a separator; histories starting with a model turn get a leading user turn.
+
+### Startup & Config Fixes
+- `aion_cli.py` now loads `.env` immediately at startup (was only loaded lazily inside `/config` handler).
+- `task_routing` default in onboarding is set to the user's actual primary model, not hardcoded `gemini-2.5-flash`.
+- `credentials.py`: removed unused `import aion` that created a fragile circular import.
+- `onboarding.py`: `AION_GITHUB_REPO` is now written to `.env`.
+- `ollama_provider`: default URL is `127.0.0.1:11434` (not `localhost`) to avoid IPv6 issues on Linux/macOS.
+- Moltbook `get_own_posts`: endpoint corrected to `/me/posts` (was `/agents/me/posts` — 404).
+
+### Code Quality (aion.py)
+- `_build_record()` — shared dict builder for `_record_sync` and `_record_async` in `AionMemory`.
+- `_format_memory_entries()` — shared formatter for `get_context()` and `get_context_semantic()`.
+- `_match_pattern()` — wildcard helper extracted (was duplicated in `_check_channel_allowlist` + `_get_thinking_prompt`).
+- `_load_config()` used consistently throughout; `_startup_compress_check` caches the result (1 read).
+- Unused imports removed; `import re` moved to top-level; `datetime.now(UTC)` everywhere.
+
+---
+
 ## Latest Improvements (2026-03-26 — Context Compression + Snapshot Visibility + Token Optimization)
 
 ### Context Compression (lossless, auto-triggered)

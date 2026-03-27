@@ -5,6 +5,34 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 1.2.1 — 2026-03-27
+
+### Fixes
+- **Gemini INVALID_ARGUMENT** — `_build_contents()` now drops text parts when a model turn
+  contains `function_call` parts; post-processing guards against consecutive model turns and
+  histories that start with a model turn
+- **Vault integration** — all credential-dependent plugins (Anthropic, Gemini, DeepSeek, Grok,
+  Discord, Slack, Moltbook) now read API keys from the encrypted vault as fallback when env vars
+  are absent; `aion.py` injects OpenAI key from vault before the module-level client is created
+- **Ctrl+C** — launcher now calls `proc.kill()` immediately instead of `send_signal(CTRL_C_EVENT)`;
+  `finally` block ensures `[AION] Beendet.` is always printed
+- **CLI dotenv** — `aion_cli.py` loads `.env` at startup (was only loaded lazily via `/config`)
+- **task_routing default** — onboarding now sets `default` model to the user's chosen primary
+  model instead of hardcoded `gemini-2.5-flash`
+- **Moltbook get_own_posts** — endpoint corrected from `/agents/me/posts` to `/me/posts`
+- **Ollama** — default URL changed from `localhost` to `127.0.0.1` to avoid IPv6 resolution
+  issues on Linux/macOS
+
+### Refactoring
+- `aion.py`: unused imports removed (`importlib.util`, `platform`), `import re` moved to top-level,
+  `datetime.now()` → `datetime.now(UTC)`, 7× inline `json.loads(CONFIG_FILE…)` replaced with
+  `_load_config()`, `_match_pattern()` helper extracted, `_build_record()` and
+  `_format_memory_entries()` helpers eliminate duplicated logic in `AionMemory`
+- `credentials.py`: removed unused `import aion` (circular import risk)
+- `onboarding.py`: `AION_GITHUB_REPO` now written to `.env`
+
+---
+
 ## 1.2.0 — 2026-03-27
 
 ### New Features
