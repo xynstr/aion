@@ -370,7 +370,7 @@ def banner() -> None:
     print(_c(C_LOGO, "  ===================================================="))
     print()
     print(f"  {_c(C_WHITE, 'Welcome! This wizard sets up AION once.')}")
-    print(f"  {_c(C_DIM, 'All settings can be changed later in .env and config.json.')}")
+    print(f"  {_c(C_DIM, 'Settings can be changed later in .env, config.json, or the encrypted Vault.')}")
     print()
 
 # ── Step 1: Primary Provider ──────────────────────────────────────────────────
@@ -448,7 +448,7 @@ def step3_model(provider: str) -> str:
 def step4_additional_providers(primary: str) -> dict:
     section("Additional providers (optional)", "Step 4/9:")
     print(f"  {_c(C_DIM, 'Add more providers so AION can switch models on demand.')}")
-    print(f"  {_c(C_DIM, 'Each provider is only active when its key is present in .env.')}")
+    print(f"  {_c(C_DIM, 'Each provider is active when its key is in .env or the encrypted Vault.')}")
     print()
 
     extra_keys: dict = {}
@@ -490,7 +490,7 @@ def step4_additional_providers(primary: str) -> dict:
 def step5_channels() -> dict:
     section("Messaging channels (optional)", "Step 5/9:")
     print(f"  {_c(C_DIM, 'Connect AION to messaging platforms — each is a separate plugin.')}")
-    print(f"  {_c(C_DIM, 'All channels are optional. You can add them later via .env.')}")
+    print(f"  {_c(C_DIM, 'All channels are optional. You can add them later via .env or the Vault.')}")
     print()
 
     result: dict = {}
@@ -556,7 +556,7 @@ def step5_channels() -> dict:
         print()
 
     if not selected:
-        info("No channels selected — you can add them later via .env.")
+        info("No channels selected — you can add them later via .env or the Vault.")
     print()
 
     return result

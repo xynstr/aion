@@ -701,14 +701,52 @@ def _read_env_file() -> dict[str, str]:
     return result
 
 
+# Maps env-key names to their vault service name, for display in /api/keys.
+# Vault-injected keys appear in os.environ but not in .env — we use this map
+# to detect and mark them as "set (vault)" instead of showing them as missing.
+_VAULT_SERVICE_MAP: dict[str, str] = {
+    "OPENAI_API_KEY":     "openai",
+    "GEMINI_API_KEY":     "gemini",
+    "DEEPSEEK_API_KEY":   "deepseek",
+    "XAI_API_KEY":        "grok",
+    "ANTHROPIC_API_KEY":  "anthropic",
+    "SLACK_BOT_TOKEN":    "slack",
+    "SLACK_APP_TOKEN":    "slack",
+    "DISCORD_BOT_TOKEN":  "discord",
+    "TELEGRAM_BOT_TOKEN": "telegram",
+}
+
+
+def _key_source(k: str, file_val: str, sys_val: str) -> tuple[bool, str, str]:
+    """Return (is_set, display_value, source_label) for a single key.
+
+    Priority: .env file → vault → system env (system env alone does NOT count
+    as 'set' to avoid false positives on machines with unrelated env vars).
+    """
+    if file_val.strip():
+        return True, file_val, "env"
+    # Check vault directly — vault keys are also injected into os.environ by
+    # register(), but we read vault here to get an accurate source label.
+    vault_svc = _VAULT_SERVICE_MAP.get(k, "")
+    if vault_svc:
+        try:
+            from plugins.credentials.credentials import _vault_read_key_sync
+            vault_val = _vault_read_key_sync(vault_svc, k)
+            if vault_val.strip():
+                return True, vault_val, "vault"
+        except Exception:
+            pass
+    # System env (not from .env, not from vault) — show masked but mark unset
+    return False, sys_val, "system"
+
+
 @app.get("/api/keys")
 async def get_keys():
     """Returns all known API keys (masked) grouped by provider.
-    'set'-Status wird ausschliesslich aus AION's .env-Datei bestimmt,
-    nicht aus System-Umgebungsvariablen — verhindert Falsch-Positive bei
-    frischer Installation wenn ein Key bereits im System-Env vorhanden ist."""
+    'set' = key is present in .env OR in the encrypted vault.
+    System-wide env vars alone do NOT count as set (avoids false positives)."""
     registry      = getattr(_aion_module, "_provider_registry", [])
-    env_file_keys = _read_env_file()   # Nur .env, nicht os.environ
+    env_file_keys = _read_env_file()
     covered       = set()
     providers     = []
 
@@ -720,11 +758,9 @@ async def get_keys():
         for k in env_keys:
             file_val = env_file_keys.get(k, "")
             sys_val  = os.environ.get(k, "")
-            # Als "gesetzt" gilt nur ein nicht-leerer Wert in AION's .env
-            is_set   = bool(file_val.strip())
-            # Für Anzeige: .env-Wert bevorzugen, sonst System-Wert
-            display  = file_val or sys_val
-            keys_info.append({"key": k, "set": is_set, "masked": _mask_key(display)})
+            is_set, display, source = _key_source(k, file_val, sys_val)
+            keys_info.append({"key": k, "set": is_set, "source": source,
+                               "masked": _mask_key(display)})
             covered.add(k)
         providers.append({
             "label":    entry.get("label", entry.get("prefix", "?")),
@@ -732,14 +768,14 @@ async def get_keys():
         })
 
     # OpenAI fallback (not in registry, always shown)
-    oai_file = env_file_keys.get("OPENAI_API_KEY", "")
-    oai_sys  = os.environ.get("OPENAI_API_KEY", "")
     if "OPENAI_API_KEY" not in covered:
+        oai_file = env_file_keys.get("OPENAI_API_KEY", "")
+        oai_sys  = os.environ.get("OPENAI_API_KEY", "")
+        is_set, display, source = _key_source("OPENAI_API_KEY", oai_file, oai_sys)
         providers.append({
             "label":    "OpenAI",
-            "env_keys": [{"key": "OPENAI_API_KEY",
-                          "set": bool(oai_file.strip()),
-                          "masked": _mask_key(oai_file or oai_sys)}],
+            "env_keys": [{"key": "OPENAI_API_KEY", "set": is_set, "source": source,
+                           "masked": _mask_key(display)}],
         })
         covered.add("OPENAI_API_KEY")
 
@@ -750,9 +786,9 @@ async def get_keys():
         if k not in covered:
             file_val = env_file_keys.get(k, "")
             sys_val  = os.environ.get(k, "")
-            other_keys.append({"key": k,
-                                "set": bool(file_val.strip()),
-                                "masked": _mask_key(file_val or sys_val)})
+            is_set, display, source = _key_source(k, file_val, sys_val)
+            other_keys.append({"key": k, "set": is_set, "source": source,
+                                "masked": _mask_key(display)})
             covered.add(k)
 
     # Any remaining keys in .env not yet covered

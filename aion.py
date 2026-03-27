@@ -35,6 +35,19 @@ try:
 except ImportError:
     pass
 
+# Vault fallback for OpenAI key — must run BEFORE the module-level AsyncOpenAI
+# client is created (line below), so vault-only setups work without .env.
+# Other providers inject their vault keys in their own register() calls.
+if not os.environ.get("OPENAI_API_KEY"):
+    try:
+        from plugins.credentials.credentials import _vault_read_key_sync as _vrs
+        _vk = _vrs("openai", "OPENAI_API_KEY")
+        if _vk:
+            os.environ["OPENAI_API_KEY"] = _vk
+        del _vrs, _vk
+    except Exception:
+        pass
+
 try:
     from openai import AsyncOpenAI
 except ImportError:
@@ -2954,7 +2967,10 @@ if __name__ == "__main__":
         _cli_config_unset(_unset_keys)
         sys.exit(0)
 
+    # Only warn when no provider key is available at all — vault keys are
+    # already injected into os.environ by the vault block above, so this
+    # check naturally covers both .env and vault sources.
     if not os.environ.get("OPENAI_API_KEY"):
-        print("Fehler: OPENAI_API_KEY nicht gesetzt.")
-        sys.exit(1)
+        print("Warnung: OPENAI_API_KEY nicht gesetzt — OpenAI-Modelle nicht verfügbar.")
+        print("  → Setze OPENAI_API_KEY in .env  oder  credential_write('openai', ...)")
     asyncio.run(run())
