@@ -181,13 +181,14 @@ async def _schedule_daily() -> None:
     await asyncio.sleep(5)
     try:
         import aion as _aion
+        proactive_time = _aion._load_config().get("proactive_time", "08:30")
         await _aion._dispatch("schedule_add", {
             "name": "proactive_daily_check",
-            "time": "08:30",
+            "time": proactive_time,
             "days": "weekdays",
             "task": "Run proactive memory analysis and push suggestions to user",
         })
-        logger.info("proactive: daily schedule registered at 08:30 weekdays")
+        logger.info("proactive: daily schedule registered at %s weekdays", proactive_time)
     except Exception as exc:
         logger.debug("proactive: could not register schedule (scheduler may not be loaded): %s", exc)
 

@@ -74,6 +74,22 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); transition: all 0.3s; flex-shrink: 0; }
 .status-dot.thinking { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); animation: dotPulse 1s ease-in-out infinite; }
 @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
+.mood-badge { font-size: 12px; opacity: 0.75; margin-left: 8px; color: var(--text2); letter-spacing: .3px; }
+/* AION message bubbles: subtle tint per mood — barely visible, like a color temperature shift */
+.msg.aion .msg-bubble.mood-curious    { background: #1a2535; border-color: rgba(100,160,255,.18); }
+.msg.aion .msg-bubble.mood-focused    { background: #1e1a2e; border-color: rgba(140,100,255,.18); }
+.msg.aion .msg-bubble.mood-playful    { background: #251f14; border-color: rgba(255,200,80,.18); }
+.msg.aion .msg-bubble.mood-calm       { background: #182420; border-color: rgba(60,200,120,.18); }
+.msg.aion .msg-bubble.mood-reflective { background: #201825; border-color: rgba(200,100,255,.18); }
+/* Activity log table */
+.activity-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.activity-table th { text-align: left; color: var(--text3); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid var(--border); font-weight: 700; }
+.activity-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.04); color: var(--text2); vertical-align: middle; }
+.activity-table tr:hover td { background: rgba(255,255,255,.03); }
+.activity-table .aev-tool { font-family: monospace; color: var(--text); font-size: 12px; }
+.activity-table .aev-ok   { color: #00e564; }
+.activity-table .aev-err  { color: #ff5050; }
+.activity-table .aev-dur  { color: var(--text3); font-size: 11px; }
 .hbtn { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all .15s; white-space: nowrap; }
 .hbtn:hover { border-color: var(--text); color: var(--text); }
 .hbtn.danger:hover { border-color: var(--red); color: var(--red); }
@@ -505,6 +521,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
     <div class="header-left">
       <img src="aion-2026-small.svg" alt="AION" class="logo-icon" title="AION" />
       <div class="status-dot" id="statusDot"></div>
+      <span id="moodBadge" class="mood-badge" title="AION's current mood"></span>
     </div>
     <button class="hbtn danger" onclick="resetChat()">↺ Reset</button>
   </div>
@@ -541,6 +558,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         <button class="snav-btn" id="snav-settings" onclick="switchSection('settings')">
           <span class="snav-icon"><i data-lucide="sliders-horizontal"></i></span>
           <span class="snav-label">System</span>
+        </button>
+        <button class="snav-btn" id="snav-activity" onclick="switchSection('activity')">
+          <span class="snav-icon"><i data-lucide="zap"></i></span>
+          <span class="snav-label">Activity</span>
         </button>
       </nav>
     </div>
@@ -980,6 +1001,26 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
         </div><!-- /page-scroll -->
       </div><!-- /section-settings -->
 
+      <!-- SECTION: ACTIVITY -->
+      <div class="section" id="section-activity">
+        <div class="page-hdr">
+          <div class="page-hdr-left">
+            <div class="page-title">Activity</div>
+            <div class="page-subtitle">Recent tool calls &amp; events</div>
+          </div>
+          <div class="page-hdr-actions">
+            <button class="action-btn" onclick="loadActivity()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Refresh</button>
+          </div>
+        </div>
+        <div class="page-scroll">
+          <div class="sys-card" style="padding:0;overflow:hidden">
+            <div id="activityContent">
+              <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Loading…</span></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /section-activity -->
+
     </div><!-- /content-area -->
   </div><!-- /main -->
 </div><!-- /app -->
@@ -1158,10 +1199,77 @@ function dismissUpdateBanner() {
   sessionStorage.setItem('updateBannerDismissed', '1');
 }
 
+const MOOD_ICONS = { curious: "💡", focused: "🎯", playful: "😊", calm: "🌿", reflective: "🤔" };
+let _currentMood = "calm";
+
+async function loadMood() {
+  try {
+    const d = await (await fetch('/api/status')).json();
+    const mood = d.mood || "calm";
+    if (mood === _currentMood) return;
+    _currentMood = mood;
+    const badge = document.getElementById('moodBadge');
+    if (badge) badge.textContent = `${MOOD_ICONS[mood] || "·"} ${mood}`;
+    document.querySelectorAll('.msg.aion .msg-bubble').forEach(b => {
+      b.className = b.className.replace(/\bmood-\w+/g, '').trim();
+      b.classList.add(`mood-${mood}`);
+    });
+  } catch {}
+}
+
+async function loadActivity() {
+  const el = document.getElementById('activityContent');
+  if (!el) return;
+  try {
+    const d = await (await fetch('/api/activity?limit=60')).json();
+    const events = d.events || [];
+    // Build a map: tool_call id → {name, ts} so we can pair durations
+    const calls = {};
+    const rows = [];
+    for (const e of events) {
+      if (e.type === 'tool_call') {
+        calls[e.id || e.name] = { name: e.name, ts: e.timestamp };
+        rows.push({ ts: e.timestamp, tool: e.name, ok: null, dur: null, id: e.id || e.name });
+      } else if (e.type === 'tool_result') {
+        const key = e.id || e.name;
+        if (calls[key]) {
+          const dur = e.timestamp && calls[key].ts
+            ? ((new Date(e.timestamp) - new Date(calls[key].ts)) / 1000).toFixed(1) + 's'
+            : null;
+          // Update the matching row
+          const row = rows.find(r => r.id === key && r.ok === null);
+          if (row) { row.ok = e.ok !== false; row.dur = dur; }
+        }
+      } else if (e.type === 'turn_error') {
+        rows.push({ ts: e.timestamp, tool: '⚠ ' + (e.error || 'turn_error'), ok: false, dur: null, id: null });
+      }
+    }
+    if (!rows.length) {
+      el.innerHTML = '<div class="memory-empty"><span style="opacity:.4">No activity yet</span></div>';
+      return;
+    }
+    const fmtTime = ts => { try { return new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}); } catch { return ts || '–'; } };
+    let html = '<table class="activity-table"><thead><tr><th>Time</th><th>Tool</th><th>Status</th><th>Duration</th></tr></thead><tbody>';
+    for (const r of [...rows].reverse()) {
+      const status = r.ok === null ? '<span style="color:var(--text3)">…</span>' : r.ok ? '<span class="aev-ok">✓</span>' : '<span class="aev-err">✗</span>';
+      html += `<tr><td style="color:var(--text3);font-size:11px;white-space:nowrap">${fmtTime(r.ts)}</td><td class="aev-tool">${esc(r.tool)}</td><td>${status}</td><td class="aev-dur">${r.dur || '–'}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (err) {
+    el.innerHTML = `<div class="memory-empty"><span style="color:var(--red)">Error loading activity</span></div>`;
+  }
+}
+
 async function init() {
   try {
     const s = await (await fetch('/api/status')).json();
     syncModelSelects(s.model, document.getElementById('modelSelect'));
+    // Mood init
+    const mood = s.mood || "calm";
+    _currentMood = mood;
+    const badge = document.getElementById('moodBadge');
+    if (badge) badge.textContent = `${MOOD_ICONS[mood] || "·"} ${mood}`;
   } catch {}
   // Load history and channels in parallel instead of sequentially
   await Promise.all([loadHistory(), loadChannels()]);
@@ -1179,6 +1287,10 @@ async function init() {
   checkUpdateBanner();
   // Alle 6h erneut prüfen (bei offenem Browser-Tab)
   setInterval(checkUpdateBanner, 6 * 60 * 60 * 1000);
+  // Mood: poll every 30s
+  setInterval(loadMood, 30000);
+  // Activity auto-refresh every 5s when tab is active
+  setInterval(() => { if (currentSection === 'activity') loadActivity(); }, 5000);
 }
 init();
 
@@ -1209,6 +1321,7 @@ function loadCurrentSection() {
   if (currentSection === 'memory')   loadMemory();
   if (currentSection === 'keys')     { loadKeys(); initGoogleOAuth(); }
   if (currentSection === 'settings') { loadSettings(); loadPermissions(); }
+  if (currentSection === 'activity') loadActivity();
   // Re-initialize icons for newly visible static HTML elements
   if (window.lucide) lucide.createIcons();
 }
@@ -2185,7 +2298,7 @@ function appendAionBubble() {
   d.className='msg aion';
   const id='bubble-'+Date.now()+'-'+Math.random().toString(36).slice(2);
   d.innerHTML=`<div class="msg-label">AION</div>
-    <div class="msg-bubble streaming" id="${id}"></div>
+    <div class="msg-bubble streaming mood-${_currentMood}" id="${id}"></div>
     <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d); scrollChat();
   return document.getElementById(id);
@@ -2197,6 +2310,7 @@ function finalizeCurrentBubble() {
   if (currentBubble.dataset.raw) currentBubble.innerHTML = renderMd(currentBubble.dataset.raw);
   else { const w=currentBubble.closest('.msg'); if(w)w.remove(); }
   currentBubble = null;
+  loadMood();
 }
 
 function appendApprovalButtons() {
@@ -2230,7 +2344,7 @@ function appendHistoryAionMsg(text) {
   const m=document.getElementById('messages'), d=document.createElement('div');
   d.className='msg aion history';
   d.innerHTML=`<div class="msg-label">AION</div>
-    <div class="msg-bubble">${renderMd(text)}</div>
+    <div class="msg-bubble mood-${_currentMood}">${renderMd(text)}</div>
     <div class="msg-actions"><button class="copy-btn" onclick="copyMsg(this)">⎘ Kopieren</button></div>`;
   m.appendChild(d);
 }

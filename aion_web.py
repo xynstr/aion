@@ -264,12 +264,30 @@ async def reset():
 
 @app.get("/api/status")
 async def status():
+    cfg = _load_config()
     return JSONResponse({
         "model":            _aion_module.MODEL,
         "memory_entries":   len(memory._entries),
         "conversation_len": len(_session.messages),
         "character":        (_load_character() or "")[:500],
+        "mood":             cfg.get("current_mood", "calm"),
     })
+
+@app.get("/api/activity")
+async def get_activity(limit: int = 50):
+    log_path = AION_DIR / "aion_events.log"
+    if not log_path.is_file():
+        return JSONResponse({"events": []})
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    events = []
+    for line in lines[-(limit * 2):]:
+        try:
+            e = json.loads(line)
+            if e.get("type") in ("tool_call", "tool_result", "turn_error"):
+                events.append(e)
+        except Exception:
+            pass
+    return JSONResponse({"events": events[-limit:]})
 
 @app.post("/api/model")
 async def set_model(request: Request):
