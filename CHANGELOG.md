@@ -7,29 +7,44 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ## 1.2.1 — 2026-03-27
 
+### Breaking Changes
+- **`.env` removed** — all secrets now stored in the encrypted vault (`credentials/*.md.enc`,
+  Fernet/AES-128-CBC). `.env` is no longer created or read. Existing installations: run
+  `aion --setup` or enter keys in Settings → API Keys to migrate.
+
+### New Features
+- **Full Vault migration** — `onboarding.py` writes all API keys and tokens directly to the
+  encrypted vault; `load_dotenv` removed from `aion.py`, `aion_web.py`, `aion_cli.py`
+- **Vault startup injection** — `_vault_inject_all_sync()` loads all known keys from vault into
+  `os.environ` at startup (covers OpenAI, Gemini, DeepSeek, Grok, Anthropic, Telegram, Discord, Slack)
+- **POST /api/keys now vault-backed** — saving keys via Web UI writes to encrypted vault instead of `.env`
+- **Port + GitHub repo in config.json** — `AION_PORT` and `AION_GITHUB_REPO` migrated from `.env`
+  to `config.json`; `updater` plugin and web server read from config first
+
 ### Fixes
+- **Ollama model routing** — `_api_model_name()` strips `ollama/` prefix before API calls;
+  `_resolve_ollama_prefix()` auto-adds prefix for bare model names (fixes 404 errors)
+- **Ollama model selection** — selecting a model without `ollama/` prefix (e.g. `qwen3.5:2b`)
+  is now auto-corrected to `ollama/qwen3.5:2b` on save
+- **Startup wakeup** — reasoning flag extended to `gemini-2.5` models; token limit raised to 2000;
+  traceback logging added on error
+- **uvicorn log level** — read from `config.json["log_level"]` instead of hardcoded `"warning"`
+- **Ctrl+C visibility** — `[AION] Server wird beendet …` + `[AION] Beendet.` now printed on shutdown
 - **Gemini INVALID_ARGUMENT** — `_build_contents()` now drops text parts when a model turn
   contains `function_call` parts; post-processing guards against consecutive model turns and
   histories that start with a model turn
 - **Vault integration** — all credential-dependent plugins (Anthropic, Gemini, DeepSeek, Grok,
   Discord, Slack, Moltbook) now read API keys from the encrypted vault as fallback when env vars
-  are absent; `aion.py` injects OpenAI key from vault before the module-level client is created
-- **Ctrl+C** — launcher now calls `proc.kill()` immediately instead of `send_signal(CTRL_C_EVENT)`;
-  `finally` block ensures `[AION] Beendet.` is always printed
-- **CLI dotenv** — `aion_cli.py` loads `.env` at startup (was only loaded lazily via `/config`)
+  are absent
 - **task_routing default** — onboarding now sets `default` model to the user's chosen primary
   model instead of hardcoded `gemini-2.5-flash`
 - **Moltbook get_own_posts** — endpoint corrected from `/agents/me/posts` to `/me/posts`
-- **Ollama** — default URL changed from `localhost` to `127.0.0.1` to avoid IPv6 resolution
-  issues on Linux/macOS
+- **Ollama base URL** — changed from `localhost` to `127.0.0.1` to avoid IPv6 resolution issues
 
 ### Refactoring
-- `aion.py`: unused imports removed (`importlib.util`, `platform`), `import re` moved to top-level,
-  `datetime.now()` → `datetime.now(UTC)`, 7× inline `json.loads(CONFIG_FILE…)` replaced with
-  `_load_config()`, `_match_pattern()` helper extracted, `_build_record()` and
-  `_format_memory_entries()` helpers eliminate duplicated logic in `AionMemory`
-- `credentials.py`: removed unused `import aion` (circular import risk)
-- `onboarding.py`: `AION_GITHUB_REPO` now written to `.env`
+- `aion.py`: unused imports removed, `datetime.now()` → `datetime.now(UTC)`, helpers extracted
+- `credentials.py`: added `_vault_set_field_sync`, `_vault_inject_all_sync`, `_KNOWN_VAULT_KEYS`
+- Plugin hint messages updated: no longer reference `.env`, point to `credential_write` instead
 
 ---
 
