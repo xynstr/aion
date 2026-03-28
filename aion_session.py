@@ -14,6 +14,14 @@ from datetime import datetime, timezone
 
 UTC = timezone.utc
 
+# Desktop action tools that trigger an automatic screenshot for visual feedback.
+# Getter tools (desktop_screenshot, desktop_get_*) are intentionally excluded.
+_DESKTOP_ACTION_TOOLS: frozenset[str] = frozenset({
+    "desktop_click", "desktop_drag", "desktop_type",
+    "desktop_key_press", "desktop_hotkey", "desktop_scroll",
+    "desktop_move_mouse",
+})
+
 
 class AionSession:
     """Eine Konversations-Sitzung auf einem Kanal (web, telegram_<id>, discord_<id>, ...).
@@ -409,6 +417,26 @@ class AionSession:
                         })
 
                     messages.extend(tool_results)
+
+                    # Auto-screenshot after desktop actions — give the model visual feedback
+                    # so it can see what happened on screen before deciding the next step.
+                    if any(tc["name"] in _DESKTOP_ACTION_TOOLS for tc in tool_calls_acc.values()):
+                        try:
+                            ss_raw  = await _m._dispatch("desktop_screenshot", {"scale": 0.5})
+                            ss_data = json.loads(ss_raw)
+                            img_url = ss_data.get("image", "")
+                            if img_url:
+                                collected_images.append(img_url)
+                                messages.append({
+                                    "role": "user",
+                                    "content": [
+                                        {"type": "text",
+                                         "text": "[Auto-screenshot — current screen state after action:]"},
+                                        {"type": "image_url", "image_url": {"url": img_url}},
+                                    ],
+                                })
+                        except Exception:
+                            pass  # screenshot failure is non-fatal
 
                     # Approval ausstehend → äußeren Iterations-Loop ebenfalls verlassen
                     if _stop_for_approval:
