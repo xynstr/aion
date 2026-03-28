@@ -139,6 +139,7 @@ class AionSession:
         final_text        = ""
         collected_images: list[str] = []   # URLs aus image_search Tool-Aufrufen
         collected_audio:  list[dict] = []  # {path, format} aus audio_tts
+        _last_desktop_screenshot: str = ""  # latest auto-screenshot — only the last one is shown to user
         _client           = self._get_client()
 
         # Channel in ContextVar setzen — Token wird gespeichert für Reset nach dem Stream
@@ -418,20 +419,28 @@ class AionSession:
 
                     messages.extend(tool_results)
 
-                    # Auto-screenshot after desktop actions — give the model visual feedback
-                    # so it can see what happened on screen before deciding the next step.
+                    # Auto-screenshot after desktop actions — give the model visual feedback.
+                    # Only the LAST screenshot of the turn is forwarded to the user (Telegram etc.);
+                    # all intermediate ones are injected into the LLM context only.
                     if any(tc["name"] in _DESKTOP_ACTION_TOOLS for tc in tool_calls_acc.values()):
                         try:
-                            ss_raw  = await _m._dispatch("desktop_screenshot", {"scale": 0.5})
+                            _SS_SCALE = 0.5
+                            ss_raw  = await _m._dispatch("desktop_screenshot", {"scale": _SS_SCALE})
                             ss_data = json.loads(ss_raw)
                             img_url = ss_data.get("image", "")
                             if img_url:
-                                collected_images.append(img_url)
+                                _last_desktop_screenshot = img_url  # overwrite — only last shown to user
+                                _coord_factor = round(1.0 / _SS_SCALE)
                                 messages.append({
                                     "role": "user",
                                     "content": [
-                                        {"type": "text",
-                                         "text": "[Auto-screenshot — current screen state after action:]"},
+                                        {"type": "text", "text": (
+                                            f"[Auto-screenshot at {int(_SS_SCALE*100)}% scale "
+                                            f"({ss_data.get('width','?')}×{ss_data.get('height','?')}px). "
+                                            f"IMPORTANT: coordinates in this image are {_coord_factor}× smaller "
+                                            f"than real screen. To click at image position (x, y), "
+                                            f"use desktop_click(x=x*{_coord_factor}, y=y*{_coord_factor}).]"
+                                        )},
                                         {"type": "image_url", "image_url": {"url": img_url}},
                                     ],
                                 })
@@ -743,6 +752,10 @@ class AionSession:
                 _track(self._auto_reflect())
 
             # Response-Blöcke: Text + Bilder + Audio als strukturierte Liste
+            # Append the last auto-desktop-screenshot once (not every intermediate one).
+            if _last_desktop_screenshot:
+                collected_images.append(_last_desktop_screenshot)
+
             response_blocks: list[dict] = []
             if final_text:
                 response_blocks.append({"type": "text", "content": final_text})
