@@ -1652,8 +1652,18 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
         except Exception as e:
             return json.dumps({"error": str(e), "tool": name})
 
+    elif "." in name:
+        # Model used dot-notation (e.g. "desktop.hotkey") instead of underscore ("desktop_hotkey").
+        # Try two normalizations before giving up.
+        normalized = name.replace(".", "_")               # desktop.hotkey → desktop_hotkey
+        if normalized in _plugin_tools:
+            return await _dispatch(normalized, inputs, _bypass_retry=True)
+        suffix = name.split(".", 1)[1].replace(".", "_")  # core_tools.system_info → system_info
+        if suffix in _plugin_tools:
+            return await _dispatch(suffix, inputs, _bypass_retry=True)
+        return json.dumps({"error": f"Unknown tool: {name} (tried: {normalized}, {suffix})"})
     else:
-        return json.dumps({"error": f"Unbekanntes Tool: {name}"})
+        return json.dumps({"error": f"Unknown tool: {name}"})
 
 # ── Haupt-LLM-Loop ────────────────────────────────────────────────────────────
 
