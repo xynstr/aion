@@ -39,6 +39,7 @@ class AionSession:
         self.exchange_count: int  = int(_m._load_config().get("exchange_count", 0))
         self._client               = None  # lazy init, gebunden an Event-Loop des Erstellers
         self._last_response_blocks = []  # Letzte response_blocks (mit Bildern) für Bots wie Telegram
+        self._background_tasks: set = set()  # tracked so they can be cancelled on shutdown
         # Schedule startup compression check (once per process, in background)
         try:
             loop = asyncio.get_running_loop()
@@ -692,10 +693,15 @@ class AionSession:
                 _cfg_update("exchange_count", self.exchange_count)
             except Exception:
                 pass
+            def _track(coro):
+                t = asyncio.create_task(coro)
+                self._background_tasks.add(t)
+                t.add_done_callback(self._background_tasks.discard)
+                return t
             if self.exchange_count % 5 == 0:
-                asyncio.create_task(self._auto_character_update())
+                _track(self._auto_character_update())
             if self.exchange_count % 3 == 0:
-                asyncio.create_task(self._auto_reflect())
+                _track(self._auto_reflect())
 
             # Response-Blöcke: Text + Bilder + Audio als strukturierte Liste
             response_blocks: list[dict] = []

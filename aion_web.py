@@ -133,6 +133,14 @@ async def _lifespan(app: FastAPI):
 
     yield
 
+    # Shutdown: pending background tasks cancelln (vermeidet "Task destroyed" Warnings)
+    bg = getattr(_session, "_background_tasks", set())
+    for t in list(bg):
+        if not t.done():
+            t.cancel()
+    if bg:
+        await asyncio.gather(*list(bg), return_exceptions=True)
+
     # Shutdown: letzte Aktivzeit speichern
     try:
         from config_store import update as _cfg_update
