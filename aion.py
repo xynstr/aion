@@ -1143,6 +1143,28 @@ def _build_tool_schemas() -> list[dict]:
                 "parameters": {"type": "object", "properties": {}},
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_tools",
+                "description": (
+                    "Lists all currently registered tools including tier-2 tools that are not advertised by default. "
+                    "Use this to discover available capabilities before attempting a task. "
+                    "Returns tool names, tiers, and one-line descriptions. "
+                    "Call this first when unsure whether a capability exists."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "filter": {
+                            "type": "string",
+                            "description": "Optional keyword to filter tool names/descriptions (e.g. 'desktop', 'file', 'audio').",
+                        },
+                    },
+                    "required": [],
+                },
+            },
+        },
     ]
 
     existing_names = {t["function"]["name"] for t in builtins}
@@ -1630,6 +1652,25 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
             })
         except Exception as e:
             return json.dumps({"error": str(e)})
+
+    elif name == "list_tools":
+        kw = inputs.get("filter", "").lower()
+        # Built-in tool names (hardcoded in _build_tool_schemas)
+        _builtin_names = [
+            "file_read", "file_write", "self_read_code", "file_list", "file_replace_lines",
+            "memory_add", "memory_search", "read_self_doc", "set_thinking_level",
+            "set_channel_allowlist", "get_control_settings", "list_tools",
+        ]
+        entries = [{"name": n, "tier": 1, "description": "(built-in)"} for n in _builtin_names]
+        for t_name, t_meta in sorted(_plugin_tools.items()):
+            if t_name.startswith("__"):
+                continue
+            desc = t_meta.get("description", "")
+            first_line = desc.split("\n")[0][:100]
+            entries.append({"name": t_name, "tier": t_meta.get("tier", 1), "description": first_line})
+        if kw:
+            entries = [e for e in entries if kw in e["name"].lower() or kw in e["description"].lower()]
+        return json.dumps({"tools": entries, "count": len(entries)})
 
     elif name in _plugin_tools and not name.startswith("__"):
         try:
