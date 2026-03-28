@@ -100,11 +100,21 @@ async def _trigger_wakeup() -> None:
         print(f"[AION] Wakeup-Fehler: {_e}")
 
 
+def _exception_handler(loop, context):
+    """Suppress known benign SDK bugs, forward everything else."""
+    exc = context.get("exception")
+    # google-genai ≥1.67: aclose() called on sync-only client → _async_httpx_client never set
+    if isinstance(exc, AttributeError) and "_async_httpx_client" in str(exc):
+        return
+    loop.default_exception_handler(context)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Startup: Modell setzen + History aus vorheriger Sitzung laden."""
     global _session_lock
     _session_lock = asyncio.Lock()
+    asyncio.get_event_loop().set_exception_handler(_exception_handler)
     from datetime import datetime, timezone as _tz
     try:
         from config_store import update as _cfg_update
@@ -313,12 +323,17 @@ async def reset():
 @app.get("/api/status")
 async def status():
     cfg = _load_config()
+    try:
+        from plugins.mood_engine.mood_engine import compute_mood
+        mood = await compute_mood()
+    except Exception:
+        mood = cfg.get("current_mood", "calm")
     return JSONResponse({
         "model":            _aion_module.MODEL,
         "memory_entries":   len(memory._entries),
         "conversation_len": len(_session.messages),
         "character":        (_load_character() or "")[:500],
-        "mood":             cfg.get("current_mood", "calm"),
+        "mood":             mood,
     })
 
 @app.get("/api/activity")

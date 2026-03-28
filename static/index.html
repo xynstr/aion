@@ -729,7 +729,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           <div class="stat-grid">
             <div class="stat-card"><div class="stat-value" id="statPlugins">–</div><div class="stat-label">Plugins</div></div>
             <div class="stat-card"><div class="stat-value" id="statTools">–</div><div class="stat-label">Tools</div></div>
-            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Reminders</div></div>
+            <div class="stat-card"><div class="stat-value" id="statMemory">–</div><div class="stat-label">Memories</div></div>
             <div class="stat-card"><div class="stat-value" id="statExchanges">–</div><div class="stat-label">Conversations</div></div>
           </div>
 
@@ -1228,20 +1228,18 @@ async function loadActivity() {
     const rows = [];
     for (const e of events) {
       if (e.type === 'tool_call') {
-        calls[e.id || e.name] = { name: e.name, ts: e.timestamp };
-        rows.push({ ts: e.timestamp, tool: e.name, ok: null, dur: null, id: e.id || e.name });
+        calls[e.tool] = { ts: e.ts };
+        rows.push({ ts: e.ts, tool: e.tool, ok: null, dur: null, id: e.tool });
       } else if (e.type === 'tool_result') {
-        const key = e.id || e.name;
+        const key = e.tool;
         if (calls[key]) {
-          const dur = e.timestamp && calls[key].ts
-            ? ((new Date(e.timestamp) - new Date(calls[key].ts)) / 1000).toFixed(1) + 's'
-            : null;
+          const dur = e.duration != null ? Number(e.duration).toFixed(1) + 's' : null;
           // Update the matching row
           const row = rows.find(r => r.id === key && r.ok === null);
           if (row) { row.ok = e.ok !== false; row.dur = dur; }
         }
       } else if (e.type === 'turn_error') {
-        rows.push({ ts: e.timestamp, tool: '⚠ ' + (e.error || 'turn_error'), ok: false, dur: null, id: null });
+        rows.push({ ts: e.ts, tool: '⚠ ' + (e.error || 'turn_error'), ok: false, dur: null, id: null });
       }
     }
     if (!rows.length) {
@@ -3051,7 +3049,11 @@ function handleWakeup(ev) {
   if (!ev.text) return;
   // Kurze Verzögerung — fühlt sich an wie AION "tippt"
   setTimeout(() => {
-    appendAionBubble(ev.text);
+    const bubble = appendAionBubble();
+    bubble.dataset.raw = ev.text;
+    bubble.innerHTML = renderMd(ev.text);
+    bubble.classList.remove('streaming');
+    scrollChat();
     // Auch im Tab-Titel anzeigen wenn nicht im Fokus
     if (document.hidden) {
       document.title = '💬 AION meldet sich…';
