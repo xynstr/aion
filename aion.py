@@ -1776,6 +1776,14 @@ Reagiere auf die konkrete Situation:
             thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + thought + "\n", encoding="utf-8")
             print("[AION] Wakeup-Gedanke in thoughts.md geschrieben.")
 
+        # Nachricht in config.json speichern → zuverlässige Auslieferung auch bei SSE-Race
+        if message:
+            try:
+                from config_store import update as _cfg_upd
+                _cfg_upd("pending_wakeup_message", message)
+            except Exception:
+                pass
+
         # Nachricht via SSE an Web UI
         if message and push_queue is not None:
             await push_queue.put({"type": "wakeup", "text": message})

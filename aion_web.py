@@ -334,7 +334,18 @@ async def status():
         "conversation_len": len(_session.messages),
         "character":        (_load_character() or "")[:500],
         "mood":             mood,
+        "pending_wakeup":   cfg.get("pending_wakeup_message", ""),
     })
+
+@app.post("/api/wakeup-ack")
+async def wakeup_ack():
+    """Browser calls this after showing the wakeup message to clear it from config."""
+    try:
+        from config_store import update as _cfg_upd
+        _cfg_upd("pending_wakeup_message", "")
+    except Exception:
+        pass
+    return JSONResponse({"ok": True})
 
 @app.get("/api/activity")
 async def get_activity(limit: int = 50):

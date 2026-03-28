@@ -414,14 +414,20 @@ def _main():
         _open_browser_delayed()
         proc = subprocess.Popen([python, str(AION_DIR / "aion_web.py")])
         try:
-            proc.wait()
+            # On Windows, proc.wait() blocks KeyboardInterrupt (WaitForSingleObject
+            # does not get interrupted). Poll with short timeout so Ctrl+C is handled.
+            while proc.poll() is None:
+                try:
+                    proc.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    pass
         except KeyboardInterrupt:
             sys.stderr.write("\n[AION] Server wird beendet …\n")
             sys.stderr.flush()
             if proc.poll() is None:
                 proc.kill()
                 try:
-                    proc.wait(timeout=2)
+                    proc.wait(timeout=3)
                 except subprocess.TimeoutExpired:
                     pass
         finally:

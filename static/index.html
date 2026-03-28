@@ -1128,8 +1128,20 @@ async function loadHistory(channel) {
       return;
     }
     for (const msg of data.messages) {
-      if (msg.role === 'user') appendUserMsg(msg.content);
-      else if (msg.role === 'assistant' && msg.content.trim()) appendHistoryAionMsg(msg.content);
+      if (msg.role === 'user') {
+        if (Array.isArray(msg.content)) {
+          // Multimodal message (text + images)
+          const textPart = msg.content.find(p => p.type === 'text')?.text || '';
+          if (textPart) appendUserMsg(textPart);
+          for (const p of msg.content) {
+            if (p.type === 'image_url' && p.image_url?.url) appendImageBlock(p.image_url.url);
+          }
+        } else if (typeof msg.content === 'string' && msg.content) {
+          appendUserMsg(msg.content);
+        }
+      } else if (msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.trim()) {
+        appendHistoryAionMsg(msg.content);
+      }
     }
     scrollChat();
   } catch {}
@@ -1268,6 +1280,13 @@ async function init() {
     _currentMood = mood;
     const badge = document.getElementById('moodBadge');
     if (badge) badge.textContent = `${MOOD_ICONS[mood] || "·"} ${mood}`;
+    // Pending wakeup message (persisted in config.json — reliable even after SSE race)
+    if (s.pending_wakeup) {
+      setTimeout(() => {
+        handleWakeup({ text: s.pending_wakeup });
+        fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
+      }, 1200);
+    }
   } catch {}
   // Load history and channels in parallel instead of sequentially
   await Promise.all([loadHistory(), loadChannels()]);
