@@ -208,9 +208,9 @@ def send_telegram_message(message: str = "", **_) -> dict:
     token = _get_token()
     cid   = _get_chat_id()
     if not token:
-        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN nicht gesetzt."}
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not set."}
     if not cid:
-        return {"ok": False, "error": "Keine Chat-ID bekannt. Sende /start an den Bot."}
+        return {"ok": False, "error": "No chat ID known. Send /start to the bot."}
     try:
         import httpx
         with httpx.Client(timeout=10) as http:
@@ -517,13 +517,13 @@ async def _telegram_worker(token: str):
                             _save_cfg_key("telegram_allowed_ids", [str(chat_id)])
                             await _send(chat_id,
                                 "AION Telegram-Bot aktiviert!\n"
-                                f"Chat-ID: {chat_id} (als Erstnutzer registriert)\n"
-                                "Schreib mir einfach — du kannst auch Bilder und Sprachnachrichten senden!")
+                                f"Chat-ID: {chat_id} (registered as first user)\n"
+                                "Just write me a message — you can also send images and voice messages!")
                         else:
                             await _send(chat_id,
                                 "AION Telegram-Bot aktiviert!\n"
                                 f"Chat-ID: {chat_id}\n"
-                                "Schreib mir einfach — du kannst auch Bilder und Sprachnachrichten senden!")
+                                "Just write me a message — you can also send images and voice messages!")
                         continue
 
                     # Session pro User
@@ -837,6 +837,6 @@ def register(api):
         _start_polling(token)
         allowed = _load_cfg().get("telegram_allowed_ids", [])
         allowed_info = f"{len(allowed)} whitelisted" if allowed else "onboarding mode (all allowed)"
-        print(f"[Plugin] telegram_bot geladen — Chat-ID: {_get_chat_id() or 'unbekannt'} | {allowed_info}")
+        print(f"[Plugin] telegram_bot loaded — chat ID: {_get_chat_id() or 'unknown'} | {allowed_info}")
     else:
-        print("[Plugin] telegram_bot: TELEGRAM_BOT_TOKEN fehlt — Polling deaktiviert.")
+        print("[Plugin] telegram_bot: TELEGRAM_BOT_TOKEN missing — polling disabled.")

@@ -251,4 +251,4 @@ def register(api):
             },
         },
     )
-    print("[Plugin] paperless loaded — Vault-Dienst: 'paperless'")
+    print("[Plugin] paperless loaded — vault service: 'paperless'")

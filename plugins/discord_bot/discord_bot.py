@@ -359,7 +359,7 @@ def register(api):
             pass
 
     if not token:
-        print("[discord_bot] DISCORD_BOT_TOKEN nicht gesetzt — Plugin deaktiviert.")
+        print("[discord_bot] DISCORD_BOT_TOKEN not set — plugin disabled.")
         print("  → credential_write('discord', '- DISCORD_BOT_TOKEN: ...')")
         return
 

@@ -882,20 +882,20 @@ def _normalize_schema(schema) -> dict:
 # Plugin-Loader einbinden
 _startup_t0 = time.monotonic()
 if HAS_RICH:
-    console.print("[dim]  ⟳  Lade Plugins…[/dim]")
+    console.print("[dim]  ⟳  Loading plugins…[/dim]")
 else:
-    print("  ⟳  Lade Plugins…", flush=True)
+    print("  ⟳  Loading plugins…", flush=True)
 try:
     from plugin_loader import load_plugins
     load_plugins(_plugin_tools)
     _n_tools = len([k for k in _plugin_tools if not k.startswith("__")])
     _elapsed = round(time.monotonic() - _startup_t0, 2)
     if HAS_RICH:
-        console.print(f"[dim green]  ✓  {_n_tools} Tools geladen ({_elapsed}s)[/dim green]")
+        console.print(f"[dim green]  ✓  {_n_tools} tools loaded ({_elapsed}s)[/dim green]")
     else:
-        print(f"  ✓  {_n_tools} Tools geladen ({_elapsed}s)", flush=True)
+        print(f"  ✓  {_n_tools} tools loaded ({_elapsed}s)", flush=True)
 except Exception as exc:
-    print(f"[WARN] Plugin-System konnte nicht geladen werden: {exc}")
+    print(f"[WARN] Plugin system failed to load: {exc}")
 
 # ── Tool-Definitionen ─────────────────────────────────────────────────────────
 
@@ -1553,7 +1553,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
             from plugin_loader import load_plugins
             load_plugins(_plugin_tools)
             loaded = list(_plugin_tools.keys())
-            print(f"[AION] Hot-Reload: {len(loaded)} Tools geladen.")
+            print(f"[AION] Hot-reload: {len(loaded)} tools loaded.")
             return json.dumps({
                 "ok": True,
                 "mode": "hot_reload",
@@ -1828,21 +1828,21 @@ async def run():
 
     # Konfiguration
     cfg = _load_config()
-    _boot_lines.append(("Konfiguration", f"Modell: {MODEL}"))
+    _boot_lines.append(("Configuration", f"Model: {MODEL}"))
 
-    # Charakter
+    # Character
     _load_character()
-    _boot_lines.append(("Charakter", CHARACTER_FILE.name if CHARACTER_FILE.is_file() else "default"))
+    _boot_lines.append(("Character", CHARACTER_FILE.name if CHARACTER_FILE.is_file() else "default"))
 
     # Memory
-    _boot_lines.append(("Speicher", f"{len(memory._entries)} Einträge"))
+    _boot_lines.append(("Memory", f"{len(memory._entries)} entries"))
 
     # Tools
     _n_tools_run = len([k for k in _plugin_tools if not k.startswith("__")])
     startup_info = await _dispatch("system_info", {})
     startup_data = json.loads(startup_info)
     all_tools = startup_data.get("all_tools", [])
-    _boot_lines.append(("Plugins", f"{_n_tools_run} Tools aktiv"))
+    _boot_lines.append(("Plugins", f"{_n_tools_run} tools active"))
 
     # History laden
     _hist_count = 0
@@ -1854,7 +1854,7 @@ async def run():
             _hist_count = len(_conversations["default"])
     except Exception:
         pass
-    _boot_lines.append(("History", f"{_hist_count} Nachrichten" if _hist_count else "leer"))
+    _boot_lines.append(("History", f"{_hist_count} messages" if _hist_count else "empty"))
 
     # ── Anzeige ───────────────────────────────────────────────────────────────
     if HAS_RICH:

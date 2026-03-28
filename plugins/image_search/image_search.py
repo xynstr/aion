@@ -93,4 +93,4 @@ def register(api):
             "required": ["query"],
         },
     )
-    print("[Plugin] image_search geladen — Openverse (primär) + Bing/Playwright (Fallback).")
+    print("[Plugin] image_search loaded — Openverse (primary) + Bing/Playwright (fallback).")

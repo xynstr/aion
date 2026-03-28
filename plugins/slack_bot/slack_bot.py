@@ -235,11 +235,11 @@ def register(api):
             pass
 
     if not bot_token:
-        print("[slack_bot] SLACK_BOT_TOKEN nicht gesetzt — Plugin deaktiviert.")
+        print("[slack_bot] SLACK_BOT_TOKEN not set — plugin disabled.")
         print("  → credential_write('slack', '- SLACK_BOT_TOKEN: xoxb-...')")
         return
     if not app_token:
-        print("[slack_bot] SLACK_APP_TOKEN nicht gesetzt — Plugin deaktiviert.")
+        print("[slack_bot] SLACK_APP_TOKEN not set — plugin disabled.")
         print("  → credential_write('slack', '- SLACK_APP_TOKEN: xapp-...')")
         return
 

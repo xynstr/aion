@@ -126,7 +126,7 @@ async def _lifespan(app: FastAPI):
     _aion_module.MODEL = m
     if hasattr(_aion_module, "_build_client"):
         _aion_module.client = _aion_module._build_client(m)
-    print(f"[AION] Startup-Modell: {m}")
+    print(f"[AION] Startup model: {m}")
     await _session.load_history(num_entries=20, channel_filter="web")
 
     asyncio.create_task(_trigger_wakeup())
@@ -1493,11 +1493,11 @@ if __name__ == "__main__":
         print("[AION] Alternativ: 'aion --setup' ausführen.")
     _port = int(_load_config().get("port", os.environ.get("AION_PORT", 7000)))
     _host = os.environ.get("AION_HOST", "127.0.0.1")
-    print(f"Starte AION Web UI auf http://{_host}:{_port}")
-    print(f"Modell: {_aion_module.MODEL}")
+    print(f"Starting AION Web UI at http://{_host}:{_port}")
+    print(f"Model: {_aion_module.MODEL}")
     if _host != "127.0.0.1":
-        print(f"Hinweis: Server erreichbar im Netzwerk (AION_HOST={_host}) — kein Passwortschutz aktiv.")
-    print("Beenden: Strg+C\n")
+        print(f"Note: server reachable on network (AION_HOST={_host}) — no password protection active.")
+    print("Quit: Ctrl+C\n")
 
     import logging as _logging
 

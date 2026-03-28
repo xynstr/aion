@@ -68,11 +68,11 @@ class AionSession:
             result = json.loads(raw)
             if result.get("ok") and result.get("entries"):
                 self.messages = result["entries"]
-                print(f"[AION:{self.channel}] {len(self.messages)} Nachrichten aus History geladen.")
+                print(f"[AION:{self.channel}] {len(self.messages)} messages loaded from history.")
             else:
-                print(f"[AION:{self.channel}] Noch keine frühere Konversationshistorie.")
+                print(f"[AION:{self.channel}] No previous conversation history.")
         except Exception as e:
-            print(f"[AION:{self.channel}] History-Load Fehler: {e}")
+            print(f"[AION:{self.channel}] History load error: {e}")
 
     async def stream(self, user_input: str, images: list | None = None, cancel_event: "asyncio.Event | None" = None):
         """Async-Generator: liefert Event-Dicts für jeden Verarbeitungsschritt.

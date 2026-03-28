@@ -380,7 +380,7 @@ def register(api):
     _running = True
     _thread  = threading.Thread(target=_scheduler_loop, daemon=True, name="aion-scheduler")
     _thread.start()
-    print("[Plugin] scheduler geladen — Uhrzeit + Intervall-Modus aktiv (Prüfintervall: 5s)")
+    print("[Plugin] scheduler loaded — time + interval mode active (check interval: 5s)")
     _register_tools(api)
 
 

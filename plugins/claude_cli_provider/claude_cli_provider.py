@@ -388,13 +388,13 @@ def register(api):
         input_schema={"type": "object", "properties": {}, "required": []},
     )
 
-    print("[claude_cli_provider] ask_claude, claude_cli_login, claude_cli_status, get/set_task_routing geladen.")
+    print("[claude_cli_provider] ask_claude, claude_cli_login, claude_cli_status, get/set_task_routing loaded.")
 
     # Startup-Check
     claude_bin = _find_claude()
     if claude_bin:
         authed = _claude_authenticated()
-        status = "angemeldet" if authed else "NICHT angemeldet (claude_cli_login aufrufen)"
+        status = "logged in" if authed else "NOT logged in (call claude_cli_login)"
         print(f"[claude_cli_provider] claude CLI: {claude_bin} — {status}")
     else:
-        print("[claude_cli_provider] claude CLI nicht gefunden — claude_cli_login() zum Einrichten aufrufen.")
+        print("[claude_cli_provider] claude CLI not found — call claude_cli_login() to set up.")

@@ -106,7 +106,7 @@ def register(api):
 
     t = threading.Thread(target=_heartbeat_loop, daemon=True, name="aion-heartbeat")
     t.start()
-    print(f"[Plugin] heartbeat geladen — Takt: {_INTERVAL_S}s | Todo-Check: alle {_TODO_CHECK_MIN}min")
+    print(f"[Plugin] heartbeat loaded — interval: {_INTERVAL_S}s | todo-check: every {_TODO_CHECK_MIN}min")
     _register_tools(api)
 
 

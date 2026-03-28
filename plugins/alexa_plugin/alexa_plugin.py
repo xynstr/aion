@@ -79,4 +79,4 @@ async def handle_alexa_request(request: Request):
 
 def register(api):
     api.register_router(router, tags=["alexa"])
-    logger.info("Alexa Plugin geladen — Endpunkt: POST /api/alexa")
+    logger.info("Alexa plugin loaded — endpoint: POST /api/alexa")

@@ -197,7 +197,7 @@ def _notify_all_channels():
 def _check_once():
     """Führt einen einmaligen Update-Check durch und aktualisiert _update_state."""
     if not _GITHUB_REPO:
-        _update_state["error"] = "AION_GITHUB_REPO nicht gesetzt — Update-Check deaktiviert."
+        _update_state["error"] = "AION_GITHUB_REPO not set — update check disabled."
         return
 
     data = _fetch_latest_release()
@@ -226,7 +226,7 @@ def _check_once():
         _notify_all_channels()
     else:
         _update_state["update_available"] = False
-        print(f"[Updater] Kein Update. Aktuelle Version {current} ist aktuell.", flush=True)
+        print(f"[Updater] No update. Current version {current} is up to date.", flush=True)
 
 
 def _updater_loop():
@@ -280,10 +280,10 @@ def register(api):
     t = threading.Thread(target=_updater_loop, daemon=True, name="aion-updater")
     t.start()
 
-    repo_info = f"Repo: {_GITHUB_REPO}" if _GITHUB_REPO else "AION_GITHUB_REPO nicht gesetzt"
+    repo_info = f"Repo: {_GITHUB_REPO}" if _GITHUB_REPO else "AION_GITHUB_REPO not set"
     print(
-        f"[Plugin] updater geladen — {repo_info}"
-        f" | Check alle {_CHECK_INTERVAL_H}h (erster Check in {_FIRST_CHECK_DELAY}s)",
+        f"[Plugin] updater loaded — {repo_info}"
+        f" | check every {_CHECK_INTERVAL_H}h (first check in {_FIRST_CHECK_DELAY}s)",
         flush=True,
     )
 
