@@ -18,7 +18,7 @@ DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
 # advertised in every system prompt.
 # Individual plugins can still override by passing tier= to register_tool().
 _TIER2_PLUGINS: frozenset[str] = frozenset({
-    "playwright_browser", "telegram_bot", "discord_bot",
+    "desktop", "playwright_browser", "telegram_bot", "discord_bot",
     "slack_bot", "multi_agent", "audio_pipeline", "audio_transcriber",
     "alexa_plugin", "image_search", "moltbook", "docx_tool",
     "mood_engine", "proactive", "mcp_client", "paperless",

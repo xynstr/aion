@@ -899,7 +899,11 @@ except Exception as exc:
 
 # ── Tool-Definitionen ─────────────────────────────────────────────────────────
 
-def _build_tool_schemas() -> list[dict]:
+def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
+    """Build the tools list for the LLM API call.
+
+    tier_threshold: 0 = use config value (default), 1 = tier-1 only, 2 = include tier-2.
+    """
     builtins = [
         {
             "type": "function",
@@ -1170,8 +1174,8 @@ def _build_tool_schemas() -> list[dict]:
     existing_names = {t["function"]["name"] for t in builtins}
 
     # Tier threshold: 1 = always (default), 2 = include contextual tools too.
-    # Configurable via config.json["tool_tier"] (default 1).
-    _tier_threshold = int(_load_config().get("tool_tier", 1))
+    # Caller can override via tier_threshold parameter; 0 = use config value.
+    _tier_threshold = tier_threshold if tier_threshold > 0 else int(_load_config().get("tool_tier", 1))
 
     for name, tool in _plugin_tools.items():
         if name.startswith("__"):  # interne Metadaten (z.B. __plugin_readme_*) überspringen

@@ -165,7 +165,9 @@ class AionSession:
             _fallback_list = _m._get_fallback_models(_m.MODEL)
             # Tool-Schemas einmalig pro Turn bauen — NICHT in jeder Iteration!
             # Spart 10K-25K Input-Tokens × (Anzahl Iterationen - 1) pro Turn.
+            # Tier-2 tools are excluded initially; escalated automatically on first "Unknown tool" error.
             tools = _m._build_tool_schemas()
+            _tier2_unlocked = False  # escalate to tier-2 on first unknown-tool error
             # Günstigstes Modell für interne Checks (Completion-Check, Task-Check).
             # Spart bis zu 30× Kosten pro Check (z.B. gpt-4.1-mini statt gpt-4.1).
             _check_model  = _m._get_check_model()
@@ -317,6 +319,15 @@ class AionSession:
                             result_data = {"raw": str(result_data)}
 
                         ok = "error" not in result_data
+                        # Auto-escalate to tier-2 tools on first "Unknown tool" error.
+                        # The model tried a tool not in its current schema — unlock tier-2
+                        # so the next LLM iteration can see and call the right tool.
+                        if not ok and not _tier2_unlocked:
+                            err_msg = result_data.get("error", "")
+                            if "Unknown tool" in err_msg or "Unbekanntes Tool" in err_msg:
+                                _tier2_unlocked = True
+                                tools = _m._build_tool_schemas(tier_threshold=2)
+
                         # Base64-Bilddaten aus Frontend-Event kürzen (werden als response_blocks gesendet)
                         display_result = {
                             k: (f"[base64 image, {len(v)} chars — wird als Bild angezeigt]"
