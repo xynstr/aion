@@ -736,8 +736,9 @@ AION/
 │                                    | 🔌 Plugins | 🧠 Memory | ⊞ System
 │                                  → Thoughts/tool calls inline as accordions in chat
 ├── plugins/
-│   ├── core_tools/              # continue_work, read_self_doc, system_info, memory_record
-│   ├── reflection/              # reflect (inner monologue → thoughts.md)
+│   ├── core_tools/              # continue_work, read_self_doc, read_plugin_doc, system_info, memory_record
+│   ├── focus_manager/           # focus_set/get/clear (persistent task focus, injected every turn)
+│   ├── reflection/              # reflect (inner monologue → thoughts.md, near-duplicate protection)
 │   ├── character_manager/       # update_character (update character.md)
 │   ├── shell_tools/             # shell_exec, winget_install, install_package
 │   ├── web_tools/               # web_search, web_fetch
@@ -874,7 +875,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]
 memory = AionMemory(MEMORY_FILE, VECTORS_FILE, max_entries=300)
 ```
 - `memory.record(category, summary, lesson, success, error, hint)` — write insight
-- `memory.get_context_semantic(query, max_entries=5)` → RAG search via Ollama embeddings
+- `memory.get_context_semantic(query, max_entries=3)` → RAG search via Ollama embeddings (top 3 injected per turn)
 - `memory.get_context(query, max_entries=8)` → keyword fallback
 - Embeddings cached in `aion_memory_vectors.json`, threshold cosine > 0.35
 
@@ -886,15 +887,26 @@ memory = AionMemory(MEMORY_FILE, VECTORS_FILE, max_entries=300)
 | Tool | Parameters | Description |
 |------|-----------|-------------|
 | `continue_work` | `next_step: str` | Signals continued work without waiting for the user. Use after EVERY tool result when more steps follow. |
-| `read_self_doc` | — | Reads AION_SELF.md — the technical self-documentation. |
+| `read_self_doc` | `full: bool` | Reads AION_SELF.md — the technical self-documentation. Default: compressed summary. |
+| `read_plugin_doc` | `plugin: str` | Read the full README for a plugin. Call without args to list all documented plugins. |
 | `system_info` | — | Platform, Python version, loaded tools, model, character_file. |
 | `memory_record` | `category: str`, `summary: str`, `lesson: str`, `success: bool` | Write an insight to memory. Categories: `capability`, `user_preference`, `self_improvement`, `tool_failure`, `conversation`. |
 
 ### Reflection & Character
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `reflect` | `thought: str`, `trigger: str` | Write inner thoughts → `thoughts.md`. Trigger: `user_message`, `task_completed`, `error`, `insight`. |
+| `reflect` | `thought: str`, `trigger: str` | Write inner thoughts → `thoughts.md`. AFTER experiences only — not for plans. Near-duplicates (>55% word overlap) are auto-skipped. Triggers: `general`, `error`, `insight`, `user_observation`, `task_completed`, `uncertainty`. |
 | `update_character` | `section: str`, `content: str`, `reason: str` | Updates `character.md`. Sections: `user`, `insights`, `improvements`, `presence`, `humor`, `quirks`, `personality`. USE OFTEN! |
+
+### Focus Manager (`focus_manager.py`)
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `focus_set` | `task: str` | Set the current task focus. Injected into every turn's system prompt until cleared. |
+| `focus_get` | — | Read the currently active focus. |
+| `focus_clear` | — | Clear the focus when the task is fully done. |
+
+> **focus_manager** prevents topic drift on multi-step tasks. The active focus is stored in
+> `plugins/focus_manager/focus_state.json` and re-injected every turn via `aion_session.py`.
 
 ### Shell & System (`shell_tools.py`)
 | Tool | Parameters | Description |

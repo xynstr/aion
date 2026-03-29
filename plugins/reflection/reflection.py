@@ -56,19 +56,10 @@ def register(api):
     api.register_tool(
         name="reflect",
         description=(
-            "Write genuine inner thoughts — what you actually feel, notice, or learn from an experience. "
-            "Saved to thoughts.md with timestamp. Directly visible in the user's thoughts panel.\n\n"
-            "USE for:\n"
-            "- Emotional reactions (frustration, satisfaction, curiosity, surprise)\n"
-            "- Observations about yourself: patterns, tendencies, how you handled something\n"
-            "- Observations about the user: style, preferences, what matters to them\n"
-            "- Insights AFTER completing a task or making a mistake\n"
-            "- Open questions that stay with you\n\n"
-            "DO NOT USE for:\n"
-            "- 'I will now do X' → that is a plan, not a thought\n"
-            "- 'The user wants X' → that is a description, not a reflection\n"
-            "- Pre-task announcements of any kind\n\n"
-            "Trigger: AFTER experiences, not before actions. Near-duplicate entries are auto-skipped."
+            "Write a genuine inner thought — a feeling, observation, or insight AFTER an experience. "
+            "Saved to thoughts.md, visible in the thoughts panel. Near-duplicates are auto-skipped. "
+            "NOT for plans ('I will do X') or descriptions ('user wants X'). "
+            "Full usage guide: read_plugin_doc('reflection')"
         ),
         func=_reflect,
         input_schema={

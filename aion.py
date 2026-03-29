@@ -630,7 +630,7 @@ def _build_system_prompt(channel: str = "") -> str:
         "\n\n=== GELADENE PLUGINS ===\n"
         "These plugins are active and their tools are available to you:\n"
         + "\n".join(plugin_lines)
-        + "\nFor details on a plugin: `file_read` on `plugins/{name}/README.md`."
+        + "\nFor full plugin docs: `read_plugin_doc(plugin_name)` — or call without args to list all."
     ) if plugin_lines else ""
 
     # Changelog: opt-in via config (default off — saves ~150 tokens/turn)

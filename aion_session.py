@@ -105,7 +105,7 @@ class AionSession:
             yield {"type": "error", "message": msg}
             return
 
-        mem_ctx      = await _m.memory.get_context_semantic(user_input)
+        mem_ctx      = await _m.memory.get_context_semantic(user_input, max_entries=3)
         thoughts_ctx = _m._get_recent_thoughts(5)
         sys_prompt   = _m._build_system_prompt(self.channel)  # Channel-spezifisches Thinking-Prompt
         effective    = (

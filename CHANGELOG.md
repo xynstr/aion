@@ -5,6 +5,34 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 1.3.0 — 2026-03-29
+
+### New Features
+- **`read_plugin_doc` tool** — new built-in in `core_tools`. Call `read_plugin_doc("plugin_name")`
+  to read a plugin's full README on demand. Call without args to list all documented plugins.
+  Replaces the manual `file_read("plugins/{name}/README.md")` pattern. System prompt updated.
+- **focus_manager plugin** — `focus_set`, `focus_get`, `focus_clear`. Stores the current task
+  focus in `plugins/focus_manager/focus_state.json` and injects it into every turn's system
+  prompt. Prevents topic drift on multi-step tasks. Now also has a README.
+- **focus_manager README** — `plugins/focus_manager/README.md` created (was the only plugin
+  without documentation).
+
+### Improvements
+- **Reflection quality** — `reflect` tool description rewritten to prevent planning-note spam.
+  The tool is now clearly for post-experience insights only. "I will now do X" is explicitly
+  forbidden. Near-duplicate protection added (>55% word overlap → entry skipped).
+- **Auto-reflect duplicate prevention** — `_auto_reflect()` in `aion_session.py` now checks
+  for near-duplicate content before appending to `thoughts.md`. Prevents the same thought
+  being recorded multiple times across consecutive sessions.
+- **Memory injection reduced** — `get_context_semantic` called with `max_entries=3` (was 5).
+  The top-3 entries are the relevant ones; entries 4-5 had low similarity scores and added noise.
+- **reflection README updated** — trigger types updated to English (`general`, `error`,
+  `insight`, `user_observation`, `task_completed`, `uncertainty`), full usage guide added.
+- **rules.md** — new `MEMORY RECORDING` section with explicit guidance on when to call
+  `memory_record` for insights that should survive across sessions.
+- **AION_SELF.md** — updated: focus_manager documented, reflect behavior updated,
+  read_plugin_doc added to tool table, memory max_entries corrected to 3.
+
 ## 1.2.1 — 2026-03-27
 
 ### Breaking Changes

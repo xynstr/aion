@@ -203,6 +203,46 @@ def register(api):
         input_schema={"type": "object", "properties": {}},
     )
 
+    def _read_plugin_doc(plugin: str = "", **_):
+        """Return the README.md for a given plugin, or list available plugins."""
+        if not plugin:
+            plugins_dir = BOT_DIR / "plugins"
+            available = sorted(
+                d.name for d in plugins_dir.iterdir()
+                if d.is_dir() and (d / "README.md").is_file()
+            )
+            return json.dumps({"error": "No plugin name given.", "available": available})
+        readme = BOT_DIR / "plugins" / plugin / "README.md"
+        if not readme.is_file():
+            # Suggest close matches
+            plugins_dir = BOT_DIR / "plugins"
+            available = sorted(
+                d.name for d in plugins_dir.iterdir()
+                if d.is_dir() and (d / "README.md").is_file()
+            )
+            return json.dumps({"error": f"No README found for plugin '{plugin}'.",
+                               "available": available})
+        return readme.read_text(encoding="utf-8")
+
+    api.register_tool(
+        name="read_plugin_doc",
+        description=(
+            "Read the full README for a plugin. Use when you need to understand "
+            "a plugin's tools, parameters, or behavior in detail. "
+            "Call without arguments to list all plugins that have documentation."
+        ),
+        func=_read_plugin_doc,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "plugin": {
+                    "type": "string",
+                    "description": "Plugin folder name, e.g. 'reflection', 'desktop', 'web_tools'.",
+                },
+            },
+        },
+    )
+
     api.register_tool(
         name="memory_record",
         description="Speichert eine Erkenntnis im persistenten Memory.",
