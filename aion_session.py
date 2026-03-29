@@ -456,12 +456,27 @@ class AionSession:
                         break
 
                 else:
+                    # Sanitize before using: strip echoed [System] injections and
+                    # system-prompt leakage (LLM sometimes echoes its own instructions).
+                    _SYSTEM_ECHO_PREFIXES = ("[System]", "[Auto-screenshot")
+                    _stripped = text_content.strip()
+                    if any(_stripped.startswith(p) for p in _SYSTEM_ECHO_PREFIXES):
+                        # Entire response is a system echo — treat as empty so retry kicks in
+                        text_content = ""
+                    else:
+                        # Strip any [System] / [Auto-screenshot] lines mid-response
+                        _lines = text_content.split("\n")
+                        _clean = [l for l in _lines
+                                  if not l.strip().startswith("[System]")
+                                  and not l.strip().startswith("[Auto-screenshot")]
+                        text_content = "\n".join(_clean).strip()
+
                     final_text = text_content
                     messages.append({"role": "assistant", "content": final_text})
 
-                    # ── Leere Antwort: Gemini hat weder Text noch Tool-Calls geliefert ──
-                    # Passiert z.B. wenn Gemini einen Request still blockiert (SAFETY o.ä.)
-                    # → Retry mit expliziter Aufforderung (max 2 Mal)
+                    # ── Empty response: LLM returned neither text nor tool calls ──
+                    # Happens e.g. when Gemini silently blocks a request (SAFETY etc.)
+                    # → Retry with explicit prompt (max 2 times)
                     if not final_text:
                         _empty_resp_streak += 1
                         _m._log_event("empty_response", {
@@ -471,14 +486,14 @@ class AionSession:
                         })
                         if _empty_resp_streak <= 2:
                             yield {"type": "thought",
-                                   "text": f"Leere LLM-Antwort ({_empty_resp_streak}/2) bei Iteration {_iter} — Retry",
+                                   "text": f"Empty LLM response ({_empty_resp_streak}/2) at iteration {_iter} — retrying",
                                    "trigger": "empty-response", "call_id": "retry"}
                             messages.append({
                                 "role": "user",
                                 "content": (
-                                    "[System] Deine letzte Antwort war leer. "
-                                    "Bitte antworte jetzt direkt auf die Nutzer-Anfrage — "
-                                    "entweder mit Text oder mit einem Tool-Call."
+                                    "[System] Your last response was empty. "
+                                    "Please respond to the user's request now — "
+                                    "either with text or with a tool call."
                                 ),
                             })
                             continue
