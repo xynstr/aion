@@ -218,7 +218,7 @@ class AionSession:
                             **_m._max_tokens_param(_fb_model, 4096),
                             **({} if _m._is_reasoning_model(_fb_model) else {"temperature": 0.7}),
                             stream=True,
-                            **({} if _is_local else {"stream_options": {"include_usage": True}}),
+                            **({} if _m._is_reasoning_model(_fb_model) else {"stream_options": {"include_usage": True}}),
                         )
                         if _fb_model != _m.MODEL:
                             yield {"type": "thought",
@@ -279,8 +279,8 @@ class AionSession:
                                 if tc.function.arguments:
                                     tool_calls_acc[idx]["args_str"] += tc.function.arguments
 
-                # Lokale Modelle liefern keine Usage-Daten → aus Zeichenanzahl schätzen
-                if not _got_usage and _is_local and text_content:
+                # Fallback: if no usage data was returned, estimate from character count
+                if not _got_usage and text_content:
                     _ctx_chars = sum(len(str(m.get("content", ""))) for m in messages) + len(effective)
                     yield {
                         "type":          "usage",

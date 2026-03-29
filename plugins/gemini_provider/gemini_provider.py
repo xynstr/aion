@@ -118,7 +118,7 @@ def _make_chunk(text=None, tool_calls=None):
 class _GeminiStreamIterator:
     """Liefert OpenAI-kompatible Chunks aus einer Gemini-Antwort."""
 
-    def __init__(self, text: str, tool_calls: list):
+    def __init__(self, text: str, tool_calls: list, usage=None):
         self._chunks = []
 
         if tool_calls:
@@ -127,6 +127,20 @@ class _GeminiStreamIterator:
             size = 50
             for i in range(0, len(text), size):
                 self._chunks.append(_make_chunk(text=text[i:i+size]))
+
+        # Append a final chunk carrying usage data so aion_session.py can display token counts
+        if usage is not None:
+            prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
+            output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            if prompt_tokens or output_tokens:
+                usage_chunk = type("UsageChunk", (), {
+                    "choices": [],
+                    "usage": type("Usage", (), {
+                        "prompt_tokens":     prompt_tokens,
+                        "completion_tokens": output_tokens,
+                    })(),
+                })()
+                self._chunks.append(usage_chunk)
 
         self._idx = 0
 
@@ -308,7 +322,8 @@ class _GeminyChatCompletions:
                 elif hasattr(part, "text") and part.text:
                     text_out += part.text
 
-        return _GeminiStreamIterator(text=text_out, tool_calls=tool_calls_out)
+        usage = getattr(response, "usage_metadata", None)
+        return _GeminiStreamIterator(text=text_out, tool_calls=tool_calls_out, usage=usage)
 
 
 class _GeminiAdapter:
