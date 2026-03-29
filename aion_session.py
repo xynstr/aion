@@ -113,6 +113,20 @@ class AionSession:
             + ("\n\n" + mem_ctx      if mem_ctx      else "")
             + ("\n\n" + thoughts_ctx if thoughts_ctx else "")
         )
+        # Inject active focus — dynamic, not cached, checked every turn
+        try:
+            from plugins.focus_manager.focus_manager import get_current_focus_for_prompt as _get_focus
+            _focus = _get_focus()
+            if _focus:
+                effective += (
+                    "\n\n=== CURRENT FOCUS ===\n"
+                    f"You are currently working on this task: {_focus}\n"
+                    "Do not get distracted by unrelated requests. "
+                    "If the user changes topic, briefly acknowledge but remind them of the active focus. "
+                    "Call focus_clear() when the task is fully done."
+                )
+        except ImportError:
+            pass
         # Multimodaler User-Message-Content wenn Bilder vorhanden
         if images:
             user_content: list = [{"type": "text", "text": user_input or "Was siehst du auf diesem Bild?"}]
