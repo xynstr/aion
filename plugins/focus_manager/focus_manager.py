@@ -63,11 +63,7 @@ def _focus_clear(**_) -> dict:
 def register(api) -> None:
     api.register_tool(
         name="focus_set",
-        description=(
-            "Set the current task focus. AION will be reminded of this task on every "
-            "turn until it is cleared. Use this when starting a multi-step task so AION "
-            "stays on track even if the user tries to change the topic."
-        ),
+        description="Set the current task focus. Injected into every turn until cleared. Use at the start of multi-step tasks.",
         func=_focus_set,
         input_schema={
             "type": "object",

@@ -97,10 +97,9 @@ def register(api):
     api.register_tool(
         name="update_character",
         description=(
-            "Aktualisiert die character.md — AIONs sich entwickelnde Personality. "
-            "Nutze dies wenn du etwas Neues über dich selbst oder deinen User lernst. "
-            "Du kannst einzelne Abschnitte ersetzen oder neue hinzufügen. "
-            "Die character.md entwickelt sich dadurch organisch über Zeit."
+            "Update a section of character.md — AION's evolving personality. "
+            "Call when you learn something new about yourself or the user. "
+            "Sections: user, insights, improvements, humor, quirks, presence, personality."
         ),
         func=_update_character,
         input_schema={

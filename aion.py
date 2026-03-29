@@ -909,7 +909,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "file_read",
-                "description": "Liest eine Datei vom Dateisystem.",
+                "description": "Read a file from the filesystem.",
                 "parameters": {
                     "type": "object",
                     "properties": {"path": {"type": "string"}},
@@ -921,7 +921,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "file_write",
-                "description": "Schreibt Text in eine Datei.",
+                "description": "Write text to a file. Creates or overwrites.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -937,9 +937,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "self_read_code",
                 "description": (
-                    "Liest AIONs eigenen Quellcode. "
-                    "Ohne 'path': Dateiliste. Mit 'path': liest die Datei (fast immer 1 Chunk). "
-                    "For very large files returns 'total_chunks' > 1 — then read all chunks."
+                    "Read AION's own source code. "
+                    "Without 'path': list source files. With 'path': read the file. "
+                    "Large files return multiple chunks — check total_chunks."
                 ),
                 "parameters": {
                     "type": "object",
@@ -955,11 +955,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "self_patch_code",
                 "description": (
-                    "Changes a targeted section in a file — safe and precise. "
-                    "Sucht 'old' und ersetzt mit 'new'. Rest der Datei bleibt unverändert. "
-                    "Erstellt automatisch Backup. Für aion.py IMMER dieses Tool verwenden! "
-                    "ABLAUF: Erst OHNE confirmed aufrufen (zeigt Vorschau). "
-                    "Nach Nutzer-'ja': NOCHMAL mit confirmed=true aufrufen (führt aus)."
+                    "Replace a targeted section in a file (old → new). "
+                    "Creates a backup automatically. Preferred tool for aion.py. "
+                    "Call without confirmed for preview, with confirmed=true to execute."
                 ),
                 "parameters": {
                     "type": "object",
@@ -978,11 +976,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "file_replace_lines",
                 "description": (
-                    "Ersetzt Zeilen start_line bis end_line (1-basiert, inklusiv) in einer Datei. "
-                    "Zuverlässiger als self_patch_code weil kein String-Matching nötig — "
-                    "Zeilennummern aus self_read_code ablesen, dann direkt ersetzen. "
-                    "Erstellt automatisch Backup. "
-                    "ABLAUF: Erst OHNE confirmed (Vorschau). Nach Nutzer-'ja': mit confirmed=true."
+                    "Replace lines start_line–end_line (1-based, inclusive) in a file. "
+                    "More reliable than self_patch_code — uses line numbers, no string matching. "
+                    "Creates a backup. Call without confirmed for preview, with confirmed=true to execute."
                 ),
                 "parameters": {
                     "type": "object",
@@ -1002,9 +998,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "self_modify_code",
                 "description": (
-                    "Überschreibt eine kleine Datei komplett. "
-                    "NUR für neue Dateien unter 200 Zeilen! Für aion.py self_patch_code nutzen. "
-                    "ABLAUF: Erst OHNE confirmed (Vorschau). Nach Nutzer-'ja': mit confirmed=true."
+                    "Overwrite a small file completely. "
+                    "Only for new files under 200 lines — use self_patch_code for existing files. "
+                    "Call without confirmed for preview, with confirmed=true to execute."
                 ),
                 "parameters": {
                     "type": "object",
@@ -1022,12 +1018,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "create_plugin",
                 "description": (
-                    "Erstellt ein neues AION-Plugin als .py-Datei in plugins/. "
-                    "Das Plugin MUSS def register(api): enthalten. "
-                    "Tools registrieren: api.register_tool(name, desc, func, input_schema). "
-                    "input_schema MUSS type=object + properties haben. "
-                    "Sofort geladen, kein Neustart noetig. "
-                    "ABLAUF: Erst OHNE confirmed (Vorschau). Nach Nutzer-'ja': mit confirmed=true."
+                    "Create a new AION plugin in plugins/{name}/{name}.py. "
+                    "Must contain def register(api): and use api.register_tool(). "
+                    "Loaded immediately. Call without confirmed for preview, with confirmed=true to execute."
                 ),
                 "parameters": {
                     "type": "object",
@@ -1045,11 +1038,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "plugin_disable",
-                "description": (
-                    "Deaktiviert ein Plugin — es wird beim naechsten Laden uebersprungen und seine Tools stehen nicht mehr zur Verfuegung. "
-                    "Nützlich um fehlerhafte oder nicht benoetigte Plugins zu deaktivieren ohne sie zu loeschen. "
-                    "Reaktivierung mit plugin_enable."
-                ),
+                "description": "Disable a plugin — its tools become unavailable on next load. Re-enable with plugin_enable.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1063,7 +1052,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "plugin_enable",
-                "description": "Aktiviert ein zuvor deaktiviertes Plugin wieder und laedt es sofort.",
+                "description": "Re-enable a disabled plugin and load it immediately.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1077,11 +1066,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "self_restart",
-                "description": (
-                    "Laedt alle Plugins neu (Hot-Reload) ohne AION zu beenden. "
-                    "Kein Datenverlust, keine Unterbrechung. "
-                    "Fuer echten Prozess-Neustart: Nutzer muss AION manuell neustarten."
-                ),
+                "description": "Hot-reload all plugins without stopping AION. For a full process restart use restart_with_approval.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },
@@ -1089,7 +1074,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "self_reload_tools",
-                "description": "Laedt alle externen Tools aus plugins/ neu — ohne Neustart.",
+                "description": "Reload all plugin tools without restarting.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },
@@ -1098,10 +1083,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "set_thinking_level",
                 "description": (
-                    "Setzt das Thinking Level global oder pro Channel. "
-                    "Level: 'minimal' (schnell) → 'standard' (normal) → 'deep' (ausgiebig) → 'ultra' (maximal). "
-                    "Ohne channel_override: setzt global 'thinking_level'. "
-                    "Mit channel_override: setzt 'thinking_overrides[pattern]' (z.B. 'telegram*' → 'deep')."
+                    "Set the thinking depth globally or per channel. "
+                    "Levels: minimal → standard → deep → ultra. "
+                    "With channel_override='telegram*' sets a channel-specific override."
                 ),
                 "parameters": {
                     "type": "object",
@@ -1118,10 +1102,8 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "set_channel_allowlist",
                 "description": (
-                    "Setzt die Channel-Allowlist. Nur diese Channels dürfen Anfragen verarbeiten. "
-                    "Format: Liste von Strings mit exakten Matches oder Wildcards ('telegram*'). "
-                    "Leer = alle Channels erlaubt. "
-                    "Beispiel: ['default', 'web', 'telegram*'] — nur diese erlauben, Discord/Slack sperren."
+                    "Set which channels can process requests. Exact strings or wildcards ('telegram*'). "
+                    "Empty list = all allowed."
                 ),
                 "parameters": {
                     "type": "object",
@@ -1140,10 +1122,7 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "get_control_settings",
-                "description": (
-                    "Gibt aktuelle Einstellungen für Channel Allowlist und Thinking Level zurück. "
-                    "Nützlich zum Überprüfen der aktuellen Konfiguration."
-                ),
+                "description": "Return current channel allowlist and thinking level settings.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },
@@ -1152,10 +1131,8 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
             "function": {
                 "name": "list_tools",
                 "description": (
-                    "Lists all currently registered tools including tier-2 tools that are not advertised by default. "
-                    "Use this to discover available capabilities before attempting a task. "
-                    "Returns tool names, tiers, and one-line descriptions. "
-                    "Call this first when unsure whether a capability exists."
+                    "List all registered tools (including tier-2). "
+                    "Returns name, tier, description. Use to discover capabilities before a task."
                 ),
                 "parameters": {
                     "type": "object",

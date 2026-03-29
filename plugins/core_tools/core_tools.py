@@ -147,12 +147,9 @@ def register(api):
     api.register_tool(
         name="continue_work",
         description=(
-            "Signalisiere dass du noch arbeitest und direkt weitermachst — "
-            "OHNE auf den User zu warten. "
-            "Nutze dies IMMER wenn nach einem Tool-Ergebnis noch weitere Schritte folgen. "
-            "Example: nach winget_install → continue_work → shell_exec zum Prüfen. "
-            "Nutze es NICHT wenn die Aufgabe vollständig erledigt ist. "
-            "Gibt sofort {ok: true} zurück."
+            "Signal that you are still working and will continue without waiting for the user. "
+            "Use after every tool result that requires a follow-up action. "
+            "Do NOT use when the task is fully done."
         ),
         func=_continue_work,
         input_schema={

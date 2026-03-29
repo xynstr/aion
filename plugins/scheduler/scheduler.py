@@ -388,10 +388,9 @@ def _register_tools(api):
     api.register_tool(
         name="schedule_add",
         description=(
-            "Plant eine AION-Aufgabe. Zwei Modi:\n"
-            "1. Uhrzeit: time='08:00', days='täglich'/'werktags'/'wochenende'/'mo,mi,fr'\n"
-            "2. Intervall: interval='5m' / '30s' / '1h' / '2h30m' — läuft periodisch\n"
-            "AION führt die Aufgabe automatisch aus und sendet das Ergebnis per Telegram."
+            "Schedule a recurring task. "
+            "Time mode: time='08:00', days='täglich|werktags|wochenende|mo,mi,fr'. "
+            "Interval mode: interval='5m|1h|2h30m'. Results sent via Telegram."
         ),
         func=_schedule_add,
         input_schema={

@@ -150,10 +150,7 @@ def clear_history() -> dict:
 def register(api):
     api.register_tool(
         name="memory_append_history",
-        description=(
-            "Fügt einen Eintrag (User oder AION) mit Zeitstempel zur persistenten "
-            "Konversationshistorie hinzu. Immer aufrufen nach jeder Antwort."
-        ),
+        description="Append a message (role + content) to the persistent conversation history.",
         func=append_to_history,
         input_schema={
             "type": "object",
@@ -177,10 +174,7 @@ def register(api):
 
     api.register_tool(
         name="memory_read_history",
-        description=(
-            "Liest die letzten N Nachrichten aus der persistenten Konversationshistorie. "
-            "Wird beim Start aufgerufen, um den Kontext wiederherzustellen."
-        ),
+        description="Read the last N messages from the persistent conversation history.",
         func=read_last_entries,
         input_schema={
             "type": "object",
@@ -200,11 +194,7 @@ def register(api):
 
     api.register_tool(
         name="memory_read_web_history",
-        description=(
-            "Liest die letzten N Nachrichten aus der Web-UI-History. "
-            "Nutze dieses Tool wenn der User fragt was im Web-Chat besprochen wurde, "
-            "oder wenn er von Web auf Telegram wechselt und den Kontext mitbringen möchte."
-        ),
+        description="Read the last N messages from the Web UI history. Use when the user switches from web to another channel and needs context.",
         func=read_web_history,
         input_schema={
             "type": "object",
@@ -220,11 +210,7 @@ def register(api):
 
     api.register_tool(
         name="memory_search_context",
-        description=(
-            "Durchsucht die gesamte Konversationshistorie nach relevanten Einträgen "
-            "zu einem Thema/einer Frage. Nutzt Keyword + Zeitgewichtung. "
-            "Nutze dies wenn der User nach etwas fragt, das früher besprochen wurde."
-        ),
+        description="Search the full conversation history for relevant entries on a topic. Use when the user references something discussed earlier.",
         func=search_context,
         input_schema={
             "type": "object",

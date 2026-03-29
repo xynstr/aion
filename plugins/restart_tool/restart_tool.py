@@ -70,10 +70,8 @@ def register(api):
     api.register_tool(
         name="restart_with_approval",
         description=(
-            "Startet den AION-Prozess vollständig neu (echter Prozessneustart, kein Hot-Reload). "
-            "Zeigt dem User zuerst eine Ja/Nein-Bestätigungsaufforderung — funktioniert in Web UI, Telegram und Discord. "
-            "Verwende dieses Tool wenn der User 'Starte dich neu', 'Neustart', 'restart' o.ä. sagt. "
-            "Für Plugin-Updates ohne Neustart: self_restart (Hot-Reload) verwenden."
+            "Full process restart (not hot-reload). Shows a yes/no confirmation to the user first. "
+            "Use when the user says 'restart'. For plugin-only updates use self_restart instead."
         ),
         func=restart_with_approval,
         input_schema={

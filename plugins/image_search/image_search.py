@@ -71,10 +71,8 @@ def register(api):
     api.register_tool(
         name="image_search",
         description=(
-            "Sucht Bilder zu einem Begriff und gibt direkte Bild-URLs zurück. "
-            "Nutze dieses Tool IMMER wenn der User ein Bild, Foto, Logo oder "
-            "visuelle Inhalte sehen möchte. Englische Suchbegriffe empfohlen. "
-            "Schreibe KEINE Markdown-Bild-Syntax — das System zeigt die Bilder automatisch."
+            "Search for images and return direct URLs. Use English search terms. "
+            "Do NOT write Markdown image syntax — the system displays images automatically."
         ),
         func=search_images,
         input_schema={
