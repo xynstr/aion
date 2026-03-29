@@ -12,6 +12,53 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-03-29 — v1.2.2 Refactor + Desktop + Session Fixes)
+
+### Module Split: aion_session.py + aion_memory.py
+`aion.py` was split into three modules. **This is the most important architectural change.**
+- `aion_session.py` — `AionSession` class + `run_aion_turn()` (previously in `aion.py`)
+- `aion_memory.py` — `AionMemory` class with RAG memory (previously in `aion.py`)
+- `aion.py` — Core functions: `_build_system_prompt`, `_dispatch`, `_build_tool_schemas`, providers
+
+When writing patches: `AionSession.stream()` is in **`aion_session.py`**, not `aion.py`.
+
+### Tool Tiers + Auto-Escalation
+Tools now have a tier:
+- **Tier 1**: always in the LLM tool list (default)
+- **Tier 2**: excluded by default to save tokens (desktop, browser, telegram, discord, etc.)
+When the model calls an unknown tool, `aion_session.py` automatically escalates to tier-2:
+sets `_tier2_unlocked = True`, rebuilds `tools = _build_tool_schemas(tier_threshold=2)`.
+The model then sees all tier-2 tools and can retry with the correct name.
+
+### `list_tools` Built-in
+New built-in tool `list_tools(filter="keyword")` — returns all registered tools (including
+tier-2) with names, tiers, and descriptions. Model should call this before inventing tool names.
+
+### Dot-Notation Tool Name Normalization
+`_dispatch()` now normalizes tool names before returning "Unknown tool":
+1. `desktop.hotkey` → `desktop_hotkey` (replace dots with underscores)
+2. `core_tools.system_info` → `system_info` (strip namespace prefix)
+
+### Auto-Screenshot After Desktop Actions
+After every desktop action (click, type, hotkey, key_press, drag, scroll, move_mouse),
+`aion_session.py` automatically calls `desktop_screenshot(scale=0.5)` and injects the result
+as a user message into the LLM context — so the model can see the screen state.
+Only the **last** screenshot of a turn is forwarded to the user; intermediates are LLM-only.
+Screenshot messages include coordinate scaling hint: `coordinates × 2 = real screen`.
+
+### System Message Leak Fix
+When the LLM echoes `[System]` injection messages as its response, the sanitizer in
+`aion_session.py` detects this (prefixes: `[System]`, `[Auto-screenshot`) and treats it
+as an empty response, triggering a silent retry. Users never see these internal strings.
+
+### Desktop Control vs Playwright
+`rules.md` now documents the critical distinction:
+- `desktop_*` tools = real screen control (user sees it) — use for "control my PC"
+- `browser_*` tools = headless Playwright (invisible) — use for scraping/testing
+- Opening apps: use `shell_exec("start <app>")`, not `desktop_open_application` (doesn't exist)
+
+---
+
 ## Latest Improvements (2026-03-27 — v1.2.1 Fixes + Vault + Refactoring)
 
 ### Vault Integration
@@ -678,7 +725,9 @@ Prevents broken plugin structures automatically.
 
 ```
 AION/
-├── aion.py                      # Core logic: memory, LLM loop, AionSession, file_replace_lines
+├── aion.py                      # Core: _build_system_prompt, _dispatch, _build_tool_schemas, providers
+├── aion_session.py              # AionSession class + stream() — the LLM turn loop (REFACTORED OUT of aion.py)
+├── aion_memory.py               # AionMemory class — RAG memory, record, search (REFACTORED OUT of aion.py)
 ├── aion_web.py                  # Web server (FastAPI + SSE), port 7000
 ├── aion_cli.py                  # CLI mode: interactive terminal without browser/server
 ├── plugin_loader.py             # Loads plugins + register_router (_pending_routers)
@@ -732,6 +781,105 @@ AION/
 
 ---
 
+## Core Architecture
+
+### How a Turn Works (aion_session.py → AionSession.stream())
+
+`AionSession` is the **per-channel conversation session** (one per channel: web, telegram_*, discord_*, ...).
+Its `stream()` method is an async generator that yields event dicts:
+
+```
+{"type": "token",       "content": "..."}           — streamed text token
+{"type": "thought",     "text": "...", "trigger": "..."} — internal thought (CLIO/reflection)
+{"type": "tool_call",   "tool": "...", "args": {...}}
+{"type": "tool_result", "tool": "...", "result": {...}, "ok": bool, "duration": 0.1}
+{"type": "done",        "full_response": "...", "response_blocks": [...]}
+{"type": "error",       "message": "..."}
+{"type": "approval",    "message": "..."}           — desktop action needs confirmed=true
+```
+
+**Message assembly at turn start** (`aion_session.py`, start of `stream()`):
+1. `memory.get_context_semantic(user_input)` → semantic memory injection
+2. `_m._get_recent_thoughts(5)` → recent thoughts from thoughts.md
+3. `_m._build_system_prompt(self.channel)` → full system prompt (cached per channel+model+tool-count)
+4. Combine: `effective = sys_prompt + mem_ctx + thoughts_ctx`
+5. Truncate history to `max_history_turns` (default 40) oldest messages
+6. Append new user message
+
+**Tool loop** (while True, max `MAX_TOOL_ITERATIONS=50`):
+1. Call LLM API with `tools=_build_tool_schemas()` (tier-1 by default)
+2. If model calls a tool → `await _m._dispatch(name, inputs)`
+3. On "Unknown tool" error → auto-escalate: `tools = _build_tool_schemas(tier_threshold=2)`
+4. After desktop actions → auto-screenshot injected as user message for visual feedback
+5. Completion-check after text response — if model announced action without calling tool → retry
+6. Task-check after tools called — if task incomplete → retry
+7. Break when model produces final text with no pending actions
+
+**To inject additional context into every turn** → modify `aion_session.py` around the
+`effective = sys_prompt + mem_ctx + thoughts_ctx` block (lines ~108-115), OR add to
+`_build_system_prompt()` in `aion.py` (but that is cached — avoid for dynamic state).
+For dynamic per-turn injection (e.g. focus state): append to `messages` after assembly.
+
+---
+
+### _build_system_prompt() — aion.py
+
+```python
+def _build_system_prompt(channel: str = "") -> str
+```
+- **Cache key**: `(channel, MODEL, len(_plugin_tools))` — invalidated when tools change
+- Loads `character.md`, `prompts/rules.md` (max 12,000 chars)
+- Placeholders: `{CHARAKTER}`, `{MODEL}`, `{BOT_AION}`, `{BOT_MEMORY}`, `{BOT_PLUGINS}`, `{BOT_SELF}`
+- Appends: plugin overview block + thinking prompt + mood/temporal/relationship hints
+- **NOT suitable for dynamic per-turn data** (result is cached)
+
+---
+
+### _dispatch() — aion.py
+
+```python
+async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
+```
+Returns a **JSON string** always. Built-in handlers first, then plugin tools, then:
+- Dot-notation normalization: `desktop.hotkey` → `desktop_hotkey`, `core_tools.info` → `info`
+- Returns `{"error": "Unknown tool: <name>"}` if nothing matches
+
+**Built-in tools handled directly in _dispatch:**
+`file_read`, `file_write`, `self_read_code`, `self_patch_code`, `file_replace_lines`,
+`file_list`, `memory_add`, `memory_search`, `memory_read_history`, `memory_append_history`,
+`memory_compress`, `read_self_doc`, `generate_self_doc_summary`, `set_thinking_level`,
+`set_channel_allowlist`, `get_control_settings`, `list_tools`
+
+---
+
+### _build_tool_schemas() — aion.py
+
+```python
+def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]
+```
+- `tier_threshold=0` → use `config.json["tool_tier"]` (default 1)
+- `tier_threshold=1` → tier-1 tools only
+- `tier_threshold=2` → tier-1 + tier-2 (all tools)
+- Called with `tier_threshold=2` by `aion_session.py` on auto-escalation
+
+**Tier-2 plugins** (excluded by default): `desktop`, `playwright_browser`, `telegram_bot`,
+`discord_bot`, `slack_bot`, `multi_agent`, `audio_pipeline`, `audio_transcriber`,
+`image_search`, `moltbook`, `docx_tool`, `mood_engine`, `proactive`, `mcp_client`, `paperless`
+
+---
+
+### AionMemory — aion_memory.py
+
+```python
+memory = AionMemory(MEMORY_FILE, VECTORS_FILE, max_entries=300)
+```
+- `memory.record(category, summary, lesson, success, error, hint)` — write insight
+- `memory.get_context_semantic(query, max_entries=5)` → RAG search via Ollama embeddings
+- `memory.get_context(query, max_entries=8)` → keyword fallback
+- Embeddings cached in `aion_memory_vectors.json`, threshold cosine > 0.35
+
+---
+
 ## Plugin Tools (complete list)
 
 ### Core Tools (`core_tools.py`)
@@ -763,6 +911,7 @@ AION/
 | `self_read_code` | `path: str`, `chunk_index: int` | Read own code. Without `path`: returns file list. Returns `total_chunks` — **read ALL chunks before making changes!** |
 | `file_replace_lines` | `path: str`, `start_line: int`, `end_line: int`, `new_content: str` | Replace lines — PREFERRED code editing tool. Read line numbers from self_read_code. |
 | `self_patch_code` | `path: str`, `old: str`, `new: str` | Replace an exact text block. Creates a backup. |
+| `list_tools` | `filter: str` (optional) | List all registered tools (tier-1 + tier-2) with names, tiers, descriptions. Use before attempting a task — never invent tool names. |
 | `self_modify_code` | `path: str`, `content: str` | Overwrite an entire file. ONLY for new files under 200 lines! |
 | `self_restart` | — | Hot-reload: reload plugins (no sys.exit). |
 | `self_reload_tools` | — | Reload plugins without restarting. |
