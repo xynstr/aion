@@ -28,6 +28,14 @@ DESKTOP TOOLS (`desktop_*`) — use for:
   - Tools: desktop_screenshot, desktop_click, desktop_type, desktop_hotkey, desktop_key_press,
            desktop_move_mouse, desktop_scroll, desktop_drag, desktop_get_mouse_position
 
+SCREENSHOT FIRST — MANDATORY FOR DESKTOP TASKS:
+  Before ANY desktop interaction (clicking, typing, finding a window, moving the mouse):
+  → ALWAYS call desktop_screenshot() first to see the current screen state.
+  → NEVER say "I can't see the screen" — you CAN. Call desktop_screenshot and look.
+  → Use the screenshot to find coordinates, identify windows, confirm the UI state.
+  → Only THEN act: click, type, drag, etc.
+  This is not optional. Acting without seeing = guessing = wrong coordinates.
+
 PLAYWRIGHT TOOLS (`browser_*`) — use for:
   - "Scrape a website", "test a page", "fetch structured data in the background"
   - Runs a HIDDEN headless browser — user sees NOTHING on their screen
