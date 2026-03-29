@@ -1007,11 +1007,27 @@ Gib NUR den formatierten Eintrag zurück, nichts sonst."""
 
             thoughts_file = _m.BOT_DIR / "thoughts.md"
             if not thoughts_file.is_file():
-                thoughts_file.write_text("# AION — Thoughts & Reflexionen\n\n", encoding="utf-8")
+                thoughts_file.write_text("# AION — Thoughts & Reflections\n\n", encoding="utf-8")
 
             existing = thoughts_file.read_text(encoding="utf-8")
-            thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + entry + "\n", encoding="utf-8")
-            print(f"[AION:{self.channel}] Reflexion geschrieben nach {self.exchange_count} Gesprächen.")
+
+            # Duplicate check: skip if too similar to any of the last 3 entries
+            parts = existing.split("\n---\n")
+            recent = parts[-3:] if len(parts) > 3 else parts[1:]
+            entry_words = set(entry.lower().split())
+            skip = False
+            for prev in recent:
+                prev_words = set(prev.lower().split())
+                if not prev_words:
+                    continue
+                overlap = len(entry_words & prev_words) / max(len(entry_words), len(prev_words), 1)
+                if overlap > 0.55:
+                    print(f"[AION:{self.channel}] Auto-reflect skipped (near-duplicate, overlap={overlap:.2f})")
+                    skip = True
+                    break
+            if not skip:
+                thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + entry + "\n", encoding="utf-8")
+                print(f"[AION:{self.channel}] Reflexion geschrieben nach {self.exchange_count} Gesprächen.")
         except Exception as e:
             print(f"[AION:{self.channel}] Auto-Reflect Fehler: {e}")
 
