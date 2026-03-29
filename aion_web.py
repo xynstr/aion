@@ -93,11 +93,15 @@ _active_cancel_events: dict[int, asyncio.Event] = {}
 
 async def _trigger_wakeup() -> None:
     """Wakeup-Routine nach Startup: kurz warten bis SSE-Queue bereit, dann aufwachen."""
+    print("[AION] _trigger_wakeup: sleeping 4s…")
     await asyncio.sleep(4)
+    print("[AION] _trigger_wakeup: calling _startup_wakeup…")
     try:
         await _aion_module._startup_wakeup(_push_queue)
     except Exception as _e:
-        print(f"[AION] Wakeup-Fehler: {_e}")
+        import traceback as _tb2
+        print(f"[AION] wakeup error: {_e}")
+        _tb2.print_exc()
 
 
 def _exception_handler(loop, context):

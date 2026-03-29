@@ -1706,7 +1706,9 @@ async def _startup_wakeup(push_queue=None) -> None:
     """Einmalige Wakeup-Routine: AION reflektiert die Offline-Zeit und sendet
     eine persönliche Nachricht an den User via SSE (und optional Telegram)."""
     global _wakeup_done
+    print(f"[AION] _startup_wakeup called — _wakeup_done={_wakeup_done}")
     if _wakeup_done:
+        print("[AION] _startup_wakeup: already done, skipping")
         return
     _wakeup_done = True
 
@@ -1775,6 +1777,7 @@ Reagiere auf die konkrete Situation:
 
     try:
         cl = _build_client(MODEL)
+        print(f"[AION] _startup_wakeup: calling LLM ({MODEL})…")
         _is_thinking = _is_reasoning_model(MODEL) or MODEL.startswith("gemini-2.5")
         resp = await cl.chat.completions.create(
             model=_api_model_name(MODEL),
@@ -1782,9 +1785,22 @@ Reagiere auf die konkrete Situation:
             **_max_tokens_param(MODEL, 2000),
             **({} if _is_thinking else {"temperature": 0.8}),
         )
+        print(f"[AION] _startup_wakeup: LLM responded — resp type: {type(resp).__name__}")
         if resp is None:
+            print("[AION] _startup_wakeup: resp is None, aborting")
             return
-        raw = (resp.choices[0].message.content or "").strip() if hasattr(resp, "choices") else ""
+        raw = ""
+        if hasattr(resp, "__aiter__"):
+            # Streaming / adapter iterator (Gemini, Ollama, Anthropic, …)
+            async for chunk in resp:
+                if not getattr(chunk, "choices", None):
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    raw += delta.content
+        elif hasattr(resp, "choices"):
+            # Non-streaming OpenAI ChatCompletion
+            raw = (resp.choices[0].message.content or "").strip()
 
         # Output parsen
         thought = ""
@@ -1806,7 +1822,7 @@ Reagiere auf die konkrete Situation:
                 thoughts_file.write_text("# AION — Thoughts & Reflexionen\n\n", encoding="utf-8")
             existing = thoughts_file.read_text(encoding="utf-8")
             thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + thought + "\n", encoding="utf-8")
-            print("[AION] Wakeup-Gedanke in thoughts.md geschrieben.")
+            print("[AION] wakeup thought written to thoughts.md")
 
         # Nachricht in config.json speichern → zuverlässige Auslieferung auch bei SSE-Race
         if message:
@@ -1819,7 +1835,7 @@ Reagiere auf die konkrete Situation:
         # Nachricht via SSE an Web UI
         if message and push_queue is not None:
             await push_queue.put({"type": "wakeup", "text": message})
-            print(f"[AION] Wakeup-Nachricht gesendet: {message[:80]}…")
+            print(f"[AION] wakeup message sent: {message[:80]}…")
         elif message and push_queue is None:
             # CLI mode: print as AION chat bubble
             if HAS_RICH:
@@ -1840,13 +1856,13 @@ Reagiere auf die konkrete Situation:
                         json={"chat_id": _chat, "text": message},
                         timeout=10,
                     )
-                print("[AION] Wakeup-Nachricht via Telegram gesendet.")
+                print("[AION] wakeup message sent via Telegram")
             except Exception as _te:
-                print(f"[AION] Telegram Wakeup-Fehler: {_te}")
+                print(f"[AION] Telegram wakeup error: {_te}")
 
     except Exception as e:
         import traceback as _tb
-        print(f"[AION] _startup_wakeup Fehler: {e}")
+        print(f"[AION] _startup_wakeup error: {e}")
         _tb.print_exc()
 
 
