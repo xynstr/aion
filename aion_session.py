@@ -595,6 +595,8 @@ class AionSession:
                                 # Stream-Iterator (Gemini): Chunks konsumieren
                                 check_answer = ""
                                 async for chunk in check_raw:
+                                    if not chunk.choices:
+                                        continue
                                     delta = chunk.choices[0].delta
                                     if delta.content:
                                         check_answer += delta.content
