@@ -1758,7 +1758,7 @@ async def _startup_wakeup(push_queue=None) -> None:
         resp = await cl.chat.completions.create(
             model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": prompt}],
-            **_max_tokens_param(MODEL, 300),
+            **_max_tokens_param(MODEL, 1500),
             **({} if _is_thinking else {"temperature": 0.7}),
         )
 

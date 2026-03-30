@@ -367,6 +367,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .hub-promo-sub { font-size: 11px; color: var(--text3); line-height: 1.4; }
 .hub-promo-cta { font-size: 11px; font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: 4px; }
 
+/* Hub filter chips */
+.hub-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 10px; }
+.hub-filter-sep { width: 1px; background: var(--border); align-self: stretch; margin: 0 3px; }
+.hub-chip { font-size: 11px; padding: 3px 11px; border-radius: 12px; cursor: pointer; border: 1px solid var(--border); color: var(--text3); background: transparent; font-weight: 500; transition: all .15s; white-space: nowrap; }
+.hub-chip:hover { border-color: var(--border2); color: var(--text); }
+.hub-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(99,179,237,.1); }
+
 /* Hub panel */
 .hub-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .hub-search { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--text); outline: none; }
@@ -723,8 +730,17 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
           </div>
           <!-- Hub tab content -->
           <div id="hubPanel" style="display:none">
+            <!-- Filter chips -->
+            <div class="hub-filter-bar" id="hubFilterBar">
+              <button class="hub-chip active" id="hfc-available" onclick="setHubStatus('available')">Not installed</button>
+              <button class="hub-chip" id="hfc-installed" onclick="setHubStatus('installed')">Installed</button>
+              <button class="hub-chip" id="hfc-all" onclick="setHubStatus('all')">All</button>
+              <div class="hub-filter-sep"></div>
+              <!-- category chips injected by loadHub() -->
+            </div>
+            <!-- Search -->
             <div class="hub-search-row">
-              <input class="hub-search" id="hubSearch" placeholder="Search plugins…" oninput="filterHub()" autocomplete="off">
+              <input class="hub-search" id="hubSearch" placeholder="Search plugins…" oninput="applyHubFilters()" autocomplete="off">
               <span class="hub-status" id="hubStatus"></span>
             </div>
             <div class="hub-grid" id="hubGrid">
@@ -1564,8 +1580,21 @@ async function enablePlugin(btn, name) {
 }
 
 // ── PLUGIN HUB ────────────────────────────────────────────────────────────────
-let _hubLoaded = false;
-let _hubData   = [];
+let _hubLoaded         = false;
+let _hubData           = [];
+let _hubFilterStatus   = 'available'; // 'available' | 'installed' | 'all'
+let _hubFilterCategory = 'all';
+
+const _HUB_CATS = {
+  telegram_bot:'Messaging', discord_bot:'Messaging', slack_bot:'Messaging', alexa_plugin:'Messaging',
+  anthropic_provider:'AI Providers', gemini_provider:'AI Providers', deepseek_provider:'AI Providers',
+  grok_provider:'AI Providers', ollama_provider:'AI Providers', claude_cli_provider:'AI Providers',
+  desktop:'Automation', playwright_browser:'Automation', multi_agent:'Automation',
+  audio_pipeline:'Audio', audio_transcriber:'Audio',
+  docx_tool:'Productivity', image_search:'Productivity', mcp_client:'Productivity', moltbook:'Productivity',
+  mood_engine:'Personality', proactive:'Personality', character_manager:'Personality',
+  focus_manager:'Personality', heartbeat:'Personality',
+};
 
 function switchPluginTab(tab) {
   const isHub = tab === 'hub';
@@ -1579,11 +1608,39 @@ function switchPluginTab(tab) {
   if (isHub && !_hubLoaded) loadHub();
 }
 
+function setHubStatus(val) {
+  _hubFilterStatus = val;
+  ['available','installed','all'].forEach(v =>
+    document.getElementById('hfc-'+v).classList.toggle('active', v === val));
+  applyHubFilters();
+}
+
+function setHubCategory(val, el) {
+  _hubFilterCategory = val;
+  document.querySelectorAll('.hub-cat-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  applyHubFilters();
+}
+
+function applyHubFilters() {
+  const q = (document.getElementById('hubSearch').value || '').toLowerCase();
+  let list = _hubData;
+  if (_hubFilterStatus === 'available') list = list.filter(p => !p.installed);
+  if (_hubFilterStatus === 'installed') list = list.filter(p =>  p.installed);
+  if (_hubFilterCategory !== 'all')
+    list = list.filter(p => (_HUB_CATS[p.name] || 'Other') === _hubFilterCategory);
+  if (q) list = list.filter(p =>
+    ((p.name||'') + (p.display_name||'') + (p.description||'')).toLowerCase().includes(q));
+  renderHub(list);
+  document.getElementById('hubStatus').textContent = `${list.length} of ${_hubData.length}`;
+}
+
+function filterHub() { applyHubFilters(); }
+
 async function loadHub() {
   const grid = document.getElementById('hubGrid');
-  const stat = document.getElementById('hubStatus');
   grid.innerHTML = '<div class="memory-empty" style="grid-column:1/-1"><span class="spinner" style="width:18px;height:18px;border-width:2px"></span></div>';
-  stat.textContent = '';
+  document.getElementById('hubStatus').textContent = '';
   try {
     const data = await (await fetch('/api/hub')).json();
     if (data.error) throw new Error(data.error);
@@ -1591,14 +1648,21 @@ async function loadHub() {
     _hubLoaded = true;
     const notInstalled = _hubData.filter(p => !p.installed).length;
     document.getElementById('ptab-hub-badge').textContent = _hubData.length;
-    stat.textContent = `${_hubData.length} plugins available`;
-    // Update promo banner subtitle with live count
+    // Update promo banner
     const sub = document.getElementById('hubPromoSub');
     if (sub) sub.textContent = `${notInstalled} optional plugins available — browser automation, voice I/O, desktop control, Telegram bots & more. Install on demand, no restart needed.`;
-    renderHub(_hubData);
+    // Build category chips
+    const cats = [...new Set(_hubData.map(p => _HUB_CATS[p.name] || 'Other'))].sort();
+    const bar  = document.getElementById('hubFilterBar');
+    bar.querySelectorAll('.hub-cat-chip').forEach(c => c.remove());
+    bar.insertAdjacentHTML('beforeend',
+      `<button class="hub-chip hub-cat-chip active" onclick="setHubCategory('all',this)">All categories</button>`);
+    cats.forEach(cat => bar.insertAdjacentHTML('beforeend',
+      `<button class="hub-chip hub-cat-chip" onclick="setHubCategory('${cat}',this)">${cat}</button>`));
+    applyHubFilters();
   } catch(e) {
     grid.innerHTML = `<div class="memory-empty" style="grid-column:1/-1;color:var(--red)">✗ ${esc(e.message)}</div>`;
-    stat.textContent = 'unreachable';
+    document.getElementById('hubStatus').textContent = 'unreachable';
   }
 }
 
@@ -1654,10 +1718,7 @@ async function hubInstall(name, btn) {
     // Update local data entry and re-render card
     const idx = _hubData.findIndex(p => p.name === name);
     if (idx >= 0) { _hubData[idx].installed = true; _hubData[idx].local_version = d.version; _hubData[idx].update_available = false; }
-    const q = document.getElementById('hubSearch').value.toLowerCase();
-    const visible = q ? _hubData.filter(p => (p.name+p.display_name+p.description).toLowerCase().includes(q)) : _hubData;
-    renderHub(visible);
-    // Refresh installed tab badge
+    applyHubFilters();
     loadPlugins();
   } catch(e) {
     btn.disabled = false; btn.textContent = orig;
@@ -1674,9 +1735,7 @@ async function hubRemove(name, btn) {
     if (d.error) throw new Error(d.error);
     const idx = _hubData.findIndex(p => p.name === name);
     if (idx >= 0) { _hubData[idx].installed = false; _hubData[idx].local_version = null; }
-    const q = document.getElementById('hubSearch').value.toLowerCase();
-    const visible = q ? _hubData.filter(p => (p.name+p.display_name+p.description).toLowerCase().includes(q)) : _hubData;
-    renderHub(visible);
+    applyHubFilters();
     loadPlugins();
   } catch(e) {
     btn.disabled = false; btn.textContent = orig;
