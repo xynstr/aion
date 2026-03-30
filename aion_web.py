@@ -25,6 +25,7 @@ sys.path.insert(0, str(AION_DIR))
 try:
     from fastapi import FastAPI, Request
     from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
     import uvicorn
 except ImportError:
     print("Bitte installieren: pip install fastapi uvicorn")
@@ -154,6 +155,7 @@ async def _lifespan(app: FastAPI):
         pass
 
 app = FastAPI(title="AION", lifespan=_lifespan)
+app.mount("/static", StaticFiles(directory=str(AION_DIR / "static")), name="static")
 
 # ── Auth Middleware ────────────────────────────────────────────────────────────
 # Activated when config.json["web_auth_token"] is set (e.g., by tunnel plugin).
