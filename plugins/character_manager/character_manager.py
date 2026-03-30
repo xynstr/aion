@@ -83,6 +83,13 @@ def register(api):
         updated = updated.rstrip() + f"\n\n<!-- Zuletzt aktualisiert: {ts} | Grund: {reason} -->\n"
         CHARACTER_FILE.write_text(updated, encoding="utf-8")
 
+        # Sys-Prompt-Cache invalidieren — Änderung wirkt sofort im nächsten Turn
+        try:
+            import aion as _m
+            _m._sys_prompt_cache.clear()
+        except Exception:
+            pass
+
         _record_memory(
             category="self_improvement",
             summary=f"Character aktualisiert: {section}",

@@ -40,8 +40,6 @@ DEFAULT_ENABLED: set[str] = {
     "core_tools", "web_tools", "shell_tools", "memory_plugin",
     "todo_tools", "scheduler", "smart_patch", "reflection",
     "updater", "pid_tool", "restart_tool", "hub_plugin",
-    # Character & personality
-    "character_tools",
     # AI providers
     "anthropic_provider", "deepseek_provider", "gemini_provider",
     "ollama_provider", "grok_provider", "claude_cli_provider",
