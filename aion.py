@@ -1760,7 +1760,7 @@ async def _startup_wakeup(push_queue=None) -> None:
         if not _is_thinking:
             _extra["temperature"] = 0.7
         if MODEL.startswith("gemini-2.5"):
-            _extra["thinking_budget"] = 0
+            _extra["thinking_budget"] = 512  # minimum, lässt Output-Tokens übrig
         resp = await cl.chat.completions.create(
             model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": prompt}],
