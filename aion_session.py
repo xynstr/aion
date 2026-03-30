@@ -783,10 +783,6 @@ class AionSession:
                 _track(self._auto_reflect())
 
             # Response-Blöcke: Text + Bilder + Audio als strukturierte Liste
-            # Append the last auto-desktop-screenshot once (not every intermediate one).
-            if _last_desktop_screenshot:
-                collected_images.append(_last_desktop_screenshot)
-
             response_blocks: list[dict] = []
             if final_text:
                 response_blocks.append({"type": "text", "content": final_text})
@@ -929,6 +925,8 @@ Gib NUR den neuen Dateiinhalt zurück."""
             else:
                 new_content = ""
                 async for _chunk in resp:
+                    if not _chunk.choices:
+                        continue
                     _cdelta = _chunk.choices[0].delta
                     if _cdelta.content:
                         new_content += _cdelta.content
@@ -999,6 +997,8 @@ Gib NUR den formatierten Eintrag zurück, nichts sonst."""
             else:
                 entry = ""
                 async for _chunk in resp:
+                    if not _chunk.choices:
+                        continue
                     _cdelta = _chunk.choices[0].delta
                     if _cdelta.content:
                         entry += _cdelta.content
