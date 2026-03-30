@@ -1,0 +1,5 @@
+{
+  "name": "Heartbeat",
+  "description": "Periodic self-check — AION logs a heartbeat at configurable intervals to confirm it is running.",
+  "dependencies": []
+}

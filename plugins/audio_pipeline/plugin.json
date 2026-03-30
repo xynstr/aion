@@ -1,0 +1,5 @@
+{
+  "name": "Audio Pipeline",
+  "description": "Text-to-speech and speech-to-text pipeline. Converts AION responses to audio and transcribes voice input.",
+  "dependencies": ["faster-whisper", "pyttsx3", "edge-tts"]
+}

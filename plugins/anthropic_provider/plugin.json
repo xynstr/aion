@@ -1,0 +1,5 @@
+{
+  "name": "Anthropic Provider",
+  "description": "Use Claude models (claude-3-5-sonnet, claude-opus, etc.) as AION's AI backend.",
+  "dependencies": ["openai"]
+}

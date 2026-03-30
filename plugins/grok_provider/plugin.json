@@ -1,0 +1,5 @@
+{
+  "name": "Grok Provider",
+  "description": "Use xAI Grok models as AION's AI backend.",
+  "dependencies": ["openai", "httpx"]
+}

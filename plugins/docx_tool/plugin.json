@@ -1,0 +1,5 @@
+{
+  "name": "DOCX Creator",
+  "description": "Create and edit Word documents (.docx) from AION responses or structured content.",
+  "dependencies": ["python-docx"]
+}

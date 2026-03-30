@@ -1,0 +1,5 @@
+{
+  "name": "Desktop Automation",
+  "description": "Full desktop automation — mouse control, keyboard input, screenshots, and clipboard access via pyautogui.",
+  "dependencies": ["pyautogui", "Pillow", "pyperclip"]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Claude CLI Provider",
+  "description": "Route AION requests through the Claude CLI for enhanced context and tool use.",
+  "dependencies": []
+}

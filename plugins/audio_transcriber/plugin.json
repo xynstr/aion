@@ -1,0 +1,5 @@
+{
+  "name": "Audio Transcriber",
+  "description": "Transcribe audio files to text using faster-whisper (local, no API key required).",
+  "dependencies": ["faster-whisper"]
+}

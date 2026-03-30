@@ -153,24 +153,8 @@ todo.md
 # RAG memory vectors (user-specific, large)
 aion_memory_vectors.json
 
-# Hub-only plugins — not shipped with AION, install via hub_install or Plugins → Hub
+# Hub-only plugins — niche integrations, install via hub_install or Plugins → Hub
 plugins/alexa_plugin/
-plugins/audio_pipeline/
-plugins/audio_transcriber/
-plugins/character_manager/
-plugins/claude_cli_provider/
-plugins/desktop/
 plugins/discord_bot/
-plugins/docx_tool/
-plugins/focus_manager/
-plugins/grok_provider/
-plugins/heartbeat/
-plugins/image_search/
-plugins/mcp_client/
 plugins/moltbook/
-plugins/mood_engine/
-plugins/multi_agent/
-plugins/playwright_browser/
-plugins/proactive/
 plugins/slack_bot/
-plugins/telegram_bot/

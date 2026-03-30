@@ -1,0 +1,5 @@
+{
+  "name": "Playwright Browser",
+  "description": "Headless browser automation via Playwright. Browse, click, fill forms, and extract web content.",
+  "dependencies": ["playwright"]
+}

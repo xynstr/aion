@@ -1,0 +1,5 @@
+{
+  "name": "Multi-Agent Router",
+  "description": "Spin up parallel sub-agents for complex multi-step tasks. AION delegates and aggregates results.",
+  "dependencies": []
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Image Search",
+  "description": "Search the web for images and return URLs. Supports Google and Bing image search.",
+  "dependencies": []
+}

@@ -18,14 +18,15 @@ DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
 # advertised in every system prompt.
 # Individual plugins can still override by passing tier= to register_tool().
 _TIER2_PLUGINS: frozenset[str] = frozenset({
-    # Hub-only plugins (installed on demand) — kept here so tier is correct after install
-    "desktop", "playwright_browser", "telegram_bot", "discord_bot",
-    "slack_bot", "multi_agent", "audio_pipeline", "audio_transcriber",
-    "alexa_plugin", "image_search", "moltbook", "docx_tool",
-    "mood_engine", "proactive", "mcp_client", "focus_manager",
-    "heartbeat", "character_manager", "grok_provider", "claude_cli_provider",
-    # Bundled but contextual
-    "paperless",
+    # Heavy / hardware-dependent — only advertised in schema when active
+    "desktop", "playwright_browser", "telegram_bot", "audio_pipeline",
+    "audio_transcriber", "multi_agent",
+    # Hub-only (installed on demand) — kept here so tier is correct after install
+    "discord_bot", "slack_bot", "alexa_plugin", "moltbook",
+    # Bundled but contextual / optional
+    "paperless", "mcp_client", "mood_engine", "proactive",
+    "focus_manager", "heartbeat", "character_manager",
+    "grok_provider", "claude_cli_provider",
 })
 
 
@@ -35,9 +36,30 @@ _TIER2_PLUGINS: frozenset[str] = frozenset({
 
 # Plugins die beim ersten Start aktiv sind — alles andere wird deaktiviert.
 DEFAULT_ENABLED: set[str] = {
+    # Core
     "core_tools", "web_tools", "shell_tools", "memory_plugin",
     "todo_tools", "scheduler", "smart_patch", "reflection",
     "updater", "pid_tool", "restart_tool", "hub_plugin",
+    # Character & personality
+    "character_tools",
+    # AI providers
+    "anthropic_provider", "deepseek_provider", "gemini_provider",
+    "ollama_provider", "grok_provider", "claude_cli_provider",
+    # Automation & browser
+    "desktop", "playwright_browser", "multi_agent",
+    # Audio & voice
+    "audio_pipeline", "audio_transcriber",
+    # Messaging
+    "telegram_bot",
+    # Productivity
+    "docx_tool", "image_search", "mcp_client",
+    # AION personality system
+    "mood_engine", "proactive", "focus_manager",
+    "heartbeat", "character_manager",
+    # Docs
+    "paperless",
+    # Misc
+    "web_tunnel",
 }
 
 

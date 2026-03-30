@@ -1,0 +1,5 @@
+{
+  "name": "Telegram Bot",
+  "description": "Send and receive messages via Telegram. AION can notify you and respond to commands from any device.",
+  "dependencies": ["httpx"]
+}

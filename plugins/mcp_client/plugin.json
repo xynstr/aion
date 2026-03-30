@@ -1,0 +1,5 @@
+{
+  "name": "MCP Client",
+  "description": "Connect to external MCP (Model Context Protocol) servers to extend AION with third-party tools.",
+  "dependencies": []
+}
