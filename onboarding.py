@@ -682,6 +682,173 @@ def _write_vault(key: str, value: str) -> None:
         warn(f"Vault write failed: {e}")
 
 
+# ── Step 5c: Hub Plugins ──────────────────────────────────────────────────────
+
+_HUB_MANIFEST_URL = (
+    "https://raw.githubusercontent.com/xynstr/aion-hub-plugins/main/manifest.json"
+)
+
+# Curated plugin list shown during onboarding (name → label shown to user)
+_HUB_ONBOARDING_PLUGINS = [
+    ("desktop",            "Desktop Automation   — mouse, keyboard, screenshots"),
+    ("playwright_browser", "Browser Automation   — headless Chromium via Playwright"),
+    ("multi_agent",        "Multi-Agent          — run parallel sub-agents"),
+    ("audio_pipeline",     "Audio Pipeline       — voice input/output (TTS + transcription)"),
+    ("docx_tool",          "DOCX Creator         — create Word documents"),
+    ("image_search",       "Image Search         — find images on the web"),
+]
+
+# Messaging plugins auto-selected when the corresponding channel was configured
+_CHANNEL_PLUGINS = {
+    "TELEGRAM_BOT_TOKEN": ("telegram_bot", "Telegram Bot"),
+    "DISCORD_BOT_TOKEN":  ("discord_bot",  "Discord Bot"),
+    "SLACK_BOT_TOKEN":    ("slack_bot",    "Slack Bot"),
+}
+
+
+async def _hub_install_offline(name: str, manifest: dict) -> bool:
+    """Download + extract a hub plugin without hot-reload (AION not running yet)."""
+    import hashlib, zipfile, shutil, subprocess, sys, tempfile
+    from pathlib import Path
+    try:
+        import httpx
+    except ImportError:
+        warn("httpx not installed — cannot download plugins during setup.")
+        return False
+
+    info = manifest.get(name)
+    if not info:
+        warn(f"Plugin '{name}' not found in manifest.")
+        return False
+
+    url      = info.get("download_url")
+    expected = info.get("sha256")
+    if not url:
+        warn(f"No download_url for '{name}'.")
+        return False
+
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
+            r = await c.get(url)
+            r.raise_for_status()
+            zip_bytes = r.content
+    except Exception as e:
+        warn(f"Download failed for '{name}': {e}")
+        return False
+
+    if expected:
+        actual = hashlib.sha256(zip_bytes).hexdigest()
+        if actual != expected:
+            warn(f"SHA256 mismatch for '{name}' — skipping.")
+            return False
+
+    plugins_dir = Path(__file__).parent / "plugins"
+    plugin_dir  = plugins_dir / name
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path as _P
+            tmp_zip = _P(tmp) / f"{name}.zip"
+            tmp_zip.write_bytes(zip_bytes)
+            with zipfile.ZipFile(tmp_zip) as zf:
+                names  = zf.namelist()
+                prefix = name + "/"
+                if all(n == prefix or n.startswith(prefix) for n in names):
+                    zf.extractall(tmp)
+                    extracted = _P(tmp) / name
+                else:
+                    extracted = _P(tmp) / name
+                    extracted.mkdir()
+                    zf.extractall(extracted)
+                if plugin_dir.exists():
+                    shutil.rmtree(plugin_dir)
+                shutil.copytree(extracted, plugin_dir)
+        (plugin_dir / "version.txt").write_text(info.get("version", "?"), encoding="utf-8")
+    except Exception as e:
+        warn(f"Extract failed for '{name}': {e}")
+        return False
+
+    # Install dependencies (optional — don't fail if this breaks)
+    deps    = info.get("dependencies", [])
+    req_f   = plugin_dir / "requirements.txt"
+    pip_cmd = None
+    if req_f.exists():
+        pip_cmd = [sys.executable, "-m", "pip", "install", "-r", str(req_f), "-q"]
+    elif deps:
+        pip_cmd = [sys.executable, "-m", "pip", "install", "-q"] + deps
+    if pip_cmd:
+        try:
+            subprocess.run(pip_cmd, timeout=120, check=False)
+        except Exception:
+            pass
+
+    return True
+
+
+def step5c_hub_plugins(channels: dict) -> None:
+    """Offer curated hub plugins during onboarding. Auto-select messaging plugins."""
+    import asyncio
+    section("Optional plugins from the Hub", "Step 5c/9:")
+    print(f"  {_c(C_DIM, 'AION ships with core tools only. Additional plugins can be installed')}")
+    print(f"  {_c(C_DIM, 'from the Plugin Hub — also available later in the Web UI under Plugins → Hub.')}")
+    print()
+
+    # Fetch manifest once (needed for downloads)
+    manifest: dict = asyncio.run(_fetch_manifest_sync())
+    if not manifest:
+        info("Hub not reachable — skipping. You can install plugins later via the Web UI.")
+        print()
+        return
+
+    # Build ordered list: channel plugins (auto-pre-selected) then curated plugins
+    ordered: list[tuple[str, str]] = []   # (plugin_name, display_label)
+    auto_indices: list[int]        = []
+
+    for ch_key, (pname, label) in _CHANNEL_PLUGINS.items():
+        if channels.get(ch_key):
+            auto_indices.append(len(ordered))
+            ordered.append((pname, f"{label}  {_c(C_GREEN, '(auto — channel configured)')}"))
+
+    for pname, label in _HUB_ONBOARDING_PLUGINS:
+        ordered.append((pname, label))
+
+    items = [label for _, label in ordered]
+
+    print(f"  {_c(C_DIM, 'Select with Space, confirm with Enter:')}")
+    print()
+    selected_indices = _checkboxes(items, defaults=auto_indices)
+    print()
+
+    to_install = [ordered[i][0] for i in selected_indices]
+
+    if not to_install:
+        info("No hub plugins selected — you can install them later via Plugins → Hub.")
+        print()
+        return
+
+    print(f"  Installing {len(to_install)} plugin(s)…")
+    print()
+    for pname in to_install:
+        print(f"  ⟳  {pname} … ", end="", flush=True)
+        success = asyncio.run(_hub_install_offline(pname, manifest))
+        print(_c(C_GREEN, "ok") if success else _c(C_YELLOW, "skipped"))
+
+    print()
+    ok("Plugins installed — they will be active on first AION start.")
+    print()
+
+
+async def _fetch_manifest_sync() -> dict:
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(_HUB_MANIFEST_URL)
+            r.raise_for_status()
+            return r.json()
+    except Exception:
+        return {}
+
+
 # ── Step 6: Profile ───────────────────────────────────────────────────────────
 
 def step6_profile() -> dict:
@@ -1356,6 +1523,7 @@ def run_onboarding() -> None:
         extra_keys   = step4_additional_providers(provider)
         channels     = step5_channels()
         mcp_servers  = step5b_mcp()
+        step5c_hub_plugins(channels)
         profile      = step6_profile()
         permissions  = step7_permissions()
         advanced     = step8_advanced(model)

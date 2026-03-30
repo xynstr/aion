@@ -621,7 +621,7 @@ async def list_plugins():
                 continue
             try:
                 source     = plugin_file.read_text(encoding="utf-8", errors="replace")
-                tool_names = re.findall(r'register_tool\s*\(\s*name\s*=\s*["\']([^"\']+)["\']', source)
+                tool_names = re.findall(r'register_tool\s*\(\s*(?:name\s*=\s*)?["\']([^"\']+)["\']', source)
                 has_register = "def register(" in source
             except Exception:
                 tool_names = []
@@ -653,6 +653,79 @@ async def list_plugins():
         "orphan_tools": orphans,
         "total_loaded": len(all_tools),
     })
+
+# ── Plugin Hub API ───────────────────────────────────────────────────────────
+
+_HUB_MANIFEST_DEFAULT = (
+    "https://raw.githubusercontent.com/xynstr/aion-hub-plugins/main/manifest.json"
+)
+
+@app.get("/api/hub")
+async def hub_list_route():
+    import httpx as _httpx
+    try:
+        import config_store as _cs
+        manifest_url = _cs.get_key("HUB_MANIFEST_URL") or _HUB_MANIFEST_DEFAULT
+    except Exception:
+        manifest_url = _HUB_MANIFEST_DEFAULT
+    try:
+        async with _httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(manifest_url)
+            r.raise_for_status()
+            manifest: dict = r.json()
+    except Exception as exc:
+        return JSONResponse({"error": f"Manifest not reachable: {exc}"}, status_code=502)
+
+    plugins_dir = AION_DIR / "plugins"
+    result = []
+    for name, info in manifest.items():
+        plugin_dir   = plugins_dir / name
+        installed    = (plugin_dir / f"{name}.py").exists()
+        local_ver    = None
+        if installed:
+            vf = plugin_dir / "version.txt"
+            local_ver = vf.read_text(encoding="utf-8").strip() if vf.exists() else "?"
+        remote_ver = info.get("version", "?")
+        result.append({
+            "name":             name,
+            "display_name":     info.get("name", name),
+            "description":      info.get("description", ""),
+            "version":          remote_ver,
+            "local_version":    local_ver,
+            "dependencies":     info.get("dependencies", []),
+            "installed":        installed,
+            "update_available": installed and local_ver not in (None, remote_ver),
+        })
+    return JSONResponse({"plugins": result, "count": len(result)})
+
+
+@app.post("/api/hub/install")
+async def hub_install_route(req: Request):
+    data = await req.json()
+    name = data.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+    try:
+        from plugins.hub_plugin.hub_plugin import _hub_install
+        result = await _hub_install(plugin_name=name)
+        return JSONResponse(json.loads(result))
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/hub/remove")
+async def hub_remove_route(req: Request):
+    data = await req.json()
+    name = data.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+    try:
+        from plugins.hub_plugin.hub_plugin import _hub_remove
+        result = await _hub_remove(plugin_name=name)
+        return JSONResponse(json.loads(result))
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
 
 @app.post("/api/plugins/disable")
 async def disable_plugin_route(req: Request):

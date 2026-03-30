@@ -18,10 +18,14 @@ DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
 # advertised in every system prompt.
 # Individual plugins can still override by passing tier= to register_tool().
 _TIER2_PLUGINS: frozenset[str] = frozenset({
+    # Hub-only plugins (installed on demand) — kept here so tier is correct after install
     "desktop", "playwright_browser", "telegram_bot", "discord_bot",
     "slack_bot", "multi_agent", "audio_pipeline", "audio_transcriber",
     "alexa_plugin", "image_search", "moltbook", "docx_tool",
-    "mood_engine", "proactive", "mcp_client", "paperless",
+    "mood_engine", "proactive", "mcp_client", "focus_manager",
+    "heartbeat", "character_manager", "grok_provider", "claude_cli_provider",
+    # Bundled but contextual
+    "paperless",
 })
 
 
@@ -33,7 +37,7 @@ _TIER2_PLUGINS: frozenset[str] = frozenset({
 DEFAULT_ENABLED: set[str] = {
     "core_tools", "web_tools", "shell_tools", "memory_plugin",
     "todo_tools", "scheduler", "smart_patch", "reflection",
-    "updater", "pid_tool", "restart_tool",
+    "updater", "pid_tool", "restart_tool", "hub_plugin",
 }
 
 

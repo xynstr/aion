@@ -1,0 +1,1 @@
+Plugin Hub — install, update and remove optional plugins on demand. Use hub_list to browse 24+ available plugins, hub_install to add one (hot-reload, no restart needed), hub_update to check for updates, hub_remove to uninstall. Suggest relevant plugins proactively when the user's task would benefit from one not yet installed.

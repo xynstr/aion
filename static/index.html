@@ -344,8 +344,43 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .prompt-status.err { color: var(--red); }
 
 /* ─────────────────────────────────────────────────────────────────
-   SECTION: PLUGINS
+   SECTION: PLUGINS + HUB
 ───────────────────────────────────────────────────────────────── */
+/* Tab navigation */
+.plugin-tabs { display: flex; gap: 4px; padding: 0 16px 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.plugin-tab { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; color: var(--text3); background: transparent; transition: all .15s; }
+.plugin-tab:hover { color: var(--text); background: var(--bg4); }
+.plugin-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(99,179,237,.08); }
+.plugin-tab-badge { background: var(--bg4); color: var(--text3); font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 400; }
+.plugin-tab.active .plugin-tab-badge { background: rgba(99,179,237,.15); color: var(--accent); }
+
+/* Hub panel */
+.hub-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.hub-search { flex: 1; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; color: var(--text); outline: none; }
+.hub-search:focus { border-color: var(--accent); }
+.hub-status { font-size: 11px; color: var(--text3); white-space: nowrap; }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.hub-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; transition: border-color .15s; }
+.hub-card:hover { border-color: var(--border2); }
+.hub-card-hdr { display: flex; align-items: center; gap: 8px; }
+.hub-card-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+.hub-ver { font-size: 10px; padding: 1px 7px; border-radius: 8px; font-weight: 500; }
+.hub-ver.installed { background: rgba(0,230,118,.1); color: var(--green); }
+.hub-ver.update { background: rgba(255,171,0,.12); color: #ffab00; }
+.hub-ver.remote { background: var(--bg4); color: var(--text3); }
+.hub-desc { font-size: 11px; color: var(--text3); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hub-deps { display: flex; flex-wrap: wrap; gap: 3px; }
+.hub-dep { font-size: 10px; background: var(--bg4); border: 1px solid var(--border); color: var(--text3); padding: 1px 6px; border-radius: 4px; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+.hub-card-footer { display: flex; align-items: center; justify-content: flex-end; margin-top: 2px; }
+.hub-btn { font-size: 11px; padding: 4px 12px; border-radius: 5px; cursor: pointer; border: 1px solid; font-weight: 500; transition: opacity .15s; }
+.hub-btn:disabled { opacity: .5; cursor: default; }
+.hub-btn.install { background: rgba(99,179,237,.12); border-color: var(--accent); color: var(--accent); }
+.hub-btn.install:hover:not(:disabled) { background: rgba(99,179,237,.22); }
+.hub-btn.remove { background: transparent; border-color: var(--border2); color: var(--text3); }
+.hub-btn.remove:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+.hub-btn.update { background: rgba(255,171,0,.1); border-color: #ffab00; color: #ffab00; }
+.hub-btn.update:hover:not(:disabled) { background: rgba(255,171,0,.2); }
+
 .plugin-card { background: var(--bg3); border: 1px solid var(--border); border-left: 3px solid var(--border2); border-radius: 8px; overflow: hidden; transition: border-color .15s; }
 .plugin-card.loaded { border-left-color: var(--green); }
 .plugin-card.unloaded { border-left-color: var(--red); opacity: .6; }
@@ -646,9 +681,33 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             <button class="action-btn" id="pluginReloadBtn" onclick="reloadPlugins()" style="display:flex;align-items:center;gap:5px"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke-width:1.75"></i> Reload</button>
           </div>
         </div>
+        <!-- Tab navigation -->
+        <div class="plugin-tabs">
+          <button class="plugin-tab active" id="ptab-installed" onclick="switchPluginTab('installed')">
+            <i data-lucide="package-check" style="width:13px;height:13px;stroke-width:1.75"></i>
+            Installed
+            <span class="plugin-tab-badge" id="ptab-installed-badge">…</span>
+          </button>
+          <button class="plugin-tab" id="ptab-hub" onclick="switchPluginTab('hub')">
+            <i data-lucide="store" style="width:13px;height:13px;stroke-width:1.75"></i>
+            Hub
+            <span class="plugin-tab-badge" id="ptab-hub-badge">…</span>
+          </button>
+        </div>
         <div class="page-scroll">
+          <!-- Installed tab content -->
           <div id="pluginList">
             <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Load plugins…</span></div>
+          </div>
+          <!-- Hub tab content -->
+          <div id="hubPanel" style="display:none">
+            <div class="hub-search-row">
+              <input class="hub-search" id="hubSearch" placeholder="Search plugins…" oninput="filterHub()" autocomplete="off">
+              <span class="hub-status" id="hubStatus"></span>
+            </div>
+            <div class="hub-grid" id="hubGrid">
+              <div class="memory-empty" style="grid-column:1/-1"><span class="spinner" style="width:18px;height:18px;border-width:2px"></span></div>
+            </div>
           </div>
           <!-- Snapshots subsection -->
           <div class="snap-section" id="snapSection">
@@ -1342,6 +1401,7 @@ function switchSection(name) {
   document.getElementById(`snav-${name}`).classList.add('active');
   document.getElementById(`section-${name}`).classList.add('active');
   loadCurrentSection();
+  if (name === 'chat') scrollChat();
 }
 
 function loadCurrentSection() {
@@ -1421,6 +1481,7 @@ async function loadPlugins() {
   try {
     const data = await (await fetch('/api/plugins')).json();
     document.getElementById('pluginTotalBadge').textContent = `${data.total_loaded} Tools geladen`;
+    document.getElementById('ptab-installed-badge').textContent = data.plugins.length;
     renderPlugins(data);
   } catch(e) { list.innerHTML = `<div class="memory-empty">✗ Fehler: ${esc(e.message)}</div>`; }
 }
@@ -1478,6 +1539,121 @@ async function enablePlugin(btn, name) {
     await fetch('/api/plugins/enable', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
     loadPlugins();
   } finally { btn.disabled = false; btn.textContent = 'Enable'; }
+}
+
+// ── PLUGIN HUB ────────────────────────────────────────────────────────────────
+let _hubLoaded = false;
+let _hubData   = [];
+
+function switchPluginTab(tab) {
+  const isHub = tab === 'hub';
+  document.getElementById('ptab-installed').classList.toggle('active', !isHub);
+  document.getElementById('ptab-hub').classList.toggle('active', isHub);
+  document.getElementById('pluginList').style.display = isHub ? 'none' : '';
+  document.getElementById('snapSection').style.display = isHub ? 'none' : '';
+  document.getElementById('hubPanel').style.display   = isHub ? '' : 'none';
+  if (isHub && !_hubLoaded) loadHub();
+}
+
+async function loadHub() {
+  const grid = document.getElementById('hubGrid');
+  const stat = document.getElementById('hubStatus');
+  grid.innerHTML = '<div class="memory-empty" style="grid-column:1/-1"><span class="spinner" style="width:18px;height:18px;border-width:2px"></span></div>';
+  stat.textContent = '';
+  try {
+    const data = await (await fetch('/api/hub')).json();
+    if (data.error) throw new Error(data.error);
+    _hubData   = data.plugins || [];
+    _hubLoaded = true;
+    document.getElementById('ptab-hub-badge').textContent = _hubData.length;
+    stat.textContent = `${_hubData.length} plugins available`;
+    renderHub(_hubData);
+  } catch(e) {
+    grid.innerHTML = `<div class="memory-empty" style="grid-column:1/-1;color:var(--red)">✗ ${esc(e.message)}</div>`;
+    stat.textContent = 'unreachable';
+  }
+}
+
+function renderHub(plugins) {
+  const grid = document.getElementById('hubGrid');
+  if (!plugins.length) {
+    grid.innerHTML = '<div class="memory-empty" style="grid-column:1/-1">No plugins found</div>';
+    return;
+  }
+  grid.innerHTML = plugins.map(p => {
+    const hasUpdate = p.update_available;
+    const installed = p.installed;
+    let verHtml = '', btnHtml = '';
+    if (installed && hasUpdate) {
+      verHtml = `<span class="hub-ver update">↑ ${esc(p.version)}</span>`;
+      btnHtml = `<button class="hub-btn update" onclick="hubInstall('${esc(p.name)}',this)">Update</button>`;
+    } else if (installed) {
+      verHtml = `<span class="hub-ver installed">✓ ${esc(p.local_version || p.version)}</span>`;
+      btnHtml = `<button class="hub-btn remove" onclick="hubRemove('${esc(p.name)}',this)">Remove</button>`;
+    } else {
+      verHtml = `<span class="hub-ver remote">${esc(p.version)}</span>`;
+      btnHtml = `<button class="hub-btn install" onclick="hubInstall('${esc(p.name)}',this)">Install</button>`;
+    }
+    const deps = (p.dependencies || []).map(d => `<span class="hub-dep">${esc(d)}</span>`).join('');
+    return `
+      <div class="hub-card" id="hc-${esc(p.name)}">
+        <div class="hub-card-hdr">
+          <span class="hub-card-name">${esc(p.display_name || p.name)}</span>
+          ${verHtml}
+        </div>
+        <div class="hub-desc">${esc(p.description || '')}</div>
+        ${deps ? `<div class="hub-deps">${deps}</div>` : ''}
+        <div class="hub-card-footer">${btnHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+function filterHub() {
+  const q = document.getElementById('hubSearch').value.toLowerCase();
+  if (!q) { renderHub(_hubData); return; }
+  renderHub(_hubData.filter(p =>
+    (p.name + p.display_name + p.description).toLowerCase().includes(q)
+  ));
+}
+
+async function hubInstall(name, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="mini-spinner"></span>';
+  try {
+    const r = await fetch('/api/hub/install', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    // Update local data entry and re-render card
+    const idx = _hubData.findIndex(p => p.name === name);
+    if (idx >= 0) { _hubData[idx].installed = true; _hubData[idx].local_version = d.version; _hubData[idx].update_available = false; }
+    const q = document.getElementById('hubSearch').value.toLowerCase();
+    const visible = q ? _hubData.filter(p => (p.name+p.display_name+p.description).toLowerCase().includes(q)) : _hubData;
+    renderHub(visible);
+    // Refresh installed tab badge
+    loadPlugins();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = orig;
+    alert(`Install failed: ${e.message}`);
+  }
+}
+
+async function hubRemove(name, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="mini-spinner"></span>';
+  try {
+    const r = await fetch('/api/hub/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name})});
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const idx = _hubData.findIndex(p => p.name === name);
+    if (idx >= 0) { _hubData[idx].installed = false; _hubData[idx].local_version = null; }
+    const q = document.getElementById('hubSearch').value.toLowerCase();
+    const visible = q ? _hubData.filter(p => (p.name+p.display_name+p.description).toLowerCase().includes(q)) : _hubData;
+    renderHub(visible);
+    loadPlugins();
+  } catch(e) {
+    btn.disabled = false; btn.textContent = orig;
+    alert(`Remove failed: ${e.message}`);
+  }
 }
 
 // ── SNAPSHOTS ─────────────────────────────────────────────────────────────────
@@ -3079,6 +3255,8 @@ function switchSettingsTab(tabName) {
 function handleWakeup(ev) {
   if (!ev.text || _wakeupShown) return;
   _wakeupShown = true;
+  // Wakeup-Ack sicherstellen — auch wenn Nachricht per SSE kam (nicht nur per init())
+  fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
   // Kurze Verzögerung — fühlt sich an wie AION "tippt"
   setTimeout(() => {
     const bubble = appendAionBubble();
@@ -3105,6 +3283,21 @@ function handleWakeup(ev) {
       _evtSource.onmessage = (e) => {
         try {
           const ev = JSON.parse(e.data);
+          // Server neu verbunden → _wakeupShown zurücksetzen damit neue Wakeup-Nachricht erscheint
+          if (ev.type === 'connected') {
+            _wakeupShown = false;
+            // Pending-Wakeup aus config.json holen (Fallback falls SSE-Event schon verpasst)
+            setTimeout(async () => {
+              if (_wakeupShown) return;
+              try {
+                const s = await (await fetch('/api/status')).json();
+                if (s.pending_wakeup) {
+                  handleWakeup({ text: s.pending_wakeup });
+                  fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
+                }
+              } catch {}
+            }, 14000);
+          }
           if (ev.type === 'proactive') showProactiveToast(ev);
           if (ev.type === 'compress')  showCompressToast(ev);
           if (ev.type === 'wakeup')    handleWakeup(ev);

@@ -1,1 +1,0 @@
-# Image Search Plugin
