@@ -134,6 +134,13 @@ async def _lifespan(app: FastAPI):
     print(f"[AION] Startup model: {m}")
     await _session.load_history(num_entries=20, channel_filter="web")
 
+    # Neustart-Marker in den Kontext einfügen, damit AION weiß dass ein Neustart war
+    # und nicht unfertige Aufgaben aus der vorherigen Sitzung blind fortsetzt.
+    _session.messages.append({
+        "role": "system",
+        "content": "[SYSTEM] AION wurde neu gestartet. Vorherige unfertige Aufgaben nicht automatisch fortsetzen.",
+    })
+
     asyncio.create_task(_trigger_wakeup())
 
     yield
