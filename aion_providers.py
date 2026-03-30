@@ -25,10 +25,9 @@ def register_provider(prefix: str, build_fn, label: str = "", models: list | Non
     context_window  — context window in tokens (used to compute dynamic read limits)
     list_models_fn  — optional async callable() → list[str] for dynamic model discovery
     """
-    global _provider_registry
-    # Dedup: vorhandenen Eintrag mit diesem Prefix entfernen, um Duplikate bei
-    # mehrfachem Plugin-Load (z.B. Hot-Reload) zu verhindern
-    _provider_registry = [e for e in _provider_registry if e["prefix"] != prefix]
+    # Dedup: in-place mutieren statt neu zuweisen — damit alle Referenzen (aion.py etc.)
+    # auf dieselbe Liste zeigen und die Änderung sehen.
+    _provider_registry[:] = [e for e in _provider_registry if e["prefix"] != prefix]
     _provider_registry.append({
         "prefix":         prefix,
         "build_fn":       build_fn,
