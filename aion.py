@@ -1663,11 +1663,8 @@ async def _startup_wakeup(push_queue=None) -> None:
         except Exception:
             pass
 
-        # 6. An Web UI pushen (SSE)
-        if push_queue is not None:
-            await push_queue.put({"type": "wakeup", "text": message})
-        else:
-            # CLI-Modus: direkt ausgeben
+        # 6. CLI-Ausgabe (Web UI holt aus config.json via SSE-connected-Poll)
+        if push_queue is None:
             if HAS_RICH:
                 from rich.panel import Panel as _Panel
                 console.print(_Panel(message, title="[cyan]AION[/cyan]", border_style="cyan"))

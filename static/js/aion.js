@@ -2233,17 +2233,19 @@ function handleWakeup(ev) {
           // Server neu verbunden → _wakeupShown zurücksetzen damit neue Wakeup-Nachricht erscheint
           if (ev.type === 'connected') {
             _wakeupShown = false;
-            // Pending-Wakeup aus config.json holen (Fallback falls SSE-Event schon verpasst)
-            setTimeout(async () => {
-              if (_wakeupShown) return;
-              try {
-                const s = await (await fetch('/api/status')).json();
-                if (s.pending_wakeup) {
-                  handleWakeup({ text: s.pending_wakeup });
-                  fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
-                }
-              } catch {}
-            }, 14000);
+            // Wakeup kommt aus config.json — mehrfach prüfen bis sie da ist
+            for (const d of [2000, 6000, 12000, 20000]) {
+              setTimeout(async () => {
+                if (_wakeupShown) return;
+                try {
+                  const s = await (await fetch('/api/status')).json();
+                  if (s.pending_wakeup) {
+                    handleWakeup({ text: s.pending_wakeup });
+                    fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
+                  }
+                } catch {}
+              }, d);
+            }
           }
           if (ev.type === 'proactive') showProactiveToast(ev);
           if (ev.type === 'compress')  showCompressToast(ev);
