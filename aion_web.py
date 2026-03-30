@@ -684,7 +684,7 @@ async def hub_list_route():
         local_ver    = None
         if installed:
             vf = plugin_dir / "version.txt"
-            local_ver = vf.read_text(encoding="utf-8").strip() if vf.exists() else "?"
+            local_ver = vf.read_text(encoding="utf-8").strip() if vf.exists() else None
         remote_ver = info.get("version", "?")
         result.append({
             "name":             name,
@@ -694,7 +694,8 @@ async def hub_list_route():
             "local_version":    local_ver,
             "dependencies":     info.get("dependencies", []),
             "installed":        installed,
-            "update_available": installed and local_ver not in (None, remote_ver),
+            # update_available only when installed via hub (version.txt present) AND version differs
+            "update_available": installed and local_ver is not None and local_ver != remote_ver,
         })
     return JSONResponse({"plugins": result, "count": len(result)})
 
