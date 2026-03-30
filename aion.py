@@ -1755,11 +1755,17 @@ async def _startup_wakeup(push_queue=None) -> None:
         # 4. LLM aufrufen — gesamte Antwort ist die Nachricht, kein Parsen
         cl = _build_client(MODEL)
         _is_thinking = _is_reasoning_model(MODEL) or MODEL.startswith("gemini-2.5")
+        # Für gemini-2.5 Thinking deaktivieren — einfache 3-Satz-Antwort braucht kein Reasoning
+        _extra = {}
+        if not _is_thinking:
+            _extra["temperature"] = 0.7
+        if MODEL.startswith("gemini-2.5"):
+            _extra["thinking_budget"] = 0
         resp = await cl.chat.completions.create(
             model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": prompt}],
             **_max_tokens_param(MODEL, 1500),
-            **({} if _is_thinking else {"temperature": 0.7}),
+            **_extra,
         )
 
         message = ""

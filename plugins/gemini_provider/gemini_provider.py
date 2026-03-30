@@ -283,6 +283,10 @@ class _GeminyChatCompletions:
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction
 
+        # thinking_budget kwarg — erlaubt Callers Thinking zu begrenzen (z.B. Wakeup-Calls)
+        if "thinking_budget" in kwargs:
+            config_kwargs["thinking_config"] = t.ThinkingConfig(thinking_budget=kwargs["thinking_budget"])
+
         # Function Calling — tools in config eintragen
         if tools:
             declarations = _openai_schema_to_gemini(tools)
