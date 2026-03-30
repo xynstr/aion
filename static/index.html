@@ -347,12 +347,25 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
    SECTION: PLUGINS + HUB
 ───────────────────────────────────────────────────────────────── */
 /* Tab navigation */
-.plugin-tabs { display: flex; gap: 4px; padding: 0 16px 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.plugin-tabs { display: flex; gap: 6px; padding: 0 16px 10px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
 .plugin-tab { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; color: var(--text3); background: transparent; transition: all .15s; }
 .plugin-tab:hover { color: var(--text); background: var(--bg4); }
 .plugin-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(99,179,237,.08); }
 .plugin-tab-badge { background: var(--bg4); color: var(--text3); font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 400; }
 .plugin-tab.active .plugin-tab-badge { background: rgba(99,179,237,.15); color: var(--accent); }
+/* Hub tab — always distinctly styled */
+.plugin-tab.hub-tab { color: var(--accent); border-color: rgba(99,179,237,.35); background: rgba(99,179,237,.06); }
+.plugin-tab.hub-tab:hover { background: rgba(99,179,237,.14); border-color: var(--accent); }
+.plugin-tab.hub-tab.active { background: rgba(99,179,237,.15); border-color: var(--accent); }
+.plugin-tab.hub-tab .plugin-tab-badge { background: rgba(99,179,237,.18); color: var(--accent); }
+/* Hub promo banner */
+.hub-promo { display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, rgba(99,179,237,.07) 0%, rgba(99,179,237,.02) 100%); border: 1px solid rgba(99,179,237,.28); border-radius: 8px; padding: 12px 16px; margin: 0 0 14px 0; cursor: pointer; transition: border-color .15s, background .15s; }
+.hub-promo:hover { border-color: rgba(99,179,237,.55); background: rgba(99,179,237,.1); }
+.hub-promo-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.hub-promo-body { flex: 1; }
+.hub-promo-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 2px; }
+.hub-promo-sub { font-size: 11px; color: var(--text3); line-height: 1.4; }
+.hub-promo-cta { font-size: 11px; font-weight: 600; color: var(--accent); white-space: nowrap; display: flex; align-items: center; gap: 4px; }
 
 /* Hub panel */
 .hub-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -688,14 +701,23 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
             Installed
             <span class="plugin-tab-badge" id="ptab-installed-badge">…</span>
           </button>
-          <button class="plugin-tab" id="ptab-hub" onclick="switchPluginTab('hub')">
+          <button class="plugin-tab hub-tab" id="ptab-hub" onclick="switchPluginTab('hub')">
             <i data-lucide="store" style="width:13px;height:13px;stroke-width:1.75"></i>
-            Hub
+            Plugin Hub
             <span class="plugin-tab-badge" id="ptab-hub-badge">…</span>
           </button>
         </div>
         <div class="page-scroll">
           <!-- Installed tab content -->
+          <!-- Hub promo banner (shown on Installed tab) -->
+          <div class="hub-promo" id="hubPromoBanner" onclick="switchPluginTab('hub')" title="Browse the Plugin Hub">
+            <div class="hub-promo-icon">📦</div>
+            <div class="hub-promo-body">
+              <div class="hub-promo-title">Plugin Hub</div>
+              <div class="hub-promo-sub" id="hubPromoSub">Browser automation, voice I/O, desktop control, Telegram bots &amp; more — install on demand, no restart needed.</div>
+            </div>
+            <div class="hub-promo-cta"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke-width:2.5"></i></div>
+          </div>
           <div id="pluginList">
             <div class="memory-empty"><span class="spinner" style="width:20px;height:20px;border-width:2px"></span><span>Load plugins…</span></div>
           </div>
@@ -1549,9 +1571,11 @@ function switchPluginTab(tab) {
   const isHub = tab === 'hub';
   document.getElementById('ptab-installed').classList.toggle('active', !isHub);
   document.getElementById('ptab-hub').classList.toggle('active', isHub);
-  document.getElementById('pluginList').style.display = isHub ? 'none' : '';
-  document.getElementById('snapSection').style.display = isHub ? 'none' : '';
-  document.getElementById('hubPanel').style.display   = isHub ? '' : 'none';
+  document.getElementById('pluginList').style.display       = isHub ? 'none' : '';
+  document.getElementById('snapSection').style.display      = isHub ? 'none' : '';
+  document.getElementById('hubPanel').style.display         = isHub ? '' : 'none';
+  const banner = document.getElementById('hubPromoBanner');
+  if (banner) banner.style.display = isHub ? 'none' : '';
   if (isHub && !_hubLoaded) loadHub();
 }
 
@@ -1565,8 +1589,12 @@ async function loadHub() {
     if (data.error) throw new Error(data.error);
     _hubData   = data.plugins || [];
     _hubLoaded = true;
+    const notInstalled = _hubData.filter(p => !p.installed).length;
     document.getElementById('ptab-hub-badge').textContent = _hubData.length;
     stat.textContent = `${_hubData.length} plugins available`;
+    // Update promo banner subtitle with live count
+    const sub = document.getElementById('hubPromoSub');
+    if (sub) sub.textContent = `${notInstalled} optional plugins available — browser automation, voice I/O, desktop control, Telegram bots & more. Install on demand, no restart needed.`;
     renderHub(_hubData);
   } catch(e) {
     grid.innerHTML = `<div class="memory-empty" style="grid-column:1/-1;color:var(--red)">✗ ${esc(e.message)}</div>`;

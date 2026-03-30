@@ -1802,18 +1802,24 @@ Reagiere auf die konkrete Situation:
             # Non-streaming OpenAI ChatCompletion
             raw = (resp.choices[0].message.content or "").strip()
 
-        # Output parsen
-        thought = ""
-        message = ""
-        if "=== GEDANKE ===" in raw and "=== NACHRICHT ===" in raw:
-            parts = raw.split("=== NACHRICHT ===")
-            thought_part = parts[0].split("=== GEDANKE ===")[-1].strip()
-            message = parts[1].strip() if len(parts) > 1 else ""
-            thought = thought_part
-        elif "=== NACHRICHT ===" in raw:
-            message = raw.split("=== NACHRICHT ===")[-1].strip()
+        # Output parsen — regex toleriert Formatierungsvariationen des LLMs
+        # (extra Leerzeichen, **, ##, etc. um die Marker)
+        import re as _re
+        _MARK = r'(?m)^[^a-zA-Z\n]*{word}[^a-zA-Z\n]*$'
+        _gm = _re.search(_MARK.format(word='GEDANKE'),   raw, _re.IGNORECASE)
+        _nm = _re.search(_MARK.format(word='NACHRICHT'), raw, _re.IGNORECASE)
+        if _gm and _nm:
+            thought = raw[_gm.end():_nm.start()].strip()
+            message = raw[_nm.end():].strip()
+        elif _nm:
+            thought = ""
+            message = raw[_nm.end():].strip()
+        elif _gm:
+            thought = raw[_gm.end():].strip()
+            message = ""
         else:
-            message = raw
+            thought = ""
+            message = raw.strip()
 
         # Gedanke in thoughts.md schreiben
         if thought and "**[" in thought:
@@ -1844,18 +1850,29 @@ Reagiere auf die konkrete Situation:
             else:
                 print(f"\nAION: {message}\n")
 
-        # Nachricht via Telegram (fire-and-forget)
+        # Nachricht via Telegram (fire-and-forget, HTML-Formatierung + Split)
         _token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
         _chat = os.environ.get("TELEGRAM_CHAT_ID", "")
         if message and _token and _chat:
             try:
                 import httpx as _httpx
-                async with _httpx.AsyncClient() as _hc:
-                    await _hc.post(
-                        f"https://api.telegram.org/bot{_token}/sendMessage",
-                        json={"chat_id": _chat, "text": message},
-                        timeout=10,
-                    )
+                try:
+                    from plugins.telegram_bot.telegram_bot import _md_to_html, _split_message
+                    _chunks = _split_message(message)
+                    async with _httpx.AsyncClient() as _hc:
+                        for _chunk in _chunks:
+                            await _hc.post(
+                                f"https://api.telegram.org/bot{_token}/sendMessage",
+                                json={"chat_id": _chat, "text": _md_to_html(_chunk), "parse_mode": "HTML"},
+                                timeout=10,
+                            )
+                except ImportError:
+                    async with _httpx.AsyncClient() as _hc:
+                        await _hc.post(
+                            f"https://api.telegram.org/bot{_token}/sendMessage",
+                            json={"chat_id": _chat, "text": message[:4096]},
+                            timeout=10,
+                        )
                 print("[AION] wakeup message sent via Telegram")
             except Exception as _te:
                 print(f"[AION] Telegram wakeup error: {_te}")
