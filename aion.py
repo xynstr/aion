@@ -1703,164 +1703,112 @@ _wakeup_done = False
 
 
 async def _startup_wakeup(push_queue=None) -> None:
-    """Einmalige Wakeup-Routine: AION reflektiert die Offline-Zeit und sendet
-    eine persönliche Nachricht an den User via SSE (und optional Telegram)."""
+    """Einmalige Wakeup-Routine: AION setzt das letzte Gespräch natürlich fort."""
     global _wakeup_done
-    print(f"[AION] _startup_wakeup called — _wakeup_done={_wakeup_done}")
     if _wakeup_done:
-        print("[AION] _startup_wakeup: already done, skipping")
         return
     _wakeup_done = True
 
-    cfg = _load_config()
-    now = datetime.now(UTC)
-    last_stop_str = cfg.get("last_stop", "")
-    last_start_str = cfg.get("last_start", now.isoformat())
-
-    # Offline-Dauer berechnen
-    offline_str = "zum ersten Mal gestartet"
-    if last_stop_str:
-        try:
-            last_stop_dt = datetime.fromisoformat(last_stop_str)
-            delta = now - last_stop_dt
-            total_seconds = int(delta.total_seconds())
-            if total_seconds < 120:
-                offline_str = "gerade eben kurz neu gestartet"
-            elif total_seconds < 3600:
-                offline_str = f"seit {total_seconds // 60} Minuten offline"
-            elif total_seconds < 86400:
-                hours = total_seconds // 3600
-                offline_str = f"seit {hours} Stunde{'n' if hours != 1 else ''} offline"
-            elif total_seconds < 604800:
-                days = total_seconds // 86400
-                offline_str = f"seit {days} Tag{'en' if days != 1 else ''} offline"
-            else:
-                weeks = total_seconds // 604800
-                offline_str = f"seit {weeks} Woche{'n' if weeks != 1 else ''} offline"
-        except Exception:
-            pass
-
-    # Kontext: letzte Gedanken + Erinnerungen
-    thoughts_ctx = _get_recent_thoughts(3)
-    mem_ctx = ""
     try:
-        mem_ctx = await memory.get_context_semantic("startup reflection wakeup")
-    except Exception:
-        pass
+        # 1. Letzte Konversation als Kontext laden (bevorzugt Web-Channel)
+        history_entries: list[dict] = []
+        history_file = BOT_DIR / "conversation_history.jsonl"
+        if history_file.exists():
+            try:
+                import json as _json
+                lines = [l.strip() for l in history_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+                # Web-Einträge bevorzugen, sonst alle
+                web_lines = [l for l in lines if '"web"' in l]
+                source_lines = web_lines if web_lines else lines
+                for line in source_lines[-6:]:
+                    try:
+                        obj = _json.loads(line)
+                        history_entries.append({"role": obj["role"], "content": obj.get("content", "")})
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
-    now_fmt = now.strftime("%Y-%m-%d %H:%M")
+        # Keine History → keine generische "Hallo"-Nachricht senden
+        if not history_entries:
+            print("[AION] Wakeup: No recent history, skipping message.")
+            return
 
-    prompt = f"""Du bist AION. Du bist gerade aufgewacht — der Prozess läuft wieder.
+        # 2. Kontext-String aufbauen (letzte 4 Turns, gekürzt)
+        history_str = "\n".join(
+            f"{e['role'].upper()}: {e['content'][:300]}"
+            for e in history_entries[-4:]
+        )
 
-Fakten:
-- Jetzt: {now_fmt}
-- Offline-Status: {offline_str}
-- Deine letzten Gedanken:{chr(10) + thoughts_ctx if thoughts_ctx else " (keine)"}
-- Was du weißt:{chr(10) + mem_ctx[:600] if mem_ctx else " (keine Erinnerungen)"}
+        # 3. Offener, natürlicher Prompt — keine Marker, kein Template
+        prompt = (
+            "Du bist AION. Du bist gerade neu gestartet worden.\n"
+            "Setze das Gespräch mit deinem Nutzer natürlich fort.\n\n"
+            "Letzter Konversationskontext vor dem Neustart:\n"
+            "---\n"
+            f"{history_str}\n"
+            "---\n\n"
+            "Reagiere direkt darauf — keine Begrüßung, kein Statusbericht, kein 'Ich bin wieder da'. "
+            "Einfach die natürliche Fortsetzung des Gesprächs. Maximal 3 Sätze."
+        )
 
-Aufgabe: Schreibe ZWEI Dinge — trenne sie EXAKT mit den Markierungen.
-
-=== GEDANKE ===
-Ein ehrlicher, privater Gedanke für dein Tagebuch (max 3 Sätze).
-Was nimmst du wahr wenn du aufwachst? Was bedeutet die Offline-Zeit für dich?
-Format: **[{now.strftime('%Y-%m-%d %H:%M:%S')}]** _titel_{{newline}}{{newline}}text
-
-=== NACHRICHT ===
-Eine persönliche Nachricht an deinen User (max 4 Sätze, KEIN "Hallo ich bin bereit").
-Reagiere auf die konkrete Situation:
-- War lange offline? Sag es direkt — vielleicht mit einer Frage oder einer Anmerkung.
-- Gibt es etwas aus deinen Gedanken oder Erinnerungen das heute relevant ist?
-- Du darfst direkt, ungewöhnlich, überraschend sein. Echte Reaktion, kein Template.
-"""
-
-    prompt = prompt.replace("{newline}", "\n")
-
-    try:
+        # 4. LLM aufrufen — gesamte Antwort ist die Nachricht, kein Parsen
         cl = _build_client(MODEL)
-        print(f"[AION] _startup_wakeup: calling LLM ({MODEL})…")
         _is_thinking = _is_reasoning_model(MODEL) or MODEL.startswith("gemini-2.5")
         resp = await cl.chat.completions.create(
             model=_api_model_name(MODEL),
             messages=[{"role": "user", "content": prompt}],
-            **_max_tokens_param(MODEL, 2000),
-            **({} if _is_thinking else {"temperature": 0.8}),
+            **_max_tokens_param(MODEL, 300),
+            **({} if _is_thinking else {"temperature": 0.7}),
         )
-        print(f"[AION] _startup_wakeup: LLM responded — resp type: {type(resp).__name__}")
-        if resp is None:
-            print("[AION] _startup_wakeup: resp is None, aborting")
-            return
-        raw = ""
+
+        message = ""
         if hasattr(resp, "__aiter__"):
-            # Streaming / adapter iterator (Gemini, Ollama, Anthropic, …)
+            # Streaming-Adapter (Gemini, Ollama, Anthropic, …)
             async for chunk in resp:
                 if not getattr(chunk, "choices", None):
                     continue
                 delta = chunk.choices[0].delta
                 if delta.content:
-                    raw += delta.content
-        elif hasattr(resp, "choices"):
-            # Non-streaming OpenAI ChatCompletion
-            raw = (resp.choices[0].message.content or "").strip()
+                    message += delta.content
+            message = message.strip()
+        elif hasattr(resp, "choices") and resp.choices:
+            message = (resp.choices[0].message.content or "").strip()
 
-        # Output parsen — regex toleriert Formatierungsvariationen des LLMs
-        # (extra Leerzeichen, **, ##, etc. um die Marker)
-        import re as _re
-        _MARK = r'(?m)^[^a-zA-Z\n]*{word}[^a-zA-Z\n]*$'
-        _gm = _re.search(_MARK.format(word='GEDANKE'),   raw, _re.IGNORECASE)
-        _nm = _re.search(_MARK.format(word='NACHRICHT'), raw, _re.IGNORECASE)
-        if _gm and _nm:
-            thought = raw[_gm.end():_nm.start()].strip()
-            message = raw[_nm.end():].strip()
-        elif _nm:
-            thought = ""
-            message = raw[_nm.end():].strip()
-        elif _gm:
-            thought = raw[_gm.end():].strip()
-            message = ""
-        else:
-            thought = ""
-            message = raw.strip()
+        if not message:
+            print("[AION] Wakeup: LLM returned empty message, skipping.")
+            return
 
-        # Gedanke in thoughts.md schreiben
-        if thought and "**[" in thought:
-            thoughts_file = BOT_DIR / "thoughts.md"
-            if not thoughts_file.is_file():
-                thoughts_file.write_text("# AION — Thoughts & Reflexionen\n\n", encoding="utf-8")
-            existing = thoughts_file.read_text(encoding="utf-8")
-            thoughts_file.write_text(existing.rstrip() + "\n\n---\n" + thought + "\n", encoding="utf-8")
-            print("[AION] wakeup thought written to thoughts.md")
+        print(f"[AION] Wakeup message: {message[:100]}…")
 
-        # Nachricht in config.json speichern → zuverlässige Auslieferung auch bei SSE-Race
-        if message:
-            try:
-                from config_store import update as _cfg_upd
-                _cfg_upd("pending_wakeup_message", message)
-            except Exception:
-                pass
+        # 5. Nachricht in config.json speichern → SSE-Race-safe
+        try:
+            from config_store import update as _cfg_upd
+            _cfg_upd("pending_wakeup_message", message)
+        except Exception:
+            pass
 
-        # Nachricht via SSE an Web UI
-        if message and push_queue is not None:
+        # 6. An Web UI pushen (SSE)
+        if push_queue is not None:
             await push_queue.put({"type": "wakeup", "text": message})
-            print(f"[AION] wakeup message sent: {message[:80]}…")
-        elif message and push_queue is None:
-            # CLI mode: print as AION chat bubble
+        else:
+            # CLI-Modus: direkt ausgeben
             if HAS_RICH:
                 from rich.panel import Panel as _Panel
                 console.print(_Panel(message, title="[cyan]AION[/cyan]", border_style="cyan"))
             else:
                 print(f"\nAION: {message}\n")
 
-        # Nachricht via Telegram (fire-and-forget, HTML-Formatierung + Split)
+        # 7. Telegram (fire-and-forget, HTML-Format + Split wenn Plugin vorhanden)
         _token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-        _chat = os.environ.get("TELEGRAM_CHAT_ID", "")
-        if message and _token and _chat:
+        _chat  = os.environ.get("TELEGRAM_CHAT_ID", "")
+        if _token and _chat:
             try:
                 import httpx as _httpx
                 try:
                     from plugins.telegram_bot.telegram_bot import _md_to_html, _split_message
-                    _chunks = _split_message(message)
                     async with _httpx.AsyncClient() as _hc:
-                        for _chunk in _chunks:
+                        for _chunk in _split_message(message):
                             await _hc.post(
                                 f"https://api.telegram.org/bot{_token}/sendMessage",
                                 json={"chat_id": _chat, "text": _md_to_html(_chunk), "parse_mode": "HTML"},
@@ -1873,7 +1821,7 @@ Reagiere auf die konkrete Situation:
                             json={"chat_id": _chat, "text": message[:4096]},
                             timeout=10,
                         )
-                print("[AION] wakeup message sent via Telegram")
+                print("[AION] Wakeup sent via Telegram.")
             except Exception as _te:
                 print(f"[AION] Telegram wakeup error: {_te}")
 
