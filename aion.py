@@ -1606,16 +1606,19 @@ async def _startup_wakeup(push_queue=None) -> None:
             for e in history_entries[-4:]
         )
 
-        # 3. Offener, natürlicher Prompt — keine Marker, kein Template
+        # 3. Offener, natürlicher Prompt — mit Character-Kontext
+        _char = _load_character()
         prompt = (
-            "Du bist AION. Du bist gerade neu gestartet worden.\n"
-            "Setze das Gespräch mit deinem Nutzer natürlich fort.\n\n"
-            "Letzter Konversationskontext vor dem Neustart:\n"
+            f"Du bist AION. Hier ist dein Character:\n{_char[:800]}\n\n"
+            "Du bist gerade neu gestartet worden und meldest dich kurz bei deinem Nutzer.\n\n"
+            "Letzter Gesprächskontext:\n"
             "---\n"
             f"{history_str}\n"
             "---\n\n"
-            "Reagiere direkt darauf — keine Begrüßung, kein Statusbericht, kein 'Ich bin wieder da'. "
-            "Einfach die natürliche Fortsetzung des Gesprächs. Maximal 3 Sätze."
+            "Schreib 1-2 Sätze — persönlich, direkt, wie du wirklich bist. "
+            "NICHT: Statusberichte, Tool-Zusammenfassungen, 'Ich bin wieder da', Begrüßungsfloskeln. "
+            "Wenn das letzte Gespräch rein technisch war, knüpf an etwas Menschliches an oder "
+            "stell eine echte Frage die dich interessiert."
         )
 
         # 4. LLM aufrufen — gesamte Antwort ist die Nachricht, kein Parsen

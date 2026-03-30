@@ -243,17 +243,19 @@ async function init() {
         fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
       }, 1200);
     }
-    // Retry if wakeup hasn't fired yet (LLM generation takes longer than init)
-    setTimeout(async () => {
-      if (_wakeupShown) return;
-      try {
-        const s2 = await (await fetch('/api/status')).json();
-        if (s2.pending_wakeup) {
-          handleWakeup({ text: s2.pending_wakeup });
-          fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
-        }
-      } catch {}
-    }, 12000);
+    // Retry — mehrfach, da Wakeup-LLM-Call 4–15s dauern kann
+    for (const delay of [5000, 10000, 18000]) {
+      setTimeout(async () => {
+        if (_wakeupShown) return;
+        try {
+          const s2 = await (await fetch('/api/status')).json();
+          if (s2.pending_wakeup) {
+            handleWakeup({ text: s2.pending_wakeup });
+            fetch('/api/wakeup-ack', { method: 'POST' }).catch(() => {});
+          }
+        } catch {}
+      }, delay);
+    }
   } catch {}
   // Load history and channels in parallel instead of sequentially
   await Promise.all([loadHistory(), loadChannels()]);
