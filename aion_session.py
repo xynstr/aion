@@ -822,7 +822,10 @@ class AionSession:
 
         finally:
             # ContextVar zurücksetzen — verhindert Channel-Leaks zwischen parallelen Requests
-            _m._active_channel.reset(_channel_token)
+            try:
+                _m._active_channel.reset(_channel_token)
+            except ValueError:
+                pass  # Token wurde in anderem Context erstellt (z.B. bei GeneratorExit)
 
     async def turn(self, user_input: str, images: list | None = None) -> str:
         """Nicht-streamende Version — gibt fertigen Text zurück.

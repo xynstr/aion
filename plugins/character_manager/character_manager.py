@@ -17,18 +17,6 @@ CHARACTER_FILE = BOT_DIR / "character.md"
 
 _DEFAULT_CHARACTER = "# AION — Character & Personality\n"
 
-_SECTION_MAP = {
-    "nutzer":          "## Was ich bisher über meinen User weiß",
-    "erkenntnisse":    "## Meine bisherigen Erkenntnisse über mich selbst",
-    "verbesserungen":  "## Dinge, die ich verbessern will",
-    "auftreten":       "## Wie ich auftreten will",
-    "humor":           "## Mein Humor & Stil",
-    "stil":            "## Mein Humor & Stil",
-    "eigenheiten":     "## Meine Eigenheiten & Vorlieben",
-    "vorlieben":       "## Meine Eigenheiten & Vorlieben",
-    "persönlichkeit":  "## Meine Personality",
-    "persoenlichkeit": "## Meine Personality",
-}
 
 
 def _load_character() -> str:
@@ -71,11 +59,19 @@ def register(api):
         current = _load_character()
         ts      = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        header      = _SECTION_MAP.get(section.lower(), f"## {section.capitalize()}")
+        # Sprachagnostisches Matching: bestehende ## Überschriften case-insensitiv suchen
+        existing_headers = re.findall(r"^## .+", current, re.MULTILINE)
+        matched_header = None
+        for h in existing_headers:
+            if h[3:].strip().lower() == section.lower():
+                matched_header = h
+                break
+
+        header      = matched_header if matched_header else f"## {section}"
         pattern     = rf"(^{re.escape(header)}$)(.*?)(?=\n## |\Z)"
         new_section = f"{header}\n{content}\n"
 
-        if re.search(pattern, current, re.MULTILINE | re.DOTALL):
+        if matched_header:
             updated = re.sub(pattern, new_section, current, flags=re.MULTILINE | re.DOTALL)
         else:
             updated = current.rstrip() + f"\n\n{new_section}"
