@@ -6,7 +6,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from aion_config import CHARACTER_FILE, UTC
+from .aion_config import CHARACTER_FILE, UTC
 
 # ── Character-System ──────────────────────────────────────────────────────────
 

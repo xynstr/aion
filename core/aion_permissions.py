@@ -2,7 +2,7 @@
 aion_permissions — Permissions, Channel Allowlist und Thinking Level für AION.
 Extrahiert aus aion.py.
 """
-from aion_config import _load_config
+from .aion_config import _load_config
 
 # ── Permissions ───────────────────────────────────────────────────────────────
 

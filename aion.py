@@ -65,7 +65,7 @@ except ImportError:
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-from aion_config import (
+from core.aion_config import (
     BOT_DIR, CONFIG_FILE, MEMORY_FILE, VECTORS_FILE, PLUGINS_DIR, TOOLS_DIR,
     CHARACTER_FILE, MAX_MEMORY, MAX_TOOL_ITERATIONS, MAX_HISTORY_TURNS,
     CHUNK_SIZE, CHARACTER_MAX_CHARS, RULES_COMPRESS_THRESHOLD,
@@ -85,7 +85,7 @@ client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 # ── Provider Registry ─────────────────────────────────────────────────────────
 
-from aion_providers import (
+from core.aion_providers import (
     _provider_registry, register_provider,
     _resolve_ollama_prefix, _build_client, _api_model_name,
     _CHEAP_CHECK_MODELS,
@@ -180,7 +180,7 @@ def _get_fallback_models(current_model: str) -> list[str]:
     return fallbacks
 
 
-from aion_permissions import (
+from core.aion_permissions import (
     PERMISSION_DEFAULTS, PERMISSION_LABELS,
     _load_permissions, _permissions_prompt,
     _match_pattern, _check_channel_allowlist, _get_thinking_prompt,
@@ -202,13 +202,13 @@ def unsupported_file_message(label: str) -> str:
     )
 
 
-from aion_character import (
+from core.aion_character import (
     DEFAULT_CHARACTER, _load_character,
     _backup_file, _backup_code_file,
 )
 
 
-from aion_prompt import (
+from core.aion_prompt import (
     _load_changelog_snippet,
     _sys_prompt_cache, invalidate_sys_prompt_cache,
     _get_mood_hint, _get_temporal_hint, _get_relationship_hint,
@@ -442,7 +442,7 @@ async def _startup_compress_check() -> None:
 
 # ── Memory System ─────────────────────────────────────────────────────────
 # AionMemory wurde nach aion_memory.py extrahiert — backward-compatible re-import:
-from aion_memory import AionMemory
+from core.aion_memory import AionMemory
 
 memory = AionMemory(MEMORY_FILE, VECTORS_FILE, MAX_MEMORY)
 

@@ -6,7 +6,7 @@ Extrahiert aus aion.py. _build_system_prompt() verbleibt in aion.py
 import re
 from datetime import datetime
 
-from aion_config import BOT_DIR, _load_config
+from .aion_config import BOT_DIR, _load_config
 
 # ── System Prompt ─────────────────────────────────────────────────────────────
 
