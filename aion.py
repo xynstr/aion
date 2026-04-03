@@ -1777,41 +1777,8 @@ async def run():
                 print("Verwendung: /model gpt-4o")
             continue
 
-# ── CLIO-Check vor jedem normalen Turn (optional — nur wenn Plugin geladen) ──
-        clio_data = {}
-        clio_text = ''
-        meta_text = ''
-        if 'clio_check' in _plugin_tools:
-            try:
-                clio_result = await _dispatch('clio_check', {'nutzerfrage': user_input})
-                clio_data = json.loads(clio_result) if clio_result else {}
-                # Bei Fehler (Tool nicht verfügbar o.ä.) CLIO-Check überspringen
-                if 'error' in clio_data:
-                    clio_data = {}
-                clio_text = clio_data.get('clio', '')
-                meta_text = clio_data.get('meta', '')
-            except Exception:
-                clio_data = {}
-        konfidenz = clio_data.get('konfidenz', 100)
-        if konfidenz < 70:
-            if HAS_RICH:
-                console.print(Panel(Markdown(clio_text), title='CLIO-Reflexion (Unsicher)', border_style='red'))
-            else:
-                print(f"CLIO-Reflexion (Unsicher):\n{clio_text}\n")
-            print("Konfidenz zu niedrig (<70). Bitte präzisiere die Frage oder zerlege sie weiter.")
-            continue
-
         # ── Normaler Turn (mit Stream + Fortschrittsbalken) ───────────────────
         try:
-            if HAS_RICH:
-                console.print(Panel(Markdown(clio_text), title='CLIO-Reflexion', border_style='yellow'))
-                if meta_text:
-                    console.print(Panel(Markdown(meta_text), title='Meta-Check', border_style='magenta'))
-            elif clio_text:
-                print(f"CLIO-Reflexion:\n{clio_text}\n")
-                if meta_text:
-                    print(f"Meta-Check:\n{meta_text}\n")
-
             if HAS_RICH:
                 console.print("\n[bold blue]AION:[/bold blue]", end=" ")
             else:

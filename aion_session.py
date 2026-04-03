@@ -168,20 +168,6 @@ class AionSession:
             "model": _m.MODEL,
         })
         try:
-            # CLIO-Check: Vor dem ersten Turn Gedanken als thought-Event yielden
-            if "clio_check" in _m._plugin_tools and user_input:
-                try:
-                    clio_raw  = await _m._dispatch("clio_check", {"nutzerfrage": user_input})
-                    clio_data = json.loads(clio_raw) if clio_raw else {}
-                    if clio_data and "error" not in clio_data:
-                        clio_text = clio_data.get("clio", "")
-                        konfidenz = clio_data.get("konfidenz", 100)
-                        if clio_text:
-                            trigger = "clio-unsicher" if konfidenz < 70 else "clio-reflexion"
-                            yield {"type": "thought", "text": clio_text,
-                                   "trigger": trigger, "call_id": "clio"}
-                except Exception:
-                    pass
             _check_fail_streak = 0   # Zählt aufeinanderfolgende Check-Fehler
             _empty_resp_streak = 0   # Zählt aufeinanderfolgende leere LLM-Antworten
             _stop_for_approval = False   # Gesetzt wenn Tool approval_required zurückgibt
