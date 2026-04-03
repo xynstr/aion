@@ -445,7 +445,10 @@ ALWAYS run these steps before closing:
 2. `reflect` — write an honest end-of-session thought:
    what went well, what was hard, what would you do differently?
 3. If you made a mistake during this session → `record_mistake(what_went_wrong, correct_approach)`
-4. If you changed any code/plugin → verify CHANGELOG.md has an entry for today
+4. If you changed any code/plugin/tool → verify:
+   - CHANGELOG.md has an entry for today
+   - AION_SELF.md is still accurate (architecture, file tree, tool list, behavior)
+   - MAINTENANCE.md checklist was followed
 5. If character.md was NOT updated in the last 3 sessions → force an update now
 
 RULE: Skipping this protocol is not allowed. Even a 30-second wrap-up is better than none.

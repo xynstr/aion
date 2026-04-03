@@ -1,0 +1,47 @@
+#!/bin/bash
+# AION doc-sync guard
+# Warns when core code changes are committed without documentation updates.
+# Never blocks — only prints a reminder.
+#
+# Install: cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or run:  bash scripts/hooks/install.sh
+
+STAGED=$(git diff --cached --name-only 2>/dev/null)
+
+CODE_CHANGED=false
+for f in $STAGED; do
+    case "$f" in
+        aion.py|aion_session.py|aion_web.py|aion_cli.py|aion_launcher.py|plugin_loader.py)
+            CODE_CHANGED=true; break ;;
+        core/*.py|plugins/*/*)
+            CODE_CHANGED=true; break ;;
+    esac
+done
+
+if [ "$CODE_CHANGED" = true ]; then
+    DOC_CHANGED=false
+    for f in $STAGED; do
+        case "$f" in
+            AION_SELF.md|CHANGELOG.md|MAINTENANCE.md)
+                DOC_CHANGED=true; break ;;
+        esac
+    done
+
+    if [ "$DOC_CHANGED" = false ]; then
+        echo ""
+        echo "┌─────────────────────────────────────────────────────┐"
+        echo "│  AION DOC SYNC — reminder                           │"
+        echo "│                                                     │"
+        echo "│  Code changed. Was documentation updated?           │"
+        echo "│  → AION_SELF.md  (architecture, tools, behavior)    │"
+        echo "│  → CHANGELOG.md  (user-facing changes)              │"
+        echo "│  → MAINTENANCE.md (structural changes)              │"
+        echo "│                                                     │"
+        echo "│  Trivial fix? Ignore this. Feature/API change?      │"
+        echo "│  Please update the relevant doc before pushing.     │"
+        echo "└─────────────────────────────────────────────────────┘"
+        echo ""
+    fi
+fi
+
+exit 0

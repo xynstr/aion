@@ -805,59 +805,77 @@ Prevents broken plugin structures automatically.
 
 ```
 AION/
-├── aion.py                      # Core: _build_system_prompt, _dispatch, _build_tool_schemas, providers
-├── aion_session.py              # AionSession class + stream() — the LLM turn loop (REFACTORED OUT of aion.py)
-├── aion_memory.py               # AionMemory class — RAG memory, record, search (REFACTORED OUT of aion.py)
+├── aion.py                      # Core: _build_system_prompt, _dispatch, _build_tool_schemas, _build_capability_index
+├── aion_session.py              # AionSession class + stream() — the LLM turn loop
 ├── aion_web.py                  # Web server (FastAPI + SSE), port 7000
 ├── aion_cli.py                  # CLI mode: interactive terminal without browser/server
+├── aion_launcher.py             # Entry point: mode selector (Web UI / CLI / setup)
 ├── plugin_loader.py             # Loads plugins + register_router (_pending_routers)
+├── onboarding.py                # Setup wizard (9 steps)
+├── config_store.py              # Config read/write helpers
+├── core/                        # Core package (v1.5.0 — split from aion.py)
+│   ├── aion_config.py           # config.json load/write + defaults
+│   ├── aion_character.py        # character.md read/write, auto-update logic
+│   ├── aion_permissions.py      # channel allowlist, tool-gating
+│   ├── aion_prompt.py           # system prompt build logic
+│   ├── aion_providers.py        # provider registry, model switching
+│   ├── aion_progress.py         # per-task progress reporting for frontend progress bars
+│   └── aion_memory.py           # AionMemory class — RAG memory, record, search
 ├── static/index.html            # Web UI (Vanilla JS)
-│                                  → Persistent sidebar (172px): 💬 Chat | 📝 Prompts
-│                                    | 🔌 Plugins | 🧠 Memory | ⊞ System
+│                                  → Channel switcher tabs (web/telegram/discord/slack)
+│                                  → Sidebar: 💬 Chat | 📝 Prompts | 🔌 Plugins | 🧠 Memory | ⊞ System
 │                                  → Thoughts/tool calls inline as accordions in chat
+│                                  → Mood badges, detach-task (⊞), real-time progress bars
 ├── plugins/
-│   ├── core_tools/              # continue_work, read_self_doc, read_plugin_doc, system_info, memory_record
+│   ├── core_tools/              # continue_work, read_self_doc, read_plugin_doc, list_tools,
+│   │                            #   lookup_rule, record_mistake, system_info, memory_record
+│   ├── boot_session/            # Startup maintenance session (≥1h offline → background AionSession)
+│   │                            #   Tools: boot_status
 │   ├── focus_manager/           # focus_set/get/clear (persistent task focus, injected every turn)
 │   ├── reflection/              # reflect (inner monologue → thoughts.md, near-duplicate protection)
 │   ├── character_manager/       # update_character (update character.md)
 │   ├── shell_tools/             # shell_exec, winget_install, install_package
 │   ├── web_tools/               # web_search, web_fetch
+│   ├── desktop/                 # Desktop control: screenshot, click, type, hotkey, scroll,
+│   │                            #   move_mouse, drag, set_window_state (pyautogui + pygetwindow)
 │   ├── pid_tool/                # get_own_pid
 │   ├── restart_tool/            # restart_with_approval
-│   ├── audio_pipeline/          # Universal audio: transcription (Faster Whisper) + TTS (edge-tts/sapi5)
-│   ├── audio_transcriber/       # Audio transcription via Faster Whisper (offline, multilingual)
-│   │   └── ~/.cache/huggingface/  # Whisper model cache (auto-downloaded)
+│   ├── audio_pipeline/          # Universal audio: OGG/MP3/WAV/FLAC/WebM transcription
+│   │                            #   (Faster Whisper) + TTS (edge-tts/sapi5/pyttsx3)
 │   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
-│   │   └── tasks.json           # scheduled tasks (auto-generated)
-│   ├── telegram_bot/            # Telegram bidirectional (text + images + voice messages)
-│   ├── discord_bot/             # Discord bot (DMs + @mentions + slash command /ask)
-│   ├── slack_bot/               # Slack bot (Socket Mode, DMs + @aion mentions)
-│   ├── alexa_plugin/            # Amazon Alexa Skill endpoint (POST /api/alexa)
-│   ├── playwright_browser/      # Browser automation (8 tools: open, screenshot, click, fill, get_text, evaluate, find, close)
-│   ├── multi_agent/             # Multi-agent routing (delegate_to_agent, sessions_list, sessions_send, sessions_history)
-│   ├── gemini_provider/         # Google Gemini provider (registers prefix "gemini")
-│   ├── anthropic_provider/      # Anthropic Claude (registers prefix "claude")
-│   ├── deepseek_provider/       # DeepSeek API (registers prefix "deepseek")
-│   ├── grok_provider/           # xAI Grok (registers prefix "grok")
-│   ├── ollama_provider/         # Local Ollama server (registers prefix "ollama/")
+│   ├── telegram_bot/            # Telegram: text + images + voice, approval buttons, per-user history
+│   ├── discord_bot/             # Discord bot (DMs + @mentions + /ask)
+│   ├── slack_bot/               # Slack bot (Socket Mode, DMs + @aion)
+│   ├── alexa_plugin/            # Amazon Alexa Skill (POST /api/alexa)
+│   ├── playwright_browser/      # Browser automation (browser_open/screenshot/click/fill/...)
+│   ├── multi_agent/             # delegate_to_agent, sessions_list/send/history
+│   ├── docx_to_speech/          # Convert .docx → MP3/WAV via TTS
+│   ├── gemini_provider/         # Google Gemini (gemini-2.5-pro/flash, Function Calling)
+│   ├── anthropic_provider/      # Anthropic Claude 4.x (opus-4-6, sonnet-4-6, haiku-4-5)
+│   ├── deepseek_provider/       # DeepSeek API
+│   ├── grok_provider/           # xAI Grok
+│   ├── ollama_provider/         # Local Ollama (127.0.0.1:11434)
+│   ├── claude_cli_provider/     # Claude.ai via CLI: ask_claude, task routing, claude_cli_login
 │   ├── memory_plugin/           # Conversation history (JSONL, channel-aware)
-│   ├── clio_reflection/         # DISABLED (_clio_reflection.py — had fake random values)
 │   ├── todo_tools/              # Task management
 │   ├── smart_patch/             # Fuzzy code patching
-│   ├── image_search/            # Image search (Openverse + Bing/Playwright)
-│   ├── docx_tool/               # Create Word documents
-│   ├── moltbook/                # Social platform moltbook.com
-│   ├── claude_cli_provider/     # Claude.ai subscription via CLI (ask_claude, claude_cli_login, task routing)
-│   └── heartbeat/               # Keep-alive + autonomous todo round every 30min
-├── character.md                 # My personality (self-updating via update_character)
+│   ├── heartbeat/               # Keep-alive + autonomous todo round every 30min
+│   └── ...                      # image_search, docx_tool, moltbook, hub_plugin, credentials, ...
+├── hub-repo-template/           # Template for distributable plugin repositories
+├── docs/                        # Integration guides (messaging.md, api.md, plugins.md, ...)
+├── MAINTENANCE.md               # Change-propagation checklists — READ BEFORE ANY MODIFICATION
+├── character.md                 # My personality (self-updating via update_character, gitignored)
 ├── prompts/
-│   └── rules.md                 # System prompt / behavioral rules (editable via Web UI Prompts tab)
-├── aion_memory.json             # Persistent memory (max. 300 entries)
-├── conversation_history.jsonl   # Full conversation history
-├── thoughts.md                  # Recorded thoughts (reflect tool)
-├── AION_SELF.md                 # This file (technical reference — on-demand via read_self_doc)
-├── .env                         # API keys (not in Git)
-└── config.json                  # Persistent settings (model, exchange_count)
+│   └── rules.md                 # Behavioral rules — injected into every system prompt
+├── aion_memory.json             # Persistent memory (max. 300 entries, gitignored)
+├── conversation_history.jsonl   # Full conversation history (gitignored)
+├── thoughts.md                  # Recorded thoughts (reflect tool, gitignored)
+├── mistakes.md                  # Mistake journal (record_mistake tool, gitignored)
+├── AION_SELF.md                 # This file — update when architecture or tools change
+├── CHANGELOG.md                 # User-facing version history — update on every release
+├── scripts/hooks/pre-commit     # Doc-sync reminder hook (install: bash scripts/hooks/install.sh)
+├── .env                         # API keys (gitignored)
+└── config.json                  # Persistent settings (model, exchange_count, tool_tier, ...)
 ```
 
 ---
@@ -871,7 +889,7 @@ Its `stream()` method is an async generator that yields event dicts:
 
 ```
 {"type": "token",       "content": "..."}           — streamed text token
-{"type": "thought",     "text": "...", "trigger": "..."} — internal thought (CLIO/reflection)
+{"type": "thought",     "text": "...", "trigger": "..."} — internal thought (boot_session/reflection)
 {"type": "tool_call",   "tool": "...", "args": {...}}
 {"type": "tool_result", "tool": "...", "result": {...}, "ok": bool, "duration": 0.1}
 {"type": "done",        "full_response": "...", "response_blocks": [...]}
@@ -888,13 +906,15 @@ Its `stream()` method is an async generator that yields event dicts:
 6. Append new user message
 
 **Tool loop** (while True, max `MAX_TOOL_ITERATIONS=50`):
-1. Call LLM API with `tools=_build_tool_schemas()` (tier-1 by default)
+1. Call LLM API with `tools=_build_tool_schemas(tier_threshold=2)` — ALL tiers always sent
 2. If model calls a tool → `await _m._dispatch(name, inputs)`
-3. On "Unknown tool" error → auto-escalate: `tools = _build_tool_schemas(tier_threshold=2)`
-4. After desktop actions → auto-screenshot injected as user message for visual feedback
-5. Completion-check after text response — if model announced action without calling tool → retry
-6. Task-check after tools called — if task incomplete → retry
-7. Break when model produces final text with no pending actions
+3. After desktop actions → auto-screenshot injected as user message for visual feedback
+4. Completion-check after text response — if model announced action without calling tool → retry
+5. Task-check after tools called — if task incomplete → retry
+6. Break when model produces final text with no pending actions
+
+Note: There is NO auto-escalation. All tools (desktop, browser, audio) are always in the
+API schema. `config.json["tool_tier"]` default = 2.
 
 **To inject additional context into every turn** → modify `aion_session.py` around the
 `effective = sys_prompt + mem_ctx + thoughts_ctx` block (lines ~108-115), OR add to
