@@ -147,11 +147,24 @@ temp/
 # AION persönliche To-do-Liste
 todo.md
 
+# AION Mistakes Journal (persönliche Lernhistorie — nicht versionieren)
+mistakes.md
+
+# Boot session timestamp (runtime-only, not user data)
+last_boot.txt
+
 # Plugin snapshots
 .snapshots/
 
 # RAG memory vectors (user-specific, large)
 aion_memory_vectors.json
+
+# AION character file (personal user knowledge — not versioned)
+character.md
+core/character.md
+
+# Test files
+test_dokument.docx
 
 # Hub-only plugins — niche integrations, install via hub_install or Plugins → Hub
 plugins/alexa_plugin/

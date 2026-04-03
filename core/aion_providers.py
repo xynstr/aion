@@ -80,7 +80,7 @@ def _api_model_name(model: str) -> str:
 
 # Mapping: Modell-Prefix → günstigstes Modell desselben Providers für interne Checks
 _CHEAP_CHECK_MODELS: dict[str, str] = {
-    "gemini":    "gemini-2.0-flash-lite",
+    "gemini":    "gemini-2.5-flash",
     "gpt-":      "gpt-4.1-mini",
     "chatgpt-":  "gpt-4.1-mini",
     "o1":        "gpt-4.1-mini",

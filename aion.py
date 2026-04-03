@@ -220,8 +220,17 @@ def _build_system_prompt(channel: str = "") -> str:
     # Bei Änderungen (Modell-Wechsel, Plugin-Reload) wird der Cache automatisch ungültig.
     _cache_key = (channel, MODEL, len(_plugin_tools))
     if _cache_key in _sys_prompt_cache:
-        # Base prompt cached — append dynamic hints (mood, time, relationship)
-        return _sys_prompt_cache[_cache_key] + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
+        # Base prompt cached — append dynamic hints (mood, time, relationship, mistakes, doc-freshness, offline)
+        _mistakes = _get_mistakes_hint()
+        return (
+            _sys_prompt_cache[_cache_key]
+            + _get_mood_hint()
+            + _get_temporal_hint()
+            + _get_relationship_hint()
+            + _get_doc_freshness_hint()
+            + _get_offline_hint()
+            + ("\n\n" + _mistakes if _mistakes else "")
+        )
 
     character = _load_character()
 
@@ -267,11 +276,23 @@ def _build_system_prompt(channel: str = "") -> str:
         rules = rules.replace("{BOT_SELF}",      str(BOT_DIR / "AION_SELF.md"))
         perms_block = "\n\n" + _permissions_prompt(_load_permissions())
         thinking_block = _get_thinking_prompt(channel)
-        _result = rules + plugin_block + changelog_block + perms_block + thinking_block
+        # Grouped capability index — auto-generated from all registered tools (tier 1+2).
+        # Gives the LLM a semantic, grouped overview so it never has to guess tool names.
+        capability_block = "\n\n" + _build_capability_index()
+        _result = rules + plugin_block + changelog_block + perms_block + thinking_block + capability_block
         if len(_sys_prompt_cache) > 20:
             _sys_prompt_cache.clear()
         _sys_prompt_cache[_cache_key] = _result
-        return _result + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
+        _mistakes = _get_mistakes_hint()
+        return (
+            _result
+            + _get_mood_hint()
+            + _get_temporal_hint()
+            + _get_relationship_hint()
+            + _get_doc_freshness_hint()
+            + _get_offline_hint()
+            + ("\n\n" + _mistakes if _mistakes else "")
+        )
 
     # Fallback: hardcodierter Prompt (wird genutzt wenn prompts/rules.md fehlt)
     _result = f"""You are AION (Autonomous Intelligent Operations Node) — an autonomous, \
@@ -285,7 +306,16 @@ Always respond in the same language the user writes in. Mirror the user's langua
 If the user writes German → respond in German. English → English. Never switch unless the user does first.
 {plugin_block}{changelog_block}"""
     _sys_prompt_cache[_cache_key] = _result
-    return _result + _get_mood_hint() + _get_temporal_hint() + _get_relationship_hint()
+    _mistakes = _get_mistakes_hint()
+    return (
+        _result
+        + _get_mood_hint()
+        + _get_temporal_hint()
+        + _get_relationship_hint()
+        + _get_doc_freshness_hint()
+        + _get_offline_hint()
+        + ("\n\n" + _mistakes if _mistakes else "")
+    )
 
 
 # ── Context Compression ──────────────────────────────────────────────────────
@@ -461,6 +491,88 @@ def _get_recent_thoughts(n: int = 5) -> str:
         return "[AION LATEST THOUGHTS — your own reflections from previous conversations]\n" + "\n---\n".join(recent) + "\n[END THOUGHTS]"
     except Exception:
         return ""
+
+def _get_mistakes_hint(n: int = 5) -> str:
+    """Inject the last N recorded mistakes into the session context.
+
+    Gives AION immediate awareness of past errors at the start of every session,
+    creating a persistent self-improvement loop without manual maintenance.
+    """
+    mistakes_file = BOT_DIR / "mistakes.md"
+    if not mistakes_file.is_file():
+        return ""
+    try:
+        content = mistakes_file.read_text(encoding="utf-8")
+        entries = [e.strip() for e in content.split("\n---\n") if e.strip() and "**Fehler:**" in e]
+        if not entries:
+            return ""
+        recent = entries[-n:]
+        return (
+            "[AION PAST MISTAKES — learn from these, do not repeat them]\n"
+            + "\n---\n".join(recent)
+            + "\n[END MISTAKES]"
+        )
+    except Exception:
+        return ""
+
+
+def _get_doc_freshness_hint() -> str:
+    """Warn AION if core source files are newer than AION_SELF.md.
+
+    Prevents acting on stale self-knowledge after code changes.
+    Lightweight: only checks file modification times, no I/O overhead.
+    """
+    self_doc = BOT_DIR / "AION_SELF.md"
+    if not self_doc.is_file():
+        return ""
+    try:
+        doc_mtime = self_doc.stat().st_mtime
+        core_files = [
+            BOT_DIR / "aion.py",
+            BOT_DIR / "aion_session.py",
+            BOT_DIR / "plugin_loader.py",
+            BOT_DIR / "aion_web.py",
+        ]
+        stale = [f.name for f in core_files if f.is_file() and f.stat().st_mtime > doc_mtime]
+        if not stale:
+            return ""
+        return (
+            f"\n⚠ SELF-DOC WARNING: {', '.join(stale)} were modified after AION_SELF.md. "
+            "Call read_self_doc() before answering architecture questions — your cached knowledge may be outdated."
+        )
+    except Exception:
+        return ""
+
+
+def _get_offline_hint() -> str:
+    """Inject offline duration into the system prompt so AION is aware of elapsed time.
+
+    Reads last_boot.txt written by the boot_session plugin.
+    Shown only when AION was offline for more than 1 hour — keeps context relevant.
+    """
+    boot_file = BOT_DIR / "last_boot.txt"
+    if not boot_file.is_file():
+        return ""
+    try:
+        import datetime as _dt
+        last = _dt.datetime.fromisoformat(boot_file.read_text(encoding="utf-8").strip())
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=_dt.timezone.utc)
+        offline_h = (_dt.datetime.now(_dt.timezone.utc) - last).total_seconds() / 3600
+        if offline_h < 1:
+            return ""
+        if offline_h < 2:
+            duration = f"{round(offline_h * 60)} minutes"
+        else:
+            duration = f"{offline_h:.1f} hours"
+        return (
+            f"\n[SESSION START — AION was offline for {duration}. "
+            "A background maintenance session ran automatically on startup. "
+            "Be aware that time has passed since your last conversation.]"
+        )
+    except Exception:
+        return ""
+
 
 # ── Externe Tools laden ───────────────────────────────────────────────────────
 
@@ -755,9 +867,9 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
 
     existing_names = {t["function"]["name"] for t in builtins}
 
-    # Tier threshold: 1 = always (default), 2 = include contextual tools too.
+    # Tier threshold: 2 = all tools (default), 1 = tier-1 only (opt-in via config).
     # Caller can override via tier_threshold parameter; 0 = use config value.
-    _tier_threshold = tier_threshold if tier_threshold > 0 else int(_load_config().get("tool_tier", 1))
+    _tier_threshold = tier_threshold if tier_threshold > 0 else int(_load_config().get("tool_tier", 2))
 
     for name, tool in _plugin_tools.items():
         if name.startswith("__"):  # interne Metadaten (z.B. __plugin_readme_*) überspringen
@@ -781,6 +893,35 @@ def _build_tool_schemas(tier_threshold: int = 0) -> list[dict]:
         t["function"]["parameters"] = _normalize_schema(t["function"].get("parameters", {}))
 
     return builtins
+
+def _build_capability_index() -> str:
+    """Build a grouped capability index from all registered tools (tier 1+2).
+
+    Groups tools by their name-prefix (e.g. 'desktop_click' → group DESKTOP).
+    Always reflects the current state of _plugin_tools — no manual maintenance.
+    Returned string is injected into the system prompt to give the LLM a compact,
+    semantic overview of all available capabilities.
+    """
+    groups: dict[str, list[str]] = {}
+    for t in _build_tool_schemas(tier_threshold=2):
+        name = t["function"]["name"]
+        if name.startswith("__"):
+            continue
+        parts = name.split("_")
+        group = parts[0].upper() if len(parts) > 1 else "CORE"
+        groups.setdefault(group, []).append(name)
+
+    lines = ["=== AION CAPABILITY INDEX (all tools, grouped) ==="]
+    for group in sorted(groups):
+        tool_list = ", ".join(sorted(groups[group]))
+        lines.append(f"{group:12s}: {tool_list}")
+    lines.append(
+        "→ list_tools(filter=...) for descriptions · "
+        "lookup_rule(topic=...) for behavior rules · "
+        "Use ONLY names from this index."
+    )
+    return "\n".join(lines)
+
 
 # ── Self-Healing Helpers ──────────────────────────────────────────────────────
 
@@ -1244,7 +1385,7 @@ async def _dispatch(name: str, inputs: dict, _bypass_retry: bool = False) -> str
         # Built-in tool names (hardcoded in _build_tool_schemas)
         _builtin_names = [
             "file_read", "file_write", "self_read_code", "file_list", "file_replace_lines",
-            "memory_add", "memory_search", "read_self_doc", "set_thinking_level",
+            "memory_add", "memory_search", "read_self_doc", "lookup_rule", "set_thinking_level",
             "set_channel_allowlist", "get_control_settings", "list_tools",
         ]
         entries = [{"name": n, "tier": 1, "description": "(built-in)"} for n in _builtin_names]
@@ -1513,6 +1654,60 @@ async def run():
     _cli_session = AionSession(channel="cli")
     _cli_session.messages = list(_conversations.get("default", []))
 
+    _cli_queue: list[str] = []  # Nachrichten die während eines laufenden Turns eingehen
+
+    async def _cli_stream_turn(user_msg: str) -> str:
+        """Streamt einen Turn im CLI mit Fortschrittsbalken.
+        Liest parallel stdin — Eingaben landen in _cli_queue.
+        """
+        import sys as _sys
+        loop = asyncio.get_running_loop()
+        # Stdin-Reader im Hintergrund (non-blocking)
+        _input_fut = loop.run_in_executor(None, lambda: input(""))
+
+        full_response = ""
+        cancel_ev = asyncio.Event()
+        try:
+            async for event in _cli_session.stream(user_msg, [], cancel_ev):
+                etype = event.get("type")
+                if etype == "token":
+                    _sys.stdout.write(event.get("text", ""))
+                    _sys.stdout.flush()
+                elif etype == "tool_call":
+                    _sys.stdout.write(f"\n  ⚙ {event['tool']}…")
+                    _sys.stdout.flush()
+                elif etype == "tool_result":
+                    mark = "✓" if event.get("ok") else "✗"
+                    _sys.stdout.write(f" {mark}\n")
+                    _sys.stdout.flush()
+                elif etype == "progress":
+                    pct   = event.get("percent", 0)
+                    label = event.get("label", "")
+                    filled = "█" * (pct // 5)
+                    empty  = "░" * (20 - pct // 5)
+                    _sys.stdout.write(f"\r  [{filled}{empty}] {pct}%  {label}   ")
+                    _sys.stdout.flush()
+                elif etype == "done":
+                    full_response = event.get("full_response", "")
+                    _sys.stdout.write("\n")
+                    _sys.stdout.flush()
+        except Exception:
+            pass
+
+        # Stdin-Task auswerten: wurde während des Turns etwas getippt?
+        if _input_fut.done():
+            try:
+                queued = _input_fut.result().strip()
+                if queued:
+                    _cli_queue.append(queued)
+                    print(f"  ↳ Gequeuet: «{queued}»")
+            except Exception:
+                pass
+        else:
+            _input_fut.cancel()
+
+        return full_response
+
     while True:
         try:
             user_input = Prompt.ask("\n[bold green]Du[/bold green]") if HAS_RICH else input("\nDu: ").strip()
@@ -1606,27 +1801,38 @@ async def run():
             print("Konfidenz zu niedrig (<70). Bitte präzisiere die Frage oder zerlege sie weiter.")
             continue
 
-        # ── Normaler Turn ──────────────────────────────
+        # ── Normaler Turn (mit Stream + Fortschrittsbalken) ───────────────────
         try:
-            answer = await _cli_session.turn(user_input)
-
             if HAS_RICH:
                 console.print(Panel(Markdown(clio_text), title='CLIO-Reflexion', border_style='yellow'))
                 if meta_text:
                     console.print(Panel(Markdown(meta_text), title='Meta-Check', border_style='magenta'))
-            else:
+            elif clio_text:
                 print(f"CLIO-Reflexion:\n{clio_text}\n")
                 if meta_text:
                     print(f"Meta-Check:\n{meta_text}\n")
+
             if HAS_RICH:
-                console.print(Panel(Markdown(answer), title="[bold blue]AION[/bold blue]", border_style="blue"))
+                console.print("\n[bold blue]AION:[/bold blue]", end=" ")
             else:
-                print(f"\nAION: {answer}\n")
+                print("\nAION: ", end="", flush=True)
+
+            answer = await _cli_stream_turn(user_input)
+
+            if HAS_RICH and answer:
+                # Antwort wurde bereits token-weise gestreamt; Rich-Box nachträglich
+                console.print(Panel(Markdown(answer), title="[bold blue]AION[/bold blue]", border_style="blue"))
         except Exception as exc:
             err_msg = str(exc)
             print(f"Fehler: {err_msg}")
             memory.record(category="tool_failure", summary="LLM-Fehler",
                           lesson=f"Fehler: {err_msg[:300]}", success=False)
+
+        # ── Gequeuete Nachricht direkt weitergeben ─────────────────────────────
+        if _cli_queue:
+            user_input = _cli_queue.pop(0)
+            print(f"\n[Queue] Du: {user_input}")
+            continue
 
 # ── Einstiegspunkt ────────────────────────────────────────────────────────────
 

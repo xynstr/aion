@@ -263,7 +263,13 @@ async def lucide_js():
 async def index():
     p = AION_DIR / "static" / "index.html"
     if p.is_file():
-        return HTMLResponse(p.read_text(encoding="utf-8"))
+        import time as _time
+        _v = str(int(_time.time()))
+        html = p.read_text(encoding="utf-8")
+        # Cache-Busting: versioniere alle /static/js/ und /static/css/ Referenzen
+        import re as _re
+        html = _re.sub(r'(/static/(?:js|css)/[^"\']+)(["\'])', lambda m: f'{m.group(1)}?v={_v}{m.group(2)}', html)
+        return HTMLResponse(html)
     return HTMLResponse("<h1>index.html nicht gefunden</h1>", status_code=404)
 
 async def _stream_chat_with_images(user_input: str, images: list | None) -> AsyncGenerator[str, None]:

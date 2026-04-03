@@ -98,6 +98,7 @@
           <textarea id="input" placeholder="Message to AION… (Enter = Send, Shift+Enter = New line)" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)" onpaste="onPaste(event)"></textarea>
           <button class="send-btn" id="sendBtn" onclick="send()">▶</button>
           <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none" title="Generierung stoppen">■</button>
+          <button class="detach-btn" id="detachBtn" onclick="detachTask()" disabled title="Aufgabe auslagern – Chat weiter nutzbar">⊞</button>
         </div>
       </div>
 
@@ -585,6 +586,20 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Detach-Panel: schwebendes Fortschritts-Fenster beim Auslagern einer Aufgabe -->
+<div id="detachPanel" style="display:none">
+  <div id="detachHeader">
+    <span id="detachTitle">⚙ Aufgabe läuft…</span>
+    <button id="detachClose" onclick="closeDetachPanel()" title="Panel schließen">✕</button>
+  </div>
+  <div id="detachProgressWrap" style="display:none">
+    <div id="detachProgressBar"></div>
+    <span id="detachProgressLabel"></span>
+  </div>
+  <div id="detachBody"></div>
+  <div id="detachStatus">läuft…</div>
+</div>
 
 <script src="/static/js/aion.js"></script>
 </body>

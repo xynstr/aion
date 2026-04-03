@@ -1,0 +1,5 @@
+{
+  "name": "DOCX to Speech",
+  "description": "Word-Dokumente (.docx) vorlesen und als MP3 speichern. Kombiniert python-docx und das Audio Pipeline Plugin.",
+  "dependencies": ["python-docx"]
+}

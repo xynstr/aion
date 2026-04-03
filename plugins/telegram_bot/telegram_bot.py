@@ -230,6 +230,35 @@ def send_telegram_message(message: str = "", **_) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+# ── Tool: Dokument senden ─────────────────────────────────────────────────────
+
+def send_telegram_document(path: str, caption: str = "", **_) -> dict:
+    """Sendet eine Datei (Dokument) an die konfigurierte Telegram-Chat-ID."""
+    token = _get_token()
+    cid   = _get_chat_id()
+    if not token:
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not set."}
+    if not cid:
+        return {"ok": False, "error": "No chat ID known. Send /start to the bot."}
+    if not os.path.exists(path):
+        return {"ok": False, "error": f"File not found: {path}"}
+    try:
+        import httpx
+        with httpx.Client(timeout=60) as http:
+            with open(path, "rb") as f:
+                r = http.post(
+                    _api_url(token, "sendDocument"),
+                    data={"chat_id": cid, "caption": caption},
+                    files={"document": (os.path.basename(path), f)},
+                )
+            if r.is_success:
+                return {"ok": True}
+            else:
+                return {"ok": False, "error": f"Telegram API {r.status_code}: {r.text}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # ── Async Worker ──────────────────────────────────────────────────────────────
 
 async def _telegram_worker(token: str):
@@ -529,7 +558,7 @@ async def _telegram_worker(token: str):
                     # Session pro User
                     if chat_id not in sessions:
                         sess = AionSession(channel=f"telegram_{chat_id}")
-                        await sess.load_history(num_entries=10, channel_filter=f"telegram_{chat_id}")
+                        await sess.load_history(num_entries=40, channel_filter=f"telegram_{chat_id}")
                         sessions[chat_id] = sess
 
                     # Foto(s) als Base64 laden
@@ -574,7 +603,8 @@ async def _telegram_worker(token: str):
 
                             ap = _get_audio_pipeline()
                             if ap:
-                                res = ap.audio_transcribe_any(tmp_audio_path)
+                                loop = asyncio.get_event_loop()
+                                res = await loop.run_in_executor(None, ap.audio_transcribe_any, tmp_audio_path)
                                 if res.get("ok") and res.get("text", "").strip():
                                     text = res["text"].strip()
                                     is_voice_input = True
@@ -830,6 +860,20 @@ def register(api):
         description="List all Telegram chat_ids in the bot allowlist.",
         func=_telegram_list_users,
         input_schema={"type": "object", "properties": {}},
+    )
+
+    api.register_tool(
+        name="telegram_send_document",
+        description="Sendet eine Datei (z.B. .docx, .pdf, .txt, .py) an den User via Telegram.",
+        func=send_telegram_document,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "path":    {"type": "string", "description": "Absoluter Pfad zur Datei"},
+                "caption": {"type": "string", "description": "Optionaler Begleittext"},
+            },
+            "required": ["path"],
+        },
     )
 
     token = _get_token()

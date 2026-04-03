@@ -5,6 +5,88 @@ This document describes what has changed. AION reads this on startup to know wha
 
 ---
 
+## 1.5.0 — 2026-04-03
+
+### Architecture
+- **`aion.py` modularized** — monolith split into `core/` package:
+  `aion_config.py`, `aion_character.py`, `aion_permissions.py`,
+  `aion_prompt.py`, `aion_providers.py` — each independently hot-reloadable
+- **`core/aion_progress.py`** — new per-task progress reporting system;
+  tools call `report(percent, label)` for real-time frontend progress bars
+- **All tools always visible** — `tier_threshold=2` is now the default;
+  tier-2 tools (desktop, browser, audio) are always in the API schema.
+  Eliminates hallucinated tool names and retry turns. Escalation logic removed.
+- **Grouped Capability Index** — system prompt now contains a semantic,
+  auto-generated tool index grouped by prefix (DESKTOP, AUDIO, BROWSER…).
+  Updates automatically when plugins change.
+
+### Self-Improvement System (new)
+- **`record_mistake` tool** — AION records mistakes to `mistakes.md`;
+  last 5 entries are injected into every session's system prompt
+- **`lookup_rule` tool** — search `prompts/rules.md` by keyword or section;
+  returns matching sections with full content
+- **Boot maintenance session** — `boot_session` plugin spawns a silent
+  background AionSession on every startup after ≥1h offline; reviews
+  mistakes, character, todos, and writes a startup reflection
+- **Offline duration hint** — system prompt shows how long AION was offline
+- **Doc freshness warning** — warns when core `.py` files are newer than
+  `AION_SELF.md` to prevent acting on stale self-knowledge
+- **End-of-conversation protocol** — mandatory rules for session close:
+  `update_character`, `reflect`, `record_mistake`, CHANGELOG check
+- **`max_rules_chars: 35000`** — full `rules.md` (27 KB) now always loaded;
+  previously truncated at 12 KB, cutting off half the rules
+
+### New Tools
+- **`desktop_set_window_state`** — minimize, maximize, restore or close any
+  window by partial title match (uses `pygetwindow`)
+- **`boot_status`** — returns last boot time, offline duration, maintenance status
+- **`record_mistake`** — persistent mistake journal with session injection
+- **`lookup_rule`** — rules.md keyword/section search
+
+### New Plugins
+- **`boot_session`** — startup maintenance session (see Self-Improvement above)
+- **`docx_to_speech`** — converts Word documents (.docx) to MP3/WAV audio
+  via python-docx + audio_pipeline TTS; supports edge-tts and sapi5 engines
+
+### Multi-Channel UI
+- **Channel switcher** — pill tabs to switch between web/Telegram/Discord/Slack
+  with unread message counts and readonly indicators
+- **Detach-task** (⊞ button) — offload long-running tasks to background
+  while keeping chat responsive
+- **Mood system** — visual mood badges and subtle bubble tinting per mood state
+- **Activity log** — tool execution timeline in the UI
+- **Update banner** — prominent notification when a new AION version is available
+- **Progress bars** — real-time progress for long-running tool operations
+
+### Plugin Updates
+- **`anthropic_provider`** — Claude 4.x model support (opus-4-6, sonnet-4-6,
+  haiku-4-5); dynamic model listing from Anthropic API
+- **`gemini_provider`** — full Function Calling for Gemini 2.5-pro/flash;
+  thinking budgets, vision, streaming all stable
+- **`audio_pipeline`** — any audio format (OGG, MP3, WAV, FLAC, WebM) via
+  Faster Whisper for offline multilingual transcription; multi-engine TTS routing
+- **`telegram_bot`** — feature parity with web UI: isolated history per user,
+  inline approval buttons, photo support, voice transcription + TTS synthesis
+
+### Documentation & Maintenance
+- **`MAINTENANCE.md`** — new change-propagation guide listing exactly what to
+  update for each change type (new tool, architecture change, rule change, etc.)
+- **`docs/messaging.md`** — comprehensive integration guide: Telegram, Discord,
+  Slack, Alexa, audio, browser automation, MCP
+- **`hub-repo-template/`** — framework for distributable plugin repositories
+  with manifest.json, SHA256 verification, GitHub Actions workflow
+
+### Fixes
+- Wakeup delivery via config.json poll (was unreliable SSE queue)
+- Wakeup prompt includes character context; JS retry at 5/10/18s
+- `thinking_budget=512` for Gemini 2.5 wakeup (budget=0 was invalid)
+- Provider registry mutated in-place to avoid stale references after import
+- Restart marker added to session context to prevent resuming stale tasks
+- `confirmed` correctly NOT required in `desktop_set_window_state`
+- `float | None` syntax in boot_session.py uses `Optional[float]` for Python 3.9
+
+---
+
 ## 1.3.0 — 2026-03-29
 
 ### New Features

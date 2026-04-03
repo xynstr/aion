@@ -12,6 +12,8 @@ import os
 import time
 from datetime import datetime, timezone
 
+import core.aion_progress as _prog
+
 UTC = timezone.utc
 
 # Desktop action tools that trigger an automatic screenshot for visual feedback.
@@ -56,10 +58,11 @@ class AionSession:
             pass  # No running loop in this thread — skip
 
     def _get_client(self):
-        """Gibt den Session-Client zurück; erstellt ihn beim ersten Aufruf im aktuellen Loop."""
-        if self._client is None:
-            import aion as _m
+        """Gibt den Session-Client zurück; erstellt ihn neu wenn MODEL seit letztem Aufruf gewechselt hat."""
+        import aion as _m
+        if self._client is None or getattr(self, "_client_model", None) != _m.MODEL:
             self._client = _m._build_client(_m.MODEL)
+            self._client_model = _m.MODEL
         return self._client
 
     async def load_history(self, num_entries: int = 20, channel_filter: str = ""):
@@ -188,9 +191,8 @@ class AionSession:
             _fallback_list = _m._get_fallback_models(_m.MODEL)
             # Tool-Schemas einmalig pro Turn bauen — NICHT in jeder Iteration!
             # Spart 10K-25K Input-Tokens × (Anzahl Iterationen - 1) pro Turn.
-            # Tier-2 tools are excluded initially; escalated automatically on first "Unknown tool" error.
-            tools = _m._build_tool_schemas()
-            _tier2_unlocked = False  # escalate to tier-2 on first unknown-tool error
+            # Alle Tiers werden immer gesendet — kein lazy-loading, kein Halluzinieren.
+            tools = _m._build_tool_schemas(tier_threshold=2)
             # Günstigstes Modell für interne Checks (Completion-Check, Task-Check).
             # Spart bis zu 30× Kosten pro Check (z.B. gpt-4.1-mini statt gpt-4.1).
             _check_model  = _m._get_check_model()
@@ -327,8 +329,19 @@ class AionSession:
                         _m._log_event("tool_call", {"tool": fn_name, "args": fn_inputs,
                                                     "channel": self.channel, "iter": _iter})
 
-                        t0         = time.monotonic()
-                        result_raw = await _m._dispatch(fn_name, fn_inputs)
+                        t0 = time.monotonic()
+                        _prog.set_active(tc["id"])
+                        _dispatch_task = asyncio.create_task(_m._dispatch(fn_name, fn_inputs))
+                        _last_pct = -1
+                        while not _dispatch_task.done():
+                            await asyncio.sleep(0.3)
+                            p = _prog.get(tc["id"])
+                            if p and p["percent"] != _last_pct:
+                                _last_pct = p["percent"]
+                                yield {"type": "progress", "call_id": tc["id"],
+                                       "percent": p["percent"], "label": p.get("label", "")}
+                        result_raw = await _dispatch_task
+                        _prog.clear(tc["id"])
                         duration   = round(time.monotonic() - t0, 2)
                         _tools_called_this_turn.append(fn_name)
 
@@ -342,14 +355,6 @@ class AionSession:
                             result_data = {"raw": str(result_data)}
 
                         ok = "error" not in result_data
-                        # Auto-escalate to tier-2 tools on first "Unknown tool" error.
-                        # The model tried a tool not in its current schema — unlock tier-2
-                        # so the next LLM iteration can see and call the right tool.
-                        if not ok and not _tier2_unlocked:
-                            err_msg = result_data.get("error", "")
-                            if "Unknown tool" in err_msg or "Unbekanntes Tool" in err_msg:
-                                _tier2_unlocked = True
-                                tools = _m._build_tool_schemas(tier_threshold=2)
 
                         # Base64-Bilddaten aus Frontend-Event kürzen (werden als response_blocks gesendet)
                         display_result = {

@@ -142,6 +142,26 @@ def register(api):
         _record_memory(category, summary, lesson, success, hint)
         return {"ok": True, "message": "Erkenntnis gespeichert."}
 
+    def _record_mistake(what_went_wrong: str = "", correct_approach: str = "", context: str = "", **_):
+        """Persist a mistake so it gets injected at the start of future sessions."""
+        if not what_went_wrong or not correct_approach:
+            return {"error": "what_went_wrong and correct_approach are required."}
+        mistakes_file = BOT_DIR / "mistakes.md"
+        entry = (
+            f"\n---\n"
+            f"**[{datetime.now(UTC).strftime('%Y-%m-%d %H:%M')}]**\n"
+            f"❌ **Fehler:** {what_went_wrong.strip()}\n"
+            f"✅ **Richtig:** {correct_approach.strip()}\n"
+        )
+        if context.strip():
+            entry += f"📎 **Kontext:** {context.strip()}\n"
+        try:
+            existing = mistakes_file.read_text(encoding="utf-8") if mistakes_file.is_file() else "# AION Mistakes Journal\n"
+            mistakes_file.write_text(existing + entry, encoding="utf-8")
+            return {"ok": True, "message": "Fehler gespeichert — wird in künftigen Sessions injiziert."}
+        except Exception as e:
+            return {"error": str(e)}
+
     # ── Tool-Registrierungen ──────────────────────────────────────────────────
 
     api.register_tool(
@@ -240,6 +260,52 @@ def register(api):
         },
     )
 
+    def _lookup_rule(topic: str = "", **_):
+        """Search rules.md for a topic/keyword and return matching sections."""
+        rules_file = BOT_DIR / "prompts" / "rules.md"
+        if not rules_file.is_file():
+            return json.dumps({"error": "prompts/rules.md not found."})
+        content = rules_file.read_text(encoding="utf-8")
+        if not topic:
+            # Return section headers only as index
+            headers = [line.strip() for line in content.splitlines() if line.startswith("===")]
+            return json.dumps({"sections": headers, "hint": "Call lookup_rule(topic='...') to search a section."})
+        kw = topic.lower()
+        # Split into sections by === headers
+        import re
+        parts = re.split(r"(===.*?===)", content)
+        results = []
+        current_header = "(intro)"
+        for part in parts:
+            if re.match(r"===.*?===", part):
+                current_header = part.strip()
+            else:
+                if kw in part.lower() or kw in current_header.lower():
+                    results.append({"section": current_header, "content": part.strip()})
+        if not results:
+            return json.dumps({"found": 0, "hint": f"No section matched '{topic}'. Try lookup_rule() without args for all section names."})
+        return json.dumps({"found": len(results), "results": results}, ensure_ascii=False)
+
+    api.register_tool(
+        name="lookup_rule",
+        description=(
+            "Search prompts/rules.md for a specific topic or keyword. "
+            "Returns matching sections with full content. "
+            "Call without arguments to list all section names. "
+            "Use when you need to verify a rule before acting."
+        ),
+        func=_lookup_rule,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Keyword or section name to search for, e.g. 'desktop', 'confirmation', 'code changes'.",
+                },
+            },
+        },
+    )
+
     api.register_tool(
         name="memory_record",
         description="Speichert eine Erkenntnis im persistenten Memory.",
@@ -254,5 +320,34 @@ def register(api):
                 "hint":     {"type": "string"},
             },
             "required": ["category", "summary", "lesson"],
+        },
+    )
+
+    api.register_tool(
+        name="record_mistake",
+        description=(
+            "Persistently record a mistake so it is injected at the start of ALL future sessions. "
+            "Call this whenever you: used a wrong tool, made a wrong assumption, misunderstood a rule, "
+            "produced incorrect output, or repeated a past error. "
+            "This is your primary self-improvement mechanism — use it generously."
+        ),
+        func=_record_mistake,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "what_went_wrong": {
+                    "type": "string",
+                    "description": "Konkrete Beschreibung des Fehlers (was genau falsch war).",
+                },
+                "correct_approach": {
+                    "type": "string",
+                    "description": "Was stattdessen die richtige Vorgehensweise gewesen wäre.",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional: In welchem Kontext / bei welcher Aufgabe passierte der Fehler.",
+                },
+            },
+            "required": ["what_went_wrong", "correct_approach"],
         },
     )

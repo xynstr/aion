@@ -40,6 +40,10 @@ let awaitingNewBubble = false;
 const toolDataStore   = {};
 let currentModalCallId = null;
 
+// ── Detach-Task State ─────────────────────────────────────────────────────────
+let _detachMode  = false;
+let _detachQueue = [];   // {text, imgs}[] — Nachrichten während ausgelagertem Task
+
 // Section state
 let currentSection = 'chat';
 
@@ -1650,7 +1654,35 @@ function setThinking(active) {
   document.getElementById('statusDot').className = 'status-dot' + (active ? ' thinking' : '');
   document.getElementById('sendBtn').style.display = active ? 'none' : '';
   document.getElementById('stopBtn').style.display = active ? '' : 'none';
+  const detachBtn = document.getElementById('detachBtn');
+  if (detachBtn) detachBtn.disabled = !active;
   document.getElementById('input').disabled = active;
+  if (!active) { _detachMode = false; }
+}
+
+function detachTask() {
+  if (!isThinking || _detachMode) return;
+  _detachMode = true;
+
+  // Tool-Akkordeons der laufenden Antwort ins Panel verschieben
+  const panel = document.getElementById('detachPanel');
+  const body  = document.getElementById('detachBody');
+  body.innerHTML = '';
+  document.querySelectorAll('.inline-acc.tool-acc').forEach(el => body.appendChild(el));
+
+  panel.style.display = 'block';
+  document.getElementById('detachTitle').textContent = '⚙ Aufgabe läuft…';
+  document.getElementById('detachStatus').textContent = 'läuft…';
+
+  // Input freigeben — User kann jetzt chatten
+  document.getElementById('input').disabled = false;
+  document.getElementById('sendBtn').style.display = '';
+  document.getElementById('stopBtn').style.display = 'none';
+  const db = document.getElementById('detachBtn'); if (db) db.disabled = true;
+}
+
+function closeDetachPanel() {
+  document.getElementById('detachPanel').style.display = 'none';
 }
 
 let _abortCtrl = null;
@@ -1781,6 +1813,17 @@ async function send() {
   const input = document.getElementById('input');
   let text  = input.value.trim();
   if (!text && !pendingImages.length && !pendingTextFiles.length) return;
+
+  // Im Detach-Modus: Nachricht in Queue statt sofort senden
+  if (_detachMode) {
+    if (!text) return;
+    const imgs = pendingImages.length ? [...pendingImages] : null;
+    input.value = ''; autoResize(input); clearAttachments();
+    _detachQueue.push({text, imgs});
+    showToast(`⏳ Gequeuet (${_detachQueue.length}): ${text.slice(0, 40)}${text.length > 40 ? '…' : ''}`);
+    return;
+  }
+
   if (isThinking) return;
   // Remove any pending approval bar when user sends a new message
   const oldBar = document.getElementById('approvalBar');
@@ -1846,13 +1889,44 @@ function handleEvent(ev) {
       break;
     case 'tool_call':
       hideThinkingRow();
-      if (currentBubble) { finalizeCurrentBubble(); awaitingNewBubble = true; }
-      appendInlineTool(ev.call_id, ev.tool, ev.args);
+      if (_detachMode) {
+        appendInlineTool(ev.call_id, ev.tool, ev.args);
+        // Neues Tool-Element direkt ins Panel verschieben
+        const newEl = document.getElementById(`tacc-${ev.call_id}`);
+        if (newEl) document.getElementById('detachBody').appendChild(newEl);
+      } else {
+        if (currentBubble) { finalizeCurrentBubble(); awaitingNewBubble = true; }
+        appendInlineTool(ev.call_id, ev.tool, ev.args);
+      }
       break;
     case 'tool_result':
       updateInlineTool(ev.call_id, ev.result, ev.ok);
-      showThinkingRow();
+      if (!_detachMode) showThinkingRow();
       break;
+    case 'progress': {
+      const pct   = ev.percent || 0;
+      const label = ev.label   || (pct + '%');
+      const bar   = document.getElementById('detachProgressBar');
+      const lbl   = document.getElementById('detachProgressLabel');
+      const wrap  = document.getElementById('detachProgressWrap');
+      if (bar) { bar.style.width = pct + '%'; }
+      if (lbl) { lbl.textContent = label; }
+      if (wrap) { wrap.style.display = 'block'; }
+      // Auch wenn noch nicht detached: Fortschritt im Tool-Akkordeon anzeigen
+      const toolEl = document.getElementById(`tacc-${ev.call_id}`);
+      if (toolEl) {
+        let pb = toolEl.querySelector('.tool-progress-bar-wrap');
+        if (!pb) {
+          pb = document.createElement('div');
+          pb.className = 'tool-progress-bar-wrap';
+          pb.innerHTML = `<div class="tool-progress-bar"></div><span class="tool-progress-label"></span>`;
+          toolEl.appendChild(pb);
+        }
+        pb.querySelector('.tool-progress-bar').style.width = pct + '%';
+        pb.querySelector('.tool-progress-label').textContent = label;
+      }
+      break;
+    }
     case 'approval':
       hideThinkingRow(); finalizeCurrentBubble();
       appendApprovalButtons();
@@ -1864,11 +1938,37 @@ function handleEvent(ev) {
       _sessionTokens.out += _lastUsage.out;
       break;
     case 'done':
-      hideThinkingRow(); finalizeCurrentBubble();
-      if (!ev.approval_pending) { const oldBar = document.getElementById('approvalBar'); if (oldBar) oldBar.remove(); }
-      if (ev.response_blocks) for (const b of ev.response_blocks) {
-        if (b.type==='image' && b.url) appendImageBlock(b.url);
-        if (b.type==='audio' && b.url) appendAudioBlock(b.url, b.format);
+      hideThinkingRow();
+      if (_detachMode) {
+        // Finale Antwort in den Haupt-Chat schreiben
+        if (ev.full_response) {
+          const bubble = appendAionBubble();
+          bubble.dataset.raw = ev.full_response;
+          renderMarkdown(bubble, ev.full_response);
+          bubble.classList.remove('streaming');
+        }
+        // Panel: "Fertig" anzeigen, dann ausblenden
+        document.getElementById('detachTitle').textContent = '✓ Fertig';
+        document.getElementById('detachStatus').textContent = 'Aufgabe abgeschlossen';
+        setTimeout(() => {
+          const p = document.getElementById('detachPanel');
+          if (p) p.style.display = 'none';
+          document.getElementById('detachProgressWrap').style.display = 'none';
+        }, 3000);
+        _detachMode = false;
+        setThinking(false);
+        // Queue-Nachricht senden
+        if (_detachQueue.length) {
+          const next = _detachQueue.shift();
+          setTimeout(() => _sendQueued(next), 200);
+        }
+      } else {
+        finalizeCurrentBubble();
+        if (!ev.approval_pending) { const oldBar = document.getElementById('approvalBar'); if (oldBar) oldBar.remove(); }
+        if (ev.response_blocks) for (const b of ev.response_blocks) {
+          if (b.type==='image' && b.url) appendImageBlock(b.url);
+          if (b.type==='audio' && b.url) appendAudioBlock(b.url, b.format);
+        }
       }
       // Token-Badge unter der letzten Antwort
       if (_lastUsage) {
@@ -1889,6 +1989,14 @@ function handleEvent(ev) {
       if (currentBubble) { currentBubble.classList.remove('streaming'); currentBubble.innerHTML=`<span style="color:var(--red)">Fehler: ${esc(ev.message||'?')}</span>`; currentBubble=null; }
       break;
   }
+}
+
+// Gequeuete Nachricht senden (nach Detach-Task-Abschluss)
+async function _sendQueued({text, imgs}) {
+  const input = document.getElementById('input');
+  input.value = text;
+  pendingImages = imgs || [];
+  await send();
 }
 
 async function resetChat() {

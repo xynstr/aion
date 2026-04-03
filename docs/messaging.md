@@ -16,7 +16,21 @@ TELEGRAM_BOT_TOKEN=123456:ABC...
 TELEGRAM_CHAT_ID=123456789
 ```
 
-Supports: text, images, voice messages (transcription + TTS reply).
+**Telegram Tools:**
+| Tool | What it does |
+|------|-------------|
+| `send_telegram_message(text)` | Send text message with Markdown |
+| `send_telegram_document(path, caption)` | Send any file (.docx, .pdf, .py, etc.) |
+| `send_telegram_voice(path)` | Send audio file as voice message |
+| `telegram_add_user(chat_id)` | Add user to allowlist |
+| `telegram_list_users()` | List all allowed users |
+
+**Supported message types:**
+- ✅ Text (with Markdown formatting)
+- ✅ Images (auto-sent when AION generates them)
+- ✅ Voice messages (transcribed offline via Faster Whisper)
+- ✅ Documents & files (any format)
+- ✅ Voice replies (TTS via edge-tts or pyttsx3)
 
 ## Discord
 
@@ -46,15 +60,28 @@ Socket Mode — no public webhook needed. Responds to DMs and @aion mentions.
 
 | Direction | What happens |
 |-----------|-------------|
-| Voice message → AION | Transcribed offline via Vosk + ffmpeg |
-| AION → voice reply | TTS via edge-tts (Microsoft Neural) or pyttsx3 (offline) |
-| `audio_tts` in Web UI | Audio player rendered directly in chat |
-| Telegram voice | OGG OPUS via ffmpeg |
+| Voice message → AION | Transcribed offline via **Faster Whisper** (multilingual, no API keys) |
+| AION → voice reply | TTS via **edge-tts** (Microsoft Neural, recommended) or **pyttsx3** (offline) |
+| `audio_transcribe_any` tool | Transcribe any audio file format |
+| `audio_tts` tool | Convert text to speech, save as file |
+| Telegram voice | OGG OPUS via ffmpeg (auto-converted if needed) |
 | Discord voice | MP3/WAV file attachment |
 
-Configure in Web UI (System tab):
-```env
-# TTS options: edge (recommended), sapi5 (offline), pyttsx3
+**STT (Speech-to-Text):**
+- Fully offline, no API keys needed
+- Supports OGG, MP3, WAV, M4A, FLAC, WebM
+- Auto-detects language
+- Model size: small (~465 MB), medium, large-v3
+
+**TTS (Text-to-Speech):**
+- Configure in Web UI (System tab) or config.json
+- Default: `edge` (best quality, requires internet)
+- Fallback: `sapi5` on Windows, `pyttsx3` on all platforms
+```json
+{
+  "tts_engine": "edge",
+  "tts_voice": "de-DE-KatjaNeural"
+}
 ```
 
 ---

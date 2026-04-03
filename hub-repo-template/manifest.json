@@ -1,0 +1,10 @@
+{
+  "example_plugin": {
+    "name": "Example Plugin",
+    "description": "Kurze Beschreibung was dieses Plugin macht.",
+    "version": "1.0.0",
+    "download_url": "https://github.com/xynstr/aion-hub-plugins/releases/download/v1.0.0/example_plugin-v1.0.0.zip",
+    "sha256": "wird automatisch vom Build-Script gesetzt",
+    "dependencies": []
+  }
+}

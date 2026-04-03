@@ -322,6 +322,60 @@ def audio_tts(text: str, engine: str = "", output_path: str = "") -> dict:
     return _tts_sapi5(text, output_path)
 
 
+# ── Audio-Concat Helfer ──────────────────────────────────────────────────────
+
+def _concat_audio(input_files: list[str], output_path: str) -> bool:
+    """Verkettet mehrere Audio-Chunks zu einer Ausgabedatei.
+
+    WAV  → wave-Modul (kein ffmpeg nötig)
+    MP3  → ffmpeg concat demuxer
+    Gibt True zurück wenn erfolgreich, sonst False.
+    """
+    if not input_files:
+        return False
+    if len(input_files) == 1:
+        import shutil
+        shutil.copy2(input_files[0], output_path)
+        return True
+
+    ext = Path(output_path).suffix.lower()
+
+    # ── WAV: reines Python ────────────────────────────────────────────────────
+    if ext == ".wav":
+        try:
+            import wave
+            with wave.open(output_path, "wb") as out_wav:
+                for i, fpath in enumerate(input_files):
+                    if not os.path.exists(fpath):
+                        continue
+                    with wave.open(fpath, "rb") as w:
+                        if i == 0:
+                            out_wav.setparams(w.getparams())
+                        out_wav.writeframes(w.readframes(w.getnframes()))
+            return True
+        except Exception:
+            return False
+
+    # ── MP3 / andere: ffmpeg concat ───────────────────────────────────────────
+    ffmpeg = _find_ffmpeg()
+    if not ffmpeg:
+        return False
+    try:
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as lst:
+            for fpath in input_files:
+                if os.path.exists(fpath):
+                    lst.write(f"file '{fpath.replace(chr(39), chr(39)+'\\'+chr(39)+chr(39))}'\n")
+            lst_path = lst.name
+        cmd = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", lst_path,
+               "-acodec", "copy", output_path]
+        result = subprocess.run(cmd, capture_output=True, timeout=120)
+        os.unlink(lst_path)
+        return result.returncode == 0 and os.path.exists(output_path)
+    except Exception:
+        return False
+
+
 # ── Plugin-Registrierung ─────────────────────────────────────────────────────
 
 def register(api):

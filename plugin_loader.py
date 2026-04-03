@@ -7,6 +7,12 @@ from datetime import datetime
 
 PLUGINS_DIR    = Path(__file__).parent / "plugins"
 SNAPSHOTS_DIR  = Path(__file__).parent / ".snapshots"
+
+# Plugins untereinander importierbar machen (z.B. docx_to_speech → audio_pipeline)
+import sys as _sys
+_plugins_str = str(PLUGINS_DIR)
+if _plugins_str not in _sys.path:
+    _sys.path.insert(0, _plugins_str)
 DISABLED_FILE  = Path(__file__).parent / "disabled_plugins.json"
 
 # ---------------------------------------------------------------------------

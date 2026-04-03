@@ -309,6 +309,39 @@ def register(api):
         except Exception as e:
             return {"error": str(e)}
 
+    async def _desktop_set_window_state(window_title: str = "", state: str = "", confirmed: bool = False, **_):
+        """Minimize, maximize, restore or close a window by partial title match."""
+        if not confirmed:
+            return {
+                "status": "approval_required",
+                "message": f"Set window '{window_title}' to '{state}'. Confirm with confirmed=true.",
+            }
+        if not window_title:
+            return {"error": "window_title is required"}
+        valid_states = ("minimized", "maximized", "restored", "closed")
+        if state not in valid_states:
+            return {"error": f"Unknown state '{state}'. Use: {', '.join(valid_states)}"}
+        try:
+            import pygetwindow as gw
+        except ImportError:
+            return {"error": "pygetwindow not installed. Run: pip install pygetwindow"}
+        matches = [w for w in gw.getAllWindows() if window_title.lower() in w.title.lower() and w.title]
+        if not matches:
+            return {"error": f"No window found matching: {window_title!r}"}
+        w = matches[0]
+        try:
+            if state == "minimized":
+                w.minimize()
+            elif state == "maximized":
+                w.maximize()
+            elif state == "restored":
+                w.restore()
+            elif state == "closed":
+                w.close()
+            return {"ok": True, "window": w.title, "state": state}
+        except Exception as e:
+            return {"error": str(e)}
+
     # ── Tool registrations ────────────────────────────────────────────────────
 
     api.register_tool(
@@ -529,5 +562,35 @@ def register(api):
                 },
             },
             "required": ["keys"],
+        },
+    )
+
+    api.register_tool(
+        name="desktop_set_window_state",
+        description=(
+            "Minimize, maximize, restore, or close a window by partial title match. "
+            "Requires confirmed=true to execute."
+        ),
+        func=_desktop_set_window_state,
+        tier=2,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "window_title": {
+                    "type": "string",
+                    "description": "Partial window title to match (case-insensitive)",
+                },
+                "state": {
+                    "type": "string",
+                    "enum": ["minimized", "maximized", "restored", "closed"],
+                    "description": "Target window state",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Set true to execute",
+                    "default": False,
+                },
+            },
+            "required": ["window_title", "state"],
         },
     )

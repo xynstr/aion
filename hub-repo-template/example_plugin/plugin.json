@@ -1,0 +1,5 @@
+{
+  "name": "Example Plugin",
+  "description": "Kurze Beschreibung was dieses Plugin macht.",
+  "dependencies": []
+}
