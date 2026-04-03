@@ -12,6 +12,89 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 ---
 
+## Latest Improvements (2026-04-03 — v1.5.0 — Capability Awareness + Self-Improvement)
+
+### core/ Package — Modulare Architektur
+`aion.py` wurde in ein `core/`-Paket aufgeteilt. Jedes Modul ist unabhängig hot-reloadable:
+- `core/aion_config.py` — Konfiguration laden/schreiben
+- `core/aion_character.py` — character.md lesen/schreiben, Auto-Update-Logik
+- `core/aion_permissions.py` — Channel-Allowlist, Tool-Gating
+- `core/aion_prompt.py` — System-Prompt-Bau-Logik
+- `core/aion_providers.py` — Provider-Registry, Modell-Switching
+- `core/aion_progress.py` — Per-Task-Fortschrittsreporting für Frontend-Progressbars
+
+`aion.py` ist weiterhin der Kern (dispatch, tool schemas, session prompt), aber alle Teilsysteme
+sind ausgelagert. Imports: `from core.aion_config import ...`
+
+### Tool Tiers — Kein Auto-Escalation mehr
+**WICHTIG — veraltetes Verhalten entfernt:**
+Tier-2-Tools (desktop, browser, audio, telegram) werden jetzt **immer** mit `tier_threshold=2`
+an die API gesendet. Es gibt keine Lazy-Loading-Logik mehr und keinen Auto-Escalation-Block.
+Der alte Block in `aion_session.py` (der bei "Unknown tool" das Schema neu baute) wurde entfernt.
+
+`config.json["tool_tier"]` default ist jetzt `2` (war `1`).
+
+### Grouped Capability Index
+Das System-Prompt enthält jetzt einen automatisch generierten Tool-Index, gruppiert nach Präfix:
+```
+=== AION CAPABILITY INDEX (all tools, grouped) ===
+AUDIO       : audio_play, audio_record, audio_transcribe, ...
+BROWSER     : browser_click, browser_fill, browser_open, ...
+DESKTOP     : desktop_click, desktop_hotkey, desktop_screenshot, desktop_set_window_state, ...
+→ list_tools(filter=...) for descriptions · lookup_rule(topic=...) for behavior rules
+```
+Erzeugt von `_build_capability_index()` in `aion.py` — aktualisiert sich automatisch.
+
+### Self-Improvement System (neu)
+
+**`record_mistake(what_went_wrong, correct_approach, context)`**
+Schreibt Fehler in `mistakes.md`. Die letzten 5 Einträge werden in jede Session injiziert
+via `_get_mistakes_hint()`. Fehler werden so sessionübergreifend nicht vergessen.
+**Wann aufrufen:** Nach jedem Fehler — falsche Tool-Namen, falsche Annahmen, Missverständnisse.
+
+**`lookup_rule(topic)`**
+Sucht in `prompts/rules.md` nach Abschnitten die zum Thema passen.
+Gibt matchende Abschnitte mit vollem Inhalt zurück. Aufrufen wenn unklar ist was erlaubt ist.
+
+**Boot Maintenance Session (`boot_session` Plugin)**
+Beim Start prüft `plugins/boot_session/boot_session.py` wie lange AION offline war.
+Bei ≥1h Pause wird eine stille Background-`AionSession` gestartet die:
+- `mistakes.md` reviewt, `character.md` reviewt, offene Todos prüft, eine Reflexion schreibt
+Tool: `boot_status` — zeigt letzten Boot-Zeitpunkt und Maintenance-Status.
+
+**Dynamische System-Prompt-Hints (neu):**
+- `_get_offline_hint()` — zeigt wie lange AION offline war
+- `_get_doc_freshness_hint()` — warnt wenn Core-`.py`-Dateien neuer sind als `AION_SELF.md`
+- `_get_mistakes_hint()` — injiziert letzte 5 Fehler aus `mistakes.md`
+
+**max_rules_chars: 35.000** (war 12.000)
+Die vollständige `rules.md` (27 KB) wird jetzt immer geladen. Vorher wurden ~50% der Regeln
+abgeschnitten. Konfigurierbar via `config.json["max_rules_chars"]`.
+
+### Neue Tools
+
+**`desktop_set_window_state(window_title, state, confirmed=False)`**
+Minimiert, maximiert, stellt wieder her oder schließt ein Fenster per Teilstring im Titel.
+Nutzt `pygetwindow`. States: `minimized`, `maximized`, `restored`, `closed`.
+`confirmed=True` erforderlich für Ausführung.
+
+**`boot_status`** — Letzter Startzeitpunkt, Offline-Dauer, Maintenance-Status.
+**`record_mistake`** — Persistentes Fehlerjournal mit Session-Injection.
+**`lookup_rule`** — Regelsuche in rules.md.
+
+### End-of-Conversation Protocol (Pflicht)
+Nach jeder Session in `prompts/rules.md` definiert:
+1. `update_character` — neue Erkenntnisse über den Nutzer speichern
+2. `reflect` — Session-Insights festhalten
+3. `record_mistake` — wenn Fehler gemacht wurden
+4. CHANGELOG prüfen ob ein Eintrag nötig ist
+
+### MAINTENANCE.md (neu)
+`MAINTENANCE.md` im Projekt-Root enthält Checklisten für jeden Änderungstyp.
+**Vor jeder Änderung am System lesen.**
+
+---
+
 ## Latest Improvements (2026-03-29 — v1.2.2 Refactor + Desktop + Session Fixes)
 
 ### Module Split: aion_session.py + aion_memory.py
@@ -22,13 +105,10 @@ completes tasks on a schedule, can improve myself, and develop my own personalit
 
 When writing patches: `AionSession.stream()` is in **`aion_session.py`**, not `aion.py`.
 
-### Tool Tiers + Auto-Escalation
-Tools now have a tier:
-- **Tier 1**: always in the LLM tool list (default)
-- **Tier 2**: excluded by default to save tokens (desktop, browser, telegram, discord, etc.)
-When the model calls an unknown tool, `aion_session.py` automatically escalates to tier-2:
-sets `_tier2_unlocked = True`, rebuilds `tools = _build_tool_schemas(tier_threshold=2)`.
-The model then sees all tier-2 tools and can retry with the correct name.
+### Tool Tiers (Stand v1.2.2 — in v1.5.0 geändert)
+~~Tier-2-Tools waren per Default ausgeschlossen; Auto-Escalation bei "Unknown tool".~~
+**Ab v1.5.0: alle Tools werden immer mit `tier_threshold=2` gesendet. Kein Auto-Escalation.**
+Siehe "Latest Improvements v1.5.0" oben für den aktuellen Stand.
 
 ### `list_tools` Built-in
 New built-in tool `list_tools(filter="keyword")` — returns all registered tools (including
@@ -122,7 +202,7 @@ Plugin snapshots (code backups before hot-reloads) are now visible and actionabl
 - **Tool schema tiering**: 16 rarely-used plugins (desktop, browser, telegram, discord, etc.)
   are now `tier=2` and excluded from the default LLM tool list. Saves 1,500–2,500 tokens/turn.
   Override with `config.json["tool_tier"] = 2` to include all tools.
-- **rules.md truncation guard**: `max_rules_chars` (default 12,000) prevents loading overly large
+- **rules.md truncation guard**: `max_rules_chars` (default 35,000 since v1.5.0, was 12,000) prevents loading overly large
   rules files on every turn. Combined with auto-compression, rules stay lean automatically.
 - **Changelog opt-in**: `system_prompt_show_changelog` (default false) removes changelog block
   from system prompt by default (~150 tokens/turn saved).
@@ -744,9 +824,9 @@ AION/
 │   ├── web_tools/               # web_search, web_fetch
 │   ├── pid_tool/                # get_own_pid
 │   ├── restart_tool/            # restart_with_approval
-│   ├── audio_pipeline/          # Universal audio: transcription (ffmpeg+Vosk) + TTS (pyttsx3/edge-tts/sapi5)
-│   ├── audio_transcriber/       # WAV transcription via Vosk (base for audio_pipeline)
-│   │   └── vosk-model-small-de-0.15/   # Offline speech model (not in Git)
+│   ├── audio_pipeline/          # Universal audio: transcription (Faster Whisper) + TTS (edge-tts/sapi5)
+│   ├── audio_transcriber/       # Audio transcription via Faster Whisper (offline, multilingual)
+│   │   └── ~/.cache/huggingface/  # Whisper model cache (auto-downloaded)
 │   ├── scheduler/               # Cron scheduler (schedule_add/list/remove/toggle)
 │   │   └── tasks.json           # scheduled tasks (auto-generated)
 │   ├── telegram_bot/            # Telegram bidirectional (text + images + voice messages)
@@ -1074,7 +1154,7 @@ AION uses a registry-based provider system. Each plugin registers its prefix via
 ### Audio Pipeline (`audio_pipeline.py`)
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `audio_transcribe_any` | `file_path: str` | Any audio file (ogg, mp3, m4a, wav) → text. Converts via ffmpeg (auto-found via PATH or WinGet fallback), transcribes via Vosk (offline). |
+| `audio_transcribe_any` | `file_path: str`, `language?: str` | Any audio file (ogg, mp3, m4a, wav, flac, webm, ...) → text. Uses Faster Whisper (offline, multilingual, auto-detects language). Auto-converts non-WAV via ffmpeg if needed. |
 | `audio_tts` | `text: str`, `engine?: str`, `output_path?: str` | Text → speech file. Engines: `edge` (Microsoft Neural, online, best quality), `sapi5` (offline fallback). Config via `config.json: tts_engine + tts_voice`. |
 
 ### Claude CLI Provider (`claude_cli_provider.py`)
